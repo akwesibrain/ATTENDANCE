@@ -1,7 +1,7 @@
 /**
  * Entry screen — choose between employee registration and attendance.
  */
-export default function Home({ onRegister, onAttendance }) {
+export default function Home({ onRegister, onAttendance, onHr }) {
   return (
     <main className="registration-page">
       <div className="registration-shell">
@@ -108,6 +108,60 @@ export default function Home({ onRegister, onAttendance }) {
                 <span className="home-option-title">New Employee Registration</span>
                 <span className="home-option-desc">
                   First time here? Register your profile to get your Staff ID.
+                </span>
+              </span>
+              <span className="home-option-arrow" aria-hidden="true">→</span>
+            </button>
+
+            <button
+              type="button"
+              className="home-option"
+              onClick={onHr}
+            >
+              <span className="home-option-icon" aria-hidden="true">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+                  <rect
+                    x="3"
+                    y="3"
+                    width="7"
+                    height="9"
+                    rx="1.5"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  />
+                  <rect
+                    x="14"
+                    y="3"
+                    width="7"
+                    height="5"
+                    rx="1.5"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  />
+                  <rect
+                    x="14"
+                    y="12"
+                    width="7"
+                    height="9"
+                    rx="1.5"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  />
+                  <rect
+                    x="3"
+                    y="16"
+                    width="7"
+                    height="5"
+                    rx="1.5"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  />
+                </svg>
+              </span>
+              <span className="home-option-text">
+                <span className="home-option-title">HR Dashboard</span>
+                <span className="home-option-desc">
+                  View employees, attendance records and today&apos;s overview.
                 </span>
               </span>
               <span className="home-option-arrow" aria-hidden="true">→</span>

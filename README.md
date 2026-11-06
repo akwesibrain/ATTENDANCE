@@ -8,6 +8,7 @@ Implemented so far:
 
 - **Step 1: Employee self-registration**
 - **Step 2: Attendance check-in / check-out** (Staff ID + face verification)
+- **Step 3: HR dashboard** (overview stats, employee directory, attendance records)
 
 ## Running the project
 
@@ -80,6 +81,18 @@ The windows are enforced both in the UI (before the scanner opens) and again
 in the mock service at record time. In production the backend must enforce
 them authoritatively using server time.
 
+## Step 3 — HR dashboard
+
+Accessible from the home screen via **HR Dashboard**. Three tabs:
+
+- **Overview** — today's stats: total employees, checked in, late, checked out.
+- **Employees** — searchable/filterable directory with photo, Staff ID,
+  company, position and status.
+- **Attendance** — every recorded event with type (check-in/out), time and
+  ON TIME / LATE status; filter by date and company.
+
+Data is read from the mock services (employee directory + attendance events).
+
 ## Mock services (not a backend)
 
 [src/services/registrationService.js](src/services/registrationService.js)
@@ -104,12 +117,14 @@ matching is a backend responsibility.
 src/
   components/registration/      # one presentational component per screen
   constants/companies.js        # company metadata
-  pages/Home.jsx                # entry screen (register vs attendance)
+  pages/Home.jsx                # entry screen (register / attendance / HR)
   pages/EmployeeRegistration.jsx # registration wizard
   pages/AttendanceCheckIn.jsx   # attendance check-in/out flow
+  pages/HrDashboard.jsx         # HR dashboard (overview, employees, attendance)
   services/registrationService.js # MOCK registration + employee directory
   services/attendanceService.js   # MOCK attendance events
   styles/registration.css       # shared styles
+  styles/hr.css                 # HR dashboard styles
   utils/validation.js           # field validators
   utils/registrationValidation.js # step-level validation (business logic)
 ```

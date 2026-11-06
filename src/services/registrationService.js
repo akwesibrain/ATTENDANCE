@@ -98,6 +98,15 @@ export function mockFindEmployeeByStaffId(staffId) {
 }
 
 /**
+ * MOCK ONLY — list all registered employees (for the HR dashboard).
+ * The real backend owns this directory; here it is read from localStorage.
+ * @returns {object[]} employee records, newest first.
+ */
+export function mockListEmployees() {
+  return readEmployees().slice().reverse()
+}
+
+/**
  * MOCK ONLY — simulates backend Staff ID generation.
  * Real Staff IDs must always be issued by the backend; this exists purely
  * so the frontend can display a realistic result during development.

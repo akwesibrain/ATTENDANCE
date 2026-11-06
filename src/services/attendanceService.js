@@ -46,6 +46,17 @@ function todayKey(date = new Date()) {
 }
 
 /**
+ * MOCK ONLY — list attendance events (for the HR dashboard), newest first.
+ * Optionally filter by date (YYYY-MM-DD) and/or company name.
+ */
+export function mockListAttendanceEvents({ date, companyName } = {}) {
+  let events = readEvents().slice().reverse()
+  if (date) events = events.filter((event) => event.date === date)
+  if (companyName) events = events.filter((event) => event.companyName === companyName)
+  return events
+}
+
+/**
  * MOCK ONLY — look up an employee by Staff ID for attendance.
  * @returns {Promise<object>} the employee record.
  * Rejects if the Staff ID is not registered.

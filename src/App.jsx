@@ -2,11 +2,13 @@ import { useState } from 'react'
 import Home from './pages/Home'
 import EmployeeRegistration from './pages/EmployeeRegistration'
 import AttendanceCheckIn from './pages/AttendanceCheckIn'
+import HrDashboard from './pages/HrDashboard'
 
 const VIEW = {
   home: 'home',
   register: 'register',
   attendance: 'attendance',
+  hr: 'hr',
 }
 
 function App() {
@@ -18,10 +20,14 @@ function App() {
   if (view === VIEW.attendance) {
     return <AttendanceCheckIn onBack={() => setView(VIEW.home)} />
   }
+  if (view === VIEW.hr) {
+    return <HrDashboard onBack={() => setView(VIEW.home)} />
+  }
   return (
     <Home
       onRegister={() => setView(VIEW.register)}
       onAttendance={() => setView(VIEW.attendance)}
+      onHr={() => setView(VIEW.hr)}
     />
   )
 }
