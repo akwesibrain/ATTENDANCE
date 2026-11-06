@@ -99,6 +99,7 @@ export default function HrDashboard({ onBack }) {
   const [activeNav, setActiveNav] = useState('dashboard')
   const [companyId, setCompanyId] = useState(COMPANIES[0].id)
   const [search, setSearch] = useState('')
+  const [attendanceDate, setAttendanceDate] = useState(todayKey())
 
   const company = COMPANIES.find((c) => c.id === companyId) ?? COMPANIES[0]
 
@@ -134,13 +135,12 @@ export default function HrDashboard({ onBack }) {
     [companyEvents],
   )
 
-  // One row per employee for today: their check-in time, check-out time and
-  // derived status (Late / On time / Absent / —).
+  // One row per employee for the selected date: their check-in time,
+  // check-out time and derived status (Late / On time / Absent).
   const attendanceRows = useMemo(() => {
-    const today = todayKey()
     return companyEmployees.map((emp) => {
       const empEvents = companyEvents.filter(
-        (e) => e.staffId === emp.staffId && e.date === today,
+        (e) => e.staffId === emp.staffId && e.date === attendanceDate,
       )
       const checkIn = empEvents.find((e) => e.type === 'check-in')
       const checkOut = empEvents.find((e) => e.type === 'check-out')
@@ -148,7 +148,7 @@ export default function HrDashboard({ onBack }) {
       if (checkIn) status = checkIn.status === 'late' ? 'late' : 'on-time'
       return { emp, checkIn, checkOut, status }
     })
-  }, [companyEmployees, companyEvents])
+  }, [companyEmployees, companyEvents, attendanceDate])
 
   const filteredEmployees = useMemo(() => {
     const term = search.trim().toLowerCase()
@@ -432,9 +432,13 @@ export default function HrDashboard({ onBack }) {
             <section className="hr-panel">
               <div className="hr-panel-head">
                 <h2>Attendance — {company.name}</h2>
-                <span className="hr-today">
-                  <Icon name="clock" size={15} /> Today
-                </span>
+                <input
+                  type="date"
+                  className="form-input hr-date"
+                  value={attendanceDate}
+                  onChange={(e) => setAttendanceDate(e.target.value)}
+                  aria-label="Attendance date"
+                />
               </div>
               <table className="hr-table">
                 <thead>

@@ -399,6 +399,13 @@
   max-width: 300px;
 }
 
+.hr-date {
+  width: auto;
+  min-width: 150px;
+  min-height: 42px;
+  padding: 9px 12px;
+}
+
 .hr-table {
   width: 100%;
   border-collapse: collapse;
