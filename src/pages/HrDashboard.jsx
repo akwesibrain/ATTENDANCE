@@ -134,6 +134,22 @@ export default function HrDashboard({ onBack }) {
     [companyEvents],
   )
 
+  // One row per employee for today: their check-in time, check-out time and
+  // derived status (Late / On time / Absent / —).
+  const attendanceRows = useMemo(() => {
+    const today = todayKey()
+    return companyEmployees.map((emp) => {
+      const empEvents = companyEvents.filter(
+        (e) => e.staffId === emp.staffId && e.date === today,
+      )
+      const checkIn = empEvents.find((e) => e.type === 'check-in')
+      const checkOut = empEvents.find((e) => e.type === 'check-out')
+      let status = null
+      if (checkIn) status = checkIn.status === 'late' ? 'late' : 'on-time'
+      return { emp, checkIn, checkOut, status }
+    })
+  }, [companyEmployees, companyEvents])
+
   const filteredEmployees = useMemo(() => {
     const term = search.trim().toLowerCase()
     if (!term) return companyEmployees
@@ -416,33 +432,53 @@ export default function HrDashboard({ onBack }) {
             <section className="hr-panel">
               <div className="hr-panel-head">
                 <h2>Attendance — {company.name}</h2>
+                <span className="hr-today">
+                  <Icon name="clock" size={15} /> Today
+                </span>
               </div>
               <table className="hr-table">
                 <thead>
-                  <tr><th>Employee</th><th>Staff ID</th><th>Type</th><th>Time</th><th>Status</th></tr>
+                  <tr>
+                    <th>Employee</th>
+                    <th>Staff ID</th>
+                    <th>Position</th>
+                    <th>Check In</th>
+                    <th>Check Out</th>
+                    <th>Status</th>
+                  </tr>
                 </thead>
                 <tbody>
-                  {companyEvents.slice().reverse().map((ev) => (
-                    <tr key={ev.id}>
-                      <td>{ev.fullName}</td>
-                      <td className="hr-mono">{ev.staffId}</td>
+                  {attendanceRows.map(({ emp, checkIn, checkOut, status }) => (
+                    <tr key={emp.staffId}>
                       <td>
-                        <span className={`hr-type hr-type-${ev.type}`}>
-                          {ev.type === 'check-in' ? 'Check In' : 'Check Out'}
-                        </span>
+                        <div className="hr-employee">
+                          {emp.faceImage ? (
+                            <img className="hr-avatar" src={emp.faceImage} alt="" />
+                          ) : (
+                            <span className="hr-avatar hr-avatar-fallback">
+                              {emp.fullName.split(' ').map((p) => p[0]).slice(0, 2).join('')}
+                            </span>
+                          )}
+                          {emp.fullName}
+                        </div>
                       </td>
-                      <td>{new Date(ev.time).toLocaleTimeString()}</td>
+                      <td className="hr-mono">{emp.staffId}</td>
+                      <td>{emp.position}</td>
+                      <td>{checkIn ? new Date(checkIn.time).toLocaleTimeString() : '—'}</td>
+                      <td>{checkOut ? new Date(checkOut.time).toLocaleTimeString() : '—'}</td>
                       <td>
-                        {ev.status === 'late' ? (
+                        {status === 'late' ? (
                           <span className="status-badge status-late">LATE</span>
-                        ) : (
+                        ) : status === 'on-time' ? (
                           <span className="status-badge">ON TIME</span>
+                        ) : (
+                          <span className="status-badge status-absent">ABSENT</span>
                         )}
                       </td>
                     </tr>
                   ))}
-                  {companyEvents.length === 0 && (
-                    <tr><td colSpan="5" className="hr-empty">No attendance records yet.</td></tr>
+                  {attendanceRows.length === 0 && (
+                    <tr><td colSpan="6" className="hr-empty">No employees found.</td></tr>
                   )}
                 </tbody>
               </table>
