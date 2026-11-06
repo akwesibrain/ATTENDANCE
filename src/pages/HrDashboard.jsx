@@ -197,9 +197,17 @@ export default function HrDashboard({ onBack }) {
         </nav>
 
         <div className="hr-sidebar-footer">
-          <span className="hr-brand-mark" aria-hidden="true">
-            <Icon name="building" size={20} />
-          </span>
+          {company.logo ? (
+            <img
+              className={`hr-footer-logo hr-footer-logo-${company.id}`}
+              src={company.logo}
+              alt={`${company.name} logo`}
+            />
+          ) : (
+            <span className="hr-brand-mark" aria-hidden="true">
+              <Icon name="building" size={20} />
+            </span>
+          )}
           <span>
             {company.name}
             <span className="hr-footer-sub">Admin Portal</span>

@@ -375,6 +375,18 @@
   letter-spacing: 0.03em;
 }
 
+.company-logo-img {
+  object-fit: contain;
+  background: #0a1628;
+  padding: 4px;
+}
+
+/* Double A logo has a white background — show it on a light tile. */
+.company-logo-double-a {
+  background: #ffffff;
+  border: 1px solid var(--color-border);
+}
+
 .company-name {
   display: block;
   font-size: 17px;

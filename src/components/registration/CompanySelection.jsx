@@ -37,13 +37,21 @@ export default function CompanySelection({ selectedCompanyId, onSelect }) {
                   />
                 </svg>
               </span>
-              <span
-                className="company-logo"
-                style={{ background: company.brandColor }}
-                aria-hidden="true"
-              >
-                {company.initials}
-              </span>
+              {company.logo ? (
+                <img
+                  className={`company-logo company-logo-img company-logo-${company.id}`}
+                  src={company.logo}
+                  alt={`${company.name} logo`}
+                />
+              ) : (
+                <span
+                  className="company-logo"
+                  style={{ background: company.brandColor }}
+                  aria-hidden="true"
+                >
+                  {company.initials}
+                </span>
+              )}
               <span>
                 <span className="company-name">{company.name}</span>
                 <span className="company-desc">{company.description}</span>
