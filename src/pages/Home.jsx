@@ -1,0 +1,120 @@
+/**
+ * Entry screen — choose between employee registration and attendance.
+ */
+export default function Home({ onRegister, onAttendance }) {
+  return (
+    <main className="registration-page">
+      <div className="registration-shell">
+        <header className="registration-brand">
+          <span className="registration-brand-mark" aria-hidden="true">
+            WA
+          </span>
+          Workforce Attendance
+        </header>
+
+        <section className="card">
+          <div className="welcome-hero">
+            <div className="welcome-icon" aria-hidden="true">
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none">
+                <circle
+                  cx="12"
+                  cy="12"
+                  r="9"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                />
+                <path
+                  d="M12 7v5l3 2"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </div>
+            <h1 className="step-title">Workforce Attendance</h1>
+            <p className="step-description" style={{ marginBottom: 0 }}>
+              Box For Less &amp; Double A employee portal.
+            </p>
+          </div>
+
+          <div className="home-actions">
+            <button
+              type="button"
+              className="home-option"
+              onClick={onAttendance}
+            >
+              <span className="home-option-icon" aria-hidden="true">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+                  <path
+                    d="M9 11l3 3L22 4"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  <path
+                    d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </span>
+              <span className="home-option-text">
+                <span className="home-option-title">Attendance Check-In</span>
+                <span className="home-option-desc">
+                  Already registered? Use your Staff ID and face verification
+                  to check in or out.
+                </span>
+              </span>
+              <span className="home-option-arrow" aria-hidden="true">→</span>
+            </button>
+
+            <button
+              type="button"
+              className="home-option"
+              onClick={onRegister}
+            >
+              <span className="home-option-icon" aria-hidden="true">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+                  <path
+                    d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  <circle
+                    cx="9"
+                    cy="7"
+                    r="4"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  <path
+                    d="M19 8v6M22 11h-6"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </span>
+              <span className="home-option-text">
+                <span className="home-option-title">New Employee Registration</span>
+                <span className="home-option-desc">
+                  First time here? Register your profile to get your Staff ID.
+                </span>
+              </span>
+              <span className="home-option-arrow" aria-hidden="true">→</span>
+            </button>
+          </div>
+        </section>
+      </div>
+    </main>
+  )
+}
