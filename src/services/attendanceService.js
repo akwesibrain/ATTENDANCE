@@ -56,6 +56,11 @@ export function mockListAttendanceEvents({ date, companyName } = {}) {
   return events
 }
 
+/** MOCK ONLY — expose the raw events array (for dashboard aggregation). */
+export function mockGetAllEvents() {
+  return readEvents()
+}
+
 /**
  * MOCK ONLY — look up an employee by Staff ID for attendance.
  * @returns {Promise<object>} the employee record.
