@@ -17,6 +17,7 @@
  */
 
 import { mockFindEmployeeByStaffId } from './registrationService'
+import { evaluateAction } from '../constants/attendancePolicy'
 
 /** localStorage key for mock attendance events. */
 const ATTENDANCE_STORAGE_KEY = 'mock-attendance:events'
@@ -141,13 +142,22 @@ export function recordAttendance({ staffId, faceImage }) {
         return
       }
 
+      // TIME-WINDOW RULE: enforce the check-in / check-out windows.
       const now = new Date()
+      const window = evaluateAction(type, now)
+      if (!window.allowed) {
+        reject(new Error(window.message))
+        return
+      }
+
       const event = {
         id: `${staffId}-${now.getTime()}`,
         staffId: employee.staffId,
         fullName: employee.fullName,
         companyName: employee.companyName,
         type,
+        // 'on-time' | 'late' (late only applies to check-in after 9:00 AM)
+        status: window.status,
         date: todayKey(now),
         time: now.toISOString(),
       }

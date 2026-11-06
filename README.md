@@ -68,6 +68,18 @@ no "record another"). The next required action is a check-out; once both are
 done, further attempts are blocked at lookup and again at record time in the
 mock service, so a duplicate check-in cannot be created.
 
+**Time windows** (see [src/constants/attendancePolicy.js](src/constants/attendancePolicy.js)):
+
+- **Check-in: 6:00–9:00 AM.** After 9:00 AM the check-in is still recorded but
+  flagged **LATE** (late coming), shown as a warning before scanning and a
+  LATE badge on the result.
+- **Check-out: 5:00–7:00 PM.** Before 5:00 PM check-out is not yet open;
+  **after 7:00 PM attendance is not recorded at all.**
+
+The windows are enforced both in the UI (before the scanner opens) and again
+in the mock service at record time. In production the backend must enforce
+them authoritatively using server time.
+
 ## Mock services (not a backend)
 
 [src/services/registrationService.js](src/services/registrationService.js)

@@ -4,6 +4,7 @@ import {
   lookupEmployee,
   recordAttendance,
 } from '../services/attendanceService'
+import { evaluateAction } from '../constants/attendancePolicy'
 import '../styles/registration.css'
 
 const STEP = {
@@ -102,6 +103,13 @@ export default function AttendanceCheckIn({ onBack }) {
       const action = getNextAction(found.staffId)
       if (action === null) {
         setError('You have already completed check-in and check-out for today.')
+        setLoading(false)
+        return
+      }
+      // Enforce the time window before proceeding to the scanner.
+      const window = evaluateAction(action)
+      if (!window.allowed) {
+        setError(window.message)
         setLoading(false)
         return
       }
@@ -225,6 +233,19 @@ export default function AttendanceCheckIn({ onBack }) {
               you to {actionLabel.toLowerCase()}.
             </p>
 
+            {nextAction === 'check-in' && evaluateAction('check-in').status === 'late' && (
+              <div className="late-notice" role="note">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" />
+                  <path d="M12 6v6l4 2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                <span>
+                  It&apos;s past 9:00 AM — this check-in will be recorded as
+                  <strong> late coming</strong>.
+                </span>
+              </div>
+            )}
+
             {cameraState === 'error' ? (
               <div className="camera-error" role="alert">
                 <span className="error-icon" aria-hidden="true">
@@ -342,12 +363,22 @@ export default function AttendanceCheckIn({ onBack }) {
                   <span className="review-label">Time</span>
                   <span className="review-value">{new Date(result.time).toLocaleString()}</span>
                 </div>
+                <div className="success-row">
+                  <span className="review-label">Status</span>
+                  {result.status === 'late' ? (
+                    <span className="status-badge status-late">LATE</span>
+                  ) : (
+                    <span className="status-badge">ON TIME</span>
+                  )}
+                </div>
               </div>
             </div>
 
             <p className="success-message">
               {result.type === 'check-in'
-                ? 'You are checked in. Your attendance for today is recorded — you can check out when your shift ends.'
+                ? result.status === 'late'
+                  ? 'You are checked in and marked as late coming (after 9:00 AM). You can check out between 5:00 and 7:00 PM.'
+                  : 'You are checked in. You can check out between 5:00 and 7:00 PM.'
                 : 'You are checked out. Your attendance for today is complete.'}
             </p>
 
