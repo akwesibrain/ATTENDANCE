@@ -144,9 +144,10 @@ export default function HrDashboard({ onBack }) {
       )
       const checkIn = empEvents.find((e) => e.type === 'check-in')
       const checkOut = empEvents.find((e) => e.type === 'check-out')
+      const absentMark = empEvents.find((e) => e.type === 'absent')
       let status = null
       if (checkIn) status = checkIn.status === 'late' ? 'late' : 'on-time'
-      return { emp, checkIn, checkOut, status }
+      return { emp, checkIn, checkOut, absentMark, status }
     })
   }, [companyEmployees, companyEvents, attendanceDate])
 
@@ -461,7 +462,7 @@ export default function HrDashboard({ onBack }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {attendanceRows.map(({ emp, checkIn, checkOut, status }) => (
+                  {attendanceRows.map(({ emp, checkIn, checkOut, absentMark, status }) => (
                     <tr key={emp.staffId}>
                       <td>
                         <div className="hr-employee">
@@ -485,6 +486,13 @@ export default function HrDashboard({ onBack }) {
                           <span className="status-badge status-late">LATE</span>
                         ) : status === 'on-time' ? (
                           <span className="status-badge">ON TIME</span>
+                        ) : absentMark ? (
+                          <span
+                            className="status-badge status-absent"
+                            title={absentMark.reason}
+                          >
+                            ABSENT
+                          </span>
                         ) : (
                           <span className="status-badge status-absent">ABSENT</span>
                         )}

@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   getNextAction,
+  getRemainingAttempts,
+  isMarkedAbsent,
   lookupEmployee,
   recordAttendance,
 } from '../services/attendanceService'
@@ -38,6 +40,8 @@ export default function AttendanceCheckIn({ onBack }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [mismatch, setMismatch] = useState(false)
+  const [markedAbsent, setMarkedAbsent] = useState(false)
+  const [attemptsLeft, setAttemptsLeft] = useState(null)
 
   // Camera / scanner state
   const videoRef = useRef(null)
@@ -101,6 +105,14 @@ export default function AttendanceCheckIn({ onBack }) {
     setError(null)
     try {
       const found = await lookupEmployee(staffId)
+      // ANTI-CHEAT: an employee auto-marked absent today is blocked entirely.
+      if (isMarkedAbsent(found.staffId)) {
+        setError(
+          `${found.fullName} has been marked ABSENT for today after too many failed face-verification attempts. Please contact HR.`,
+        )
+        setLoading(false)
+        return
+      }
       const action = getNextAction(found.staffId)
       if (action === null) {
         setError('You have already completed check-in and check-out for today.')
@@ -116,6 +128,9 @@ export default function AttendanceCheckIn({ onBack }) {
       }
       setEmployee(found)
       setNextAction(action)
+      setAttemptsLeft(getRemainingAttempts(found.staffId))
+      setMarkedAbsent(false)
+      setMismatch(false)
       setStep(STEP.scan)
     } catch (err) {
       setError(err?.message ?? 'Unable to find that Staff ID.')
@@ -155,6 +170,11 @@ export default function AttendanceCheckIn({ onBack }) {
       setError(message)
       // Surface an identity mismatch prominently so it cannot be missed.
       setMismatch(/face does not match/i.test(message))
+      // Refresh the anti-cheat state: remaining attempts, and whether this
+      // scan pushed the employee over the limit into an ABSENT mark.
+      const nowAbsent = isMarkedAbsent(employee.staffId)
+      setMarkedAbsent(nowAbsent)
+      setAttemptsLeft(getRemainingAttempts(employee.staffId))
     } finally {
       setLoading(false)
     }
@@ -229,7 +249,34 @@ export default function AttendanceCheckIn({ onBack }) {
           </section>
         )}
 
-        {step === STEP.scan && employee && (
+        {step === STEP.scan && employee && markedAbsent && (
+          <section className="card">
+            <div className="face-mismatch" role="alert" style={{ marginTop: 0 }}>
+              <span className="face-mismatch-icon" aria-hidden="true">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" />
+                  <path d="M15 9l-6 6M9 9l6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                </svg>
+              </span>
+              <div>
+                <h3>Marked ABSENT for today</h3>
+                <p>
+                  <strong>{employee.fullName}</strong> ({employee.staffId}) has
+                  been marked <strong>ABSENT</strong> after too many failed
+                  face-verification attempts. This looks like an attempt to
+                  cheat the system. Please contact HR.
+                </p>
+              </div>
+            </div>
+            <div className="step-actions">
+              <button type="button" className="btn btn-primary" onClick={onBack}>
+                Done
+              </button>
+            </div>
+          </section>
+        )}
+
+        {step === STEP.scan && employee && !markedAbsent && (
           <section className="card">
             <p className="step-eyebrow">Attendance — {actionLabel}</p>
             <h2 className="step-title">Scan your face</h2>
@@ -237,6 +284,20 @@ export default function AttendanceCheckIn({ onBack }) {
               Center your face in the frame and hold still. We&apos;ll verify
               you to {actionLabel.toLowerCase()}.
             </p>
+
+            {attemptsLeft !== null && attemptsLeft < 5 && (
+              <div className="attempts-notice" role="note">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M12 9v4M12 17h.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                  <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                <span>
+                  <strong>{attemptsLeft}</strong> verification attempt
+                  {attemptsLeft === 1 ? '' : 's'} left. After 5 failed attempts
+                  this Staff ID is marked <strong>ABSENT</strong>.
+                </span>
+              </div>
+            )}
 
             {nextAction === 'check-in' && evaluateAction('check-in').status === 'late' && (
               <div className="late-notice" role="note">
