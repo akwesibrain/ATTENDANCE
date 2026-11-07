@@ -162,6 +162,21 @@ export default function HrDashboard({ onBack }) {
     )
   }, [companyEmployees, search])
 
+  // Number of distinct days each employee came to work (days with a check-in).
+  const daysWorkedByStaffId = useMemo(() => {
+    const map = {}
+    companyEvents.forEach((e) => {
+      if (e.type !== 'check-in') return
+      if (!map[e.staffId]) map[e.staffId] = new Set()
+      map[e.staffId].add(e.date)
+    })
+    const counts = {}
+    Object.keys(map).forEach((staffId) => {
+      counts[staffId] = map[staffId].size
+    })
+    return counts
+  }, [companyEvents])
+
   const spark = {
     total: [3, 4, 3, 5, 4, 6, 5, stats.total],
     present: [2, 3, 2, 4, 3, 4, 3, stats.present],
@@ -407,7 +422,7 @@ export default function HrDashboard({ onBack }) {
               </div>
               <table className="hr-table">
                 <thead>
-                  <tr><th>Employee</th><th>Staff ID</th><th>Position</th><th>Status</th></tr>
+                  <tr><th>Employee</th><th>Staff ID</th><th>Position</th><th>Days</th><th>Status</th></tr>
                 </thead>
                 <tbody>
                   {filteredEmployees.map((emp) => (
@@ -426,11 +441,12 @@ export default function HrDashboard({ onBack }) {
                       </td>
                       <td className="hr-mono">{emp.staffId}</td>
                       <td>{emp.position}</td>
+                      <td>{daysWorkedByStaffId[emp.staffId] ?? 0}</td>
                       <td><span className="status-badge">{emp.status}</span></td>
                     </tr>
                   ))}
                   {filteredEmployees.length === 0 && (
-                    <tr><td colSpan="4" className="hr-empty">No employees found.</td></tr>
+                    <tr><td colSpan="5" className="hr-empty">No employees found.</td></tr>
                   )}
                 </tbody>
               </table>

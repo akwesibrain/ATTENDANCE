@@ -895,49 +895,6 @@
 
 /* ---------- Job position ---------- */
 
-.position-typeahead {
-  position: relative;
-}
-
-.position-suggestions {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  z-index: 20;
-  list-style: none;
-  margin: 6px 0 0;
-  padding: 6px;
-  background: var(--color-card);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-raised);
-  max-height: 260px;
-  overflow-y: auto;
-}
-
-.position-suggestion {
-  width: 100%;
-  display: block;
-  text-align: left;
-  background: none;
-  border: none;
-  border-radius: var(--radius-sm);
-  padding: 11px 12px;
-  font-size: 14.5px;
-  font-weight: 500;
-  color: var(--color-text);
-  cursor: pointer;
-  transition: background 0.12s ease;
-}
-
-.position-suggestion:hover,
-.position-suggestion:focus-visible {
-  background: var(--color-secondary-soft);
-  color: var(--color-primary);
-  outline: none;
-}
-
 .role-note {
   margin-top: 18px;
   font-size: 13px;

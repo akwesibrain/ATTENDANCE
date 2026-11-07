@@ -186,6 +186,7 @@ export default function EmployeeRegistration({ onBack }) {
             data={formData}
             onChange={updateField}
             showErrors={showErrors}
+            onSubmit={handleContinue}
           />
         )}
 

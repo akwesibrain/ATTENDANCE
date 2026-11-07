@@ -1,41 +1,20 @@
-import { useMemo, useState } from 'react'
-import {
-  POSITIONS,
-  validateJobPosition,
-} from '../../utils/registrationValidation'
+import { validateJobPosition } from '../../utils/registrationValidation'
 
 /**
  * Screen 5 — Job position.
- * The employee types their own position; common titles are offered as
- * autocomplete suggestions. Privileged roles (administrator, HR,
+ * The employee types their own position and presses Enter (or Continue).
+ * There is deliberately no dropdown list — each employee enters the exact
+ * title they were hired for. Privileged roles (administrator, HR,
  * supervisor, etc.) cannot be self-assigned.
  */
-export default function JobPosition({ data, onChange, showErrors }) {
-  const [focused, setFocused] = useState(false)
-
-  const suggestions = useMemo(() => {
-    const term = data.position.trim().toLowerCase()
-    if (!term) return POSITIONS
-    return POSITIONS.filter((position) =>
-      position.toLowerCase().includes(term),
-    )
-  }, [data.position])
-
+export default function JobPosition({ data, onChange, showErrors, onSubmit }) {
   const error = validateJobPosition(data)
   const showError = Boolean(error) && showErrors
-  const showSuggestions =
-    focused && suggestions.length > 0 && !suggestions.includes(data.position.trim())
 
-  const handleSelect = (position) => {
-    onChange('position', position)
-    setFocused(false)
-  }
-
-  // Keep the suggestion list open while focus stays anywhere inside the
-  // typeahead (input or a suggestion button); close it when focus leaves.
-  const handleBlur = (event) => {
-    if (!event.currentTarget.contains(event.relatedTarget)) {
-      setFocused(false)
+  const handleKeyDown = (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      if (!error && onSubmit) onSubmit()
     }
   }
 
@@ -44,15 +23,11 @@ export default function JobPosition({ data, onChange, showErrors }) {
       <p className="step-eyebrow">Step 3 of 4</p>
       <h2 className="step-title">Job position</h2>
       <p className="step-description">
-        Type the job position you were hired for. Department and branch
-        assignment will be completed by HR after registration.
+        Type the job position you were hired for, then press Enter. Department
+        and branch assignment will be completed by HR after registration.
       </p>
 
-      <div
-        className="form-field position-typeahead"
-        onFocus={() => setFocused(true)}
-        onBlur={handleBlur}
-      >
+      <div className="form-field">
         <label className="form-label" htmlFor="field-position">
           Job position
         </label>
@@ -63,37 +38,11 @@ export default function JobPosition({ data, onChange, showErrors }) {
           value={data.position}
           placeholder="e.g. Warehouse Worker"
           autoComplete="off"
-          role="combobox"
-          aria-expanded={showSuggestions}
-          aria-controls="position-suggestions"
-          aria-autocomplete="list"
           aria-invalid={showError}
           aria-describedby={showError ? 'error-position' : undefined}
           onChange={(e) => onChange('position', e.target.value)}
+          onKeyDown={handleKeyDown}
         />
-
-        {showSuggestions && (
-          <ul
-            className="position-suggestions"
-            id="position-suggestions"
-            role="listbox"
-            aria-label="Suggested positions"
-          >
-            {suggestions.map((position) => (
-              <li key={position}>
-                <button
-                  type="button"
-                  role="option"
-                  aria-selected={data.position.trim() === position}
-                  className="position-suggestion"
-                  onClick={() => handleSelect(position)}
-                >
-                  {position}
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
 
         {showError && (
           <span className="field-error" id="error-position" role="alert">
