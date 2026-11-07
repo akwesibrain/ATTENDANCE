@@ -422,7 +422,7 @@ export default function HrDashboard({ onBack }) {
               </div>
               <table className="hr-table">
                 <thead>
-                  <tr><th>Employee</th><th>Staff ID</th><th>Position</th><th>Days</th><th>Status</th></tr>
+                  <tr><th>Employee</th><th>Staff ID</th><th>Position</th><th>Status</th></tr>
                 </thead>
                 <tbody>
                   {filteredEmployees.map((emp) => (
@@ -441,12 +441,11 @@ export default function HrDashboard({ onBack }) {
                       </td>
                       <td className="hr-mono">{emp.staffId}</td>
                       <td>{emp.position}</td>
-                      <td>{daysWorkedByStaffId[emp.staffId] ?? 0}</td>
                       <td><span className="status-badge">{emp.status}</span></td>
                     </tr>
                   ))}
                   {filteredEmployees.length === 0 && (
-                    <tr><td colSpan="5" className="hr-empty">No employees found.</td></tr>
+                    <tr><td colSpan="4" className="hr-empty">No employees found.</td></tr>
                   )}
                 </tbody>
               </table>
@@ -474,6 +473,7 @@ export default function HrDashboard({ onBack }) {
                     <th>Check In</th>
                     <th>Check Out</th>
                     <th>Date</th>
+                    <th>Days</th>
                     <th>Status</th>
                   </tr>
                 </thead>
@@ -497,6 +497,7 @@ export default function HrDashboard({ onBack }) {
                       <td>{checkIn ? new Date(checkIn.time).toLocaleTimeString() : '—'}</td>
                       <td>{checkOut ? new Date(checkOut.time).toLocaleTimeString() : '—'}</td>
                       <td>{new Date(`${attendanceDate}T00:00:00`).toLocaleDateString()}</td>
+                      <td>{daysWorkedByStaffId[emp.staffId] ?? 0}</td>
                       <td>
                         {status === 'late' ? (
                           <span className="status-badge status-late">LATE</span>
@@ -516,7 +517,7 @@ export default function HrDashboard({ onBack }) {
                     </tr>
                   ))}
                   {attendanceRows.length === 0 && (
-                    <tr><td colSpan="7" className="hr-empty">No employees found.</td></tr>
+                    <tr><td colSpan="8" className="hr-empty">No employees found.</td></tr>
                   )}
                 </tbody>
               </table>
