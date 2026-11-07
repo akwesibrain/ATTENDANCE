@@ -2,12 +2,18 @@ import { useMemo, useState } from 'react'
 import { COMPANIES } from '../constants/companies'
 import { mockListEmployees } from '../services/registrationService'
 import { mockGetAllEvents } from '../services/attendanceService'
+import {
+  getPayPeriod,
+  listPayPeriods,
+  payPeriodDates,
+} from '../utils/payPeriod'
 import '../styles/hr.css'
 
 const NAV = [
   { id: 'dashboard', label: 'Dashboard', icon: 'grid' },
   { id: 'employees', label: 'Employees', icon: 'users' },
   { id: 'attendance', label: 'Attendance', icon: 'clock' },
+  { id: 'reports', label: 'Reports', icon: 'report' },
 ]
 
 function todayKey(date = new Date()) {
@@ -18,6 +24,14 @@ function formatTime(iso) {
   return new Date(iso).toLocaleTimeString([], {
     hour: 'numeric',
     minute: '2-digit',
+  })
+}
+
+function formatPeriodDate(date) {
+  return date.toLocaleDateString([], {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
   })
 }
 
@@ -42,6 +56,12 @@ function Icon({ name, size = 20 }) {
       <>
         <circle cx="12" cy="12" r="9" />
         <path d="M12 7v5l3 2" />
+      </>
+    ),
+    report: (
+      <>
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+        <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" />
       </>
     ),
     bell: (
@@ -82,6 +102,8 @@ export default function HrDashboard({ onBack }) {
   const [companyId, setCompanyId] = useState(COMPANIES[0].id)
   const [search, setSearch] = useState('')
   const [attendanceDate, setAttendanceDate] = useState(todayKey())
+  // The reporting month (pay period) selected in the Reports view.
+  const [reportPeriodKey, setReportPeriodKey] = useState(() => getPayPeriod().key)
 
   const company = COMPANIES.find((c) => c.id === companyId) ?? COMPANIES[0]
 
@@ -171,6 +193,42 @@ export default function HrDashboard({ onBack }) {
     })
     return counts
   }, [companyEvents])
+
+  /* ---------- Monthly report (pay period: 26th to 25th) ---------- */
+
+  const reportPeriods = useMemo(() => listPayPeriods(12), [])
+  const reportPeriod = useMemo(
+    () => reportPeriods.find((p) => p.key === reportPeriodKey) ?? reportPeriods[0],
+    [reportPeriods, reportPeriodKey],
+  )
+
+  // One report row per employee: days worked, late days, absent marks and the
+  // total days in the selected period.
+  const reportRows = useMemo(() => {
+    const dates = new Set(payPeriodDates(reportPeriod))
+    return companyEmployees.map((emp) => {
+      const empEvents = companyEvents.filter(
+        (e) => e.staffId === emp.staffId && dates.has(e.date),
+      )
+      const checkIns = empEvents.filter((e) => e.type === 'check-in')
+      const daysWorked = new Set(checkIns.map((e) => e.date)).size
+      const lateDays = new Set(
+        checkIns.filter((e) => e.status === 'late').map((e) => e.date),
+      ).size
+      const absentDays = empEvents.filter((e) => e.type === 'absent').length
+      return { emp, daysWorked, lateDays, absentDays }
+    })
+  }, [companyEmployees, companyEvents, reportPeriod])
+
+  const reportTotals = useMemo(() => {
+    const daysInPeriod = payPeriodDates(reportPeriod).length
+    return {
+      daysInPeriod,
+      daysWorked: reportRows.reduce((sum, r) => sum + r.daysWorked, 0),
+      lateDays: reportRows.reduce((sum, r) => sum + r.lateDays, 0),
+      absentDays: reportRows.reduce((sum, r) => sum + r.absentDays, 0),
+    }
+  }, [reportRows, reportPeriod])
 
   return (
     <div className="hr-layout">
@@ -486,6 +544,102 @@ export default function HrDashboard({ onBack }) {
                   )}
                 </tbody>
               </table>
+            </section>
+          )}
+
+          {activeNav === 'reports' && (
+            <section className="hr-panel">
+              <div className="hr-panel-head">
+                <div>
+                  <h2>Monthly report — {company.name}</h2>
+                  <p className="hr-report-sub">
+                    {reportPeriod.label} · runs {formatPeriodDate(reportPeriod.start)} to{' '}
+                    {formatPeriodDate(reportPeriod.end)} (day 1 is the 26th)
+                  </p>
+                </div>
+                <label className="sr-only" htmlFor="report-period">Report month</label>
+                <select
+                  id="report-period"
+                  className="hr-company-select"
+                  value={reportPeriod.key}
+                  onChange={(e) => setReportPeriodKey(e.target.value)}
+                >
+                  {reportPeriods.map((p) => (
+                    <option key={p.key} value={p.key}>
+                      {p.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Period totals */}
+              <div className="hr-report-totals">
+                <div className="hr-report-total">
+                  <span className="hr-report-total-value">{reportTotals.daysWorked}</span>
+                  <span className="hr-report-total-label">Days worked</span>
+                </div>
+                <div className="hr-report-total">
+                  <span className="hr-report-total-value hr-stat-warn">{reportTotals.lateDays}</span>
+                  <span className="hr-report-total-label">Late days</span>
+                </div>
+                <div className="hr-report-total">
+                  <span className="hr-report-total-value hr-stat-crit">{reportTotals.absentDays}</span>
+                  <span className="hr-report-total-label">Absent marks</span>
+                </div>
+                <div className="hr-report-total">
+                  <span className="hr-report-total-value">{reportTotals.daysInPeriod}</span>
+                  <span className="hr-report-total-label">Days in period</span>
+                </div>
+              </div>
+
+              <div className="hr-table-wrap">
+                <table className="hr-table">
+                  <thead>
+                    <tr>
+                      <th>Employee</th>
+                      <th>Staff ID</th>
+                      <th>Position</th>
+                      <th className="hr-num">Days worked</th>
+                      <th className="hr-num">Late</th>
+                      <th className="hr-num">Absent</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {reportRows.map(({ emp, daysWorked, lateDays, absentDays }) => (
+                      <tr key={emp.staffId}>
+                        <td>
+                          <div className="hr-employee">
+                            {emp.faceImage ? (
+                              <img className="hr-avatar" src={emp.faceImage} alt="" />
+                            ) : (
+                              <span className="hr-avatar hr-avatar-fallback">
+                                {emp.fullName.split(' ').map((p) => p[0]).slice(0, 2).join('')}
+                              </span>
+                            )}
+                            {emp.fullName}
+                          </div>
+                        </td>
+                        <td className="hr-mono">{emp.staffId}</td>
+                        <td>{emp.position}</td>
+                        <td className="hr-num">{daysWorked}</td>
+                        <td className="hr-num">
+                          {lateDays > 0 ? <span className="hr-cell-warn">{lateDays}</span> : lateDays}
+                        </td>
+                        <td className="hr-num">
+                          {absentDays > 0 ? <span className="hr-cell-crit">{absentDays}</span> : absentDays}
+                        </td>
+                      </tr>
+                    ))}
+                    {reportRows.length === 0 && (
+                      <tr>
+                        <td colSpan="6" className="hr-empty">
+                          No employees registered for {company.name} yet.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </section>
           )}
 

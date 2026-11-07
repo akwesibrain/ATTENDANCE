@@ -349,6 +349,60 @@
   padding: 0;
 }
 
+/* ---------- Monthly report ---------- */
+
+.hr-report-sub {
+  font-size: 13px;
+  color: var(--ink-2);
+  margin: 4px 0 0;
+}
+
+.hr-report-totals {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.hr-report-total {
+  background: var(--ground);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hr-report-total-value {
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--ink);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.hr-report-total-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.hr-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.hr-cell-warn {
+  color: var(--warn);
+  font-weight: 700;
+}
+
+.hr-cell-crit {
+  color: var(--crit);
+  font-weight: 700;
+}
+
 .hr-register .hr-panel-head {
   padding: 18px 18px 0;
   margin-bottom: 6px;
@@ -563,6 +617,9 @@
     grid-template-columns: 1fr;
   }
   .hr-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .hr-report-totals {
     grid-template-columns: repeat(2, 1fr);
   }
 }
