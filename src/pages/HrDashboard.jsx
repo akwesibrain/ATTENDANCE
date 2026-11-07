@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { COMPANIES } from '../constants/companies'
 import { mockListEmployees } from '../services/registrationService'
 import { mockGetAllEvents } from '../services/attendanceService'
@@ -40,6 +40,28 @@ const TIER_LABELS = {
   excellent: 'Excellent',
   good: 'Good',
   'needs-attention': 'Needs Attention',
+}
+
+/** Live clock that re-renders every second. */
+function useNow() {
+  const [now, setNow] = useState(() => new Date())
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000)
+    return () => clearInterval(id)
+  }, [])
+  return now
+}
+
+function LiveClock() {
+  const now = useNow()
+  return (
+    <span className="hr-clock" role="timer" aria-live="off">
+      <Icon name="clock" size={16} />
+      <span className="hr-clock-time">
+        {now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+      </span>
+    </span>
+  )
 }
 
 function Icon({ name, size = 20 }) {
@@ -373,9 +395,12 @@ export default function HrDashboard({ onBack }) {
                 })}
               </p>
             </div>
-            <span className="hr-today">
-              <Icon name="clock" size={16} /> Today
-            </span>
+            <div className="hr-welcome-right">
+              <LiveClock />
+              <span className="hr-today">
+                Today
+              </span>
+            </div>
           </div>
 
           {activeNav === 'dashboard' && (
