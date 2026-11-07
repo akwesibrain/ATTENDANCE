@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import RegistrationProgress from '../components/registration/RegistrationProgress'
 import RegistrationWelcome from '../components/registration/RegistrationWelcome'
-import CompanySelection from '../components/registration/CompanySelection'
 import PersonalInformation from '../components/registration/PersonalInformation'
 import FaceEnrollment from '../components/registration/FaceEnrollment'
 import JobPosition from '../components/registration/JobPosition'
@@ -16,15 +15,14 @@ import '../styles/registration.css'
 
 const STEP = {
   welcome: 0,
-  company: 1,
-  personal: 2,
-  face: 3,
-  position: 4,
-  review: 5,
-  success: 6,
+  personal: 1,
+  face: 2,
+  position: 3,
+  review: 4,
+  success: 5,
 }
 
-const PROGRESS_LABELS = ['Company', 'Personal', 'Face', 'Position', 'Review']
+const PROGRESS_LABELS = ['Personal', 'Face', 'Position', 'Review']
 
 const INITIAL_FORM_DATA = {
   companyId: null,
@@ -60,8 +58,6 @@ export default function EmployeeRegistration({ onBack }) {
 
   const isStepValid = (stepToCheck = step) => {
     switch (stepToCheck) {
-      case STEP.company:
-        return Boolean(formData.companyId)
       case STEP.personal:
         return isPersonalInformationValid(formData)
       case STEP.face:
@@ -123,8 +119,21 @@ export default function EmployeeRegistration({ onBack }) {
     goToStep(STEP.welcome)
   }
 
-  const showProgress = step >= STEP.company && step <= STEP.review
-  const showBack = step > STEP.company && step <= STEP.review
+  const showProgress = step >= STEP.personal && step <= STEP.review
+  const showBack = step > STEP.personal && step <= STEP.review
+
+  if (step === STEP.welcome) {
+    return (
+      <RegistrationWelcome
+        selectedCompanyId={formData.companyId}
+        onSelectCompany={(companyId) => updateField('companyId', companyId)}
+        onContinue={() => {
+          if (formData.companyId) goToStep(STEP.personal)
+        }}
+        onBack={onBack}
+      />
+    )
+  }
 
   return (
     <main className="registration-page">
@@ -139,29 +148,7 @@ export default function EmployeeRegistration({ onBack }) {
         {showProgress && (
           <RegistrationProgress
             steps={PROGRESS_LABELS}
-            currentStep={step - STEP.company}
-          />
-        )}
-
-        {step === STEP.welcome && (
-          <>
-            <RegistrationWelcome onStart={() => goToStep(STEP.company)} />
-            {onBack && (
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={onBack}
-              >
-                Back to Home
-              </button>
-            )}
-          </>
-        )}
-
-        {step === STEP.company && (
-          <CompanySelection
-            selectedCompanyId={formData.companyId}
-            onSelect={(companyId) => updateField('companyId', companyId)}
+            currentStep={step - STEP.personal}
           />
         )}
 
@@ -191,7 +178,7 @@ export default function EmployeeRegistration({ onBack }) {
         {step === STEP.review && (
           <RegistrationReview
             data={formData}
-            editSteps={STEP}
+            editSteps={{ ...STEP, company: STEP.welcome }}
             onEdit={goToStep}
             onToggleConfirm={(checked) => updateField('confirmed', checked)}
             submitError={submitError}
@@ -205,7 +192,7 @@ export default function EmployeeRegistration({ onBack }) {
           />
         )}
 
-        {step >= STEP.company && step <= STEP.review && (
+        {step >= STEP.personal && step <= STEP.review && (
           <div className="step-actions" style={{ marginTop: 0 }}>
             {showBack && (
               <button

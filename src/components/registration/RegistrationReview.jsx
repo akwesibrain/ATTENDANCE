@@ -46,7 +46,7 @@ export default function RegistrationReview({
 
   return (
     <section className="card">
-      <p className="step-eyebrow">Step 5 of 5</p>
+      <p className="step-eyebrow">Step 4 of 4</p>
       <h2 className="step-title">Review your registration</h2>
       <p className="step-description">
         Check that everything is correct before submitting. You can edit any

@@ -24,7 +24,7 @@ export default function PersonalInformation({ data, onChange, showErrors }) {
 
   return (
     <section className="card">
-      <p className="step-eyebrow">Step 2 of 5</p>
+      <p className="step-eyebrow">Step 1 of 4</p>
       <h2 className="step-title">Personal information</h2>
       <p className="step-description">
         Tell us who you are. Fields marked optional can be completed later by

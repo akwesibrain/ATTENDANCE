@@ -41,7 +41,7 @@ export default function JobPosition({ data, onChange, showErrors }) {
 
   return (
     <section className="card">
-      <p className="step-eyebrow">Step 4 of 5</p>
+      <p className="step-eyebrow">Step 3 of 4</p>
       <h2 className="step-title">Job position</h2>
       <p className="step-description">
         Type the job position you were hired for. Department and branch

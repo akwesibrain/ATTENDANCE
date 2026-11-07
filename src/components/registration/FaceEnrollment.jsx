@@ -95,7 +95,7 @@ export default function FaceEnrollment({ faceImage, onCapture }) {
 
   return (
     <section className="card">
-      <p className="step-eyebrow">Step 3 of 5</p>
+      <p className="step-eyebrow">Step 2 of 4</p>
       <h2 className="step-title">Face enrollment</h2>
       <p className="step-description">
         Take a clear photo of your face. It will be used to verify your
