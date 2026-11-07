@@ -22,6 +22,8 @@ export default function FaceEnrollment({ faceImage, onCapture }) {
     faceImage ? 'captured' : 'requesting',
   )
   const [errorKind, setErrorKind] = useState(null)
+  // Which camera to use: 'user' = front (selfie), 'environment' = back.
+  const [facingMode, setFacingMode] = useState('user')
 
   const stopStream = useCallback(() => {
     if (streamRef.current) {
@@ -30,38 +32,48 @@ export default function FaceEnrollment({ faceImage, onCapture }) {
     }
   }, [])
 
-  const startCamera = useCallback(async () => {
-    stopStream()
-    setErrorKind(null)
-
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setCameraState('error')
-      setErrorKind('unavailable')
-      return
-    }
-
-    setCameraState('requesting')
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user' },
-        audio: false,
-      })
-      streamRef.current = stream
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream
-        await videoRef.current.play().catch(() => {})
-      }
-      setCameraState('active')
-    } catch (error) {
+  const startCamera = useCallback(
+    async (facing = facingMode) => {
       stopStream()
-      setCameraState('error')
-      setErrorKind(
-        error?.name === 'NotAllowedError' || error?.name === 'SecurityError'
-          ? 'denied'
-          : 'unavailable',
-      )
-    }
-  }, [stopStream])
+      setErrorKind(null)
+
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setCameraState('error')
+        setErrorKind('unavailable')
+        return
+      }
+
+      setCameraState('requesting')
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: facing } },
+          audio: false,
+        })
+        streamRef.current = stream
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream
+          await videoRef.current.play().catch(() => {})
+        }
+        setCameraState('active')
+      } catch (error) {
+        stopStream()
+        setCameraState('error')
+        setErrorKind(
+          error?.name === 'NotAllowedError' || error?.name === 'SecurityError'
+            ? 'denied'
+            : 'unavailable',
+        )
+      }
+    },
+    [stopStream, facingMode],
+  )
+
+  // Flip between the front and back camera (mainly for mobile phones).
+  const handleFlipCamera = () => {
+    const next = facingMode === 'user' ? 'environment' : 'user'
+    setFacingMode(next)
+    startCamera(next)
+  }
 
   // Camera permission is requested only when the employee enters this screen,
   // and the stream is released as soon as they leave it.
@@ -166,14 +178,41 @@ export default function FaceEnrollment({ faceImage, onCapture }) {
 
           <div className="camera-controls">
             {cameraState === 'active' && (
-              <button
-                type="button"
-                className="btn btn-primary capture-btn"
-                onClick={handleCapture}
-              >
-                <span className="shutter" aria-hidden="true" />
-                Capture Photo
-              </button>
+              <>
+                <button
+                  type="button"
+                  className="btn btn-primary capture-btn"
+                  onClick={handleCapture}
+                >
+                  <span className="shutter" aria-hidden="true" />
+                  Capture Photo
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-outline flip-camera-btn"
+                  onClick={handleFlipCamera}
+                  aria-label={`Switch to ${facingMode === 'user' ? 'back' : 'front'} camera`}
+                  title={`Switch to ${facingMode === 'user' ? 'back' : 'front'} camera`}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path
+                      d="M21 12a9 9 0 1 1-2.64-6.36"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    <path
+                      d="M21 3v6h-6"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                  {facingMode === 'user' ? 'Back camera' : 'Front camera'}
+                </button>
+              </>
             )}
             {cameraState === 'captured' && (
               <button

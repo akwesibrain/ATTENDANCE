@@ -793,6 +793,13 @@
   flex: 1;
 }
 
+.flip-camera-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
 .capture-btn {
   display: inline-flex;
   align-items: center;
