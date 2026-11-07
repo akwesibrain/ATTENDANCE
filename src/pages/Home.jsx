@@ -1,7 +1,14 @@
+import { mockHasRegistered } from '../services/registrationService'
+
 /**
  * Entry screen — choose between employee registration and attendance.
+ *
+ * STRICT RULE: once this device has completed a registration, the
+ * "New Employee Registration" option is hidden — returning employees only
+ * see Attendance (and HR). Registration is for first-time setup only.
  */
 export default function Home({ onRegister, onAttendance, onHr }) {
+  const hasRegistered = mockHasRegistered()
   return (
     <main className="registration-page">
       <div className="registration-shell">
@@ -34,7 +41,9 @@ export default function Home({ onRegister, onAttendance, onHr }) {
             </div>
             <h1 className="step-title">Workforce Attendance</h1>
             <p className="step-description" style={{ marginBottom: 0 }}>
-              Box For Less &amp; Double A employee portal.
+              {hasRegistered
+                ? 'Welcome back. Use attendance to check in or out.'
+                : 'Box For Less & Double A employee portal.'}
             </p>
           </div>
 
@@ -72,46 +81,48 @@ export default function Home({ onRegister, onAttendance, onHr }) {
               <span className="home-option-arrow" aria-hidden="true">→</span>
             </button>
 
-            <button
-              type="button"
-              className="home-option"
-              onClick={onRegister}
-            >
-              <span className="home-option-icon" aria-hidden="true">
-                <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
-                  <path
-                    d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                  <circle
-                    cx="9"
-                    cy="7"
-                    r="4"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                  <path
-                    d="M19 8v6M22 11h-6"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </span>
-              <span className="home-option-text">
-                <span className="home-option-title">New Employee Registration</span>
-                <span className="home-option-desc">
-                  First time here? Register your profile to get your Staff ID.
+            {!hasRegistered && (
+              <button
+                type="button"
+                className="home-option"
+                onClick={onRegister}
+              >
+                <span className="home-option-icon" aria-hidden="true">
+                  <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+                    <path
+                      d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    <circle
+                      cx="9"
+                      cy="7"
+                      r="4"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    <path
+                      d="M19 8v6M22 11h-6"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
                 </span>
-              </span>
-              <span className="home-option-arrow" aria-hidden="true">→</span>
-            </button>
+                <span className="home-option-text">
+                  <span className="home-option-title">New Employee Registration</span>
+                  <span className="home-option-desc">
+                    First time here? Register your profile to get your Staff ID.
+                  </span>
+                </span>
+                <span className="home-option-arrow" aria-hidden="true">→</span>
+              </button>
+            )}
 
             <button
               type="button"

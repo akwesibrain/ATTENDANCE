@@ -107,6 +107,15 @@ export function mockListEmployees() {
 }
 
 /**
+ * MOCK ONLY — whether this device has completed at least one registration.
+ * Used to enforce the rule that a registered device only sees attendance.
+ * (Device-scoped; the real backend will key this off the authenticated user.)
+ */
+export function mockHasRegistered() {
+  return readEmployees().length > 0
+}
+
+/**
  * MOCK ONLY — simulates backend Staff ID generation.
  * Real Staff IDs must always be issued by the backend; this exists purely
  * so the frontend can display a realistic result during development.
