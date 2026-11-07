@@ -37,6 +37,7 @@ export default function AttendanceCheckIn({ onBack }) {
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const [mismatch, setMismatch] = useState(false)
 
   // Camera / scanner state
   const videoRef = useRef(null)
@@ -136,6 +137,7 @@ export default function AttendanceCheckIn({ onBack }) {
 
     setCameraState('scanning')
     setError(null)
+    setMismatch(false)
     setLoading(true)
     try {
       // Simulate the scan/verification delay, then record via the mock service.
@@ -149,7 +151,10 @@ export default function AttendanceCheckIn({ onBack }) {
       setStep(STEP.success)
     } catch (err) {
       setCameraState('active')
-      setError(err?.message ?? 'Verification failed. Please try again.')
+      const message = err?.message ?? 'Verification failed. Please try again.'
+      setError(message)
+      // Surface an identity mismatch prominently so it cannot be missed.
+      setMismatch(/face does not match/i.test(message))
     } finally {
       setLoading(false)
     }
@@ -291,7 +296,26 @@ export default function AttendanceCheckIn({ onBack }) {
               </div>
             )}
 
-            {error && cameraState !== 'error' && (
+            {mismatch && (
+              <div className="face-mismatch" role="alert">
+                <span className="face-mismatch-icon" aria-hidden="true">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" />
+                    <path d="M15 9l-6 6M9 9l6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                  </svg>
+                </span>
+                <div>
+                  <h3>Face does not match this Staff ID</h3>
+                  <p>
+                    The scanned face does not match the photo registered to{' '}
+                    <strong>{employee.staffId}</strong>. You can only check in
+                    or out with your own registered face.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {error && cameraState !== 'error' && !mismatch && (
               <div className="submit-error" role="alert" style={{ marginTop: 16 }}>
                 <span>{error}</span>
               </div>
@@ -301,7 +325,11 @@ export default function AttendanceCheckIn({ onBack }) {
               <button
                 type="button"
                 className="btn btn-secondary"
-                onClick={() => setStep(STEP.staffId)}
+                onClick={() => {
+                  setMismatch(false)
+                  setError(null)
+                  setStep(STEP.staffId)
+                }}
                 disabled={loading}
               >
                 Back

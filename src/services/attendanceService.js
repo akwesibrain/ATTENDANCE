@@ -18,6 +18,7 @@
 
 import { mockFindEmployeeByStaffId } from './registrationService'
 import { evaluateAction } from '../constants/attendancePolicy'
+import { faceSimilarity, FACE_MATCH_THRESHOLD } from '../utils/faceMatch'
 
 /** localStorage key for mock attendance events. */
 const ATTENDANCE_STORAGE_KEY = 'mock-attendance:events'
@@ -108,18 +109,21 @@ export function getNextAction(staffId) {
 }
 
 /**
- * MOCK ONLY — record an attendance event after (simulated) face verification.
+ * MOCK ONLY — record an attendance event after face verification.
  *
- * The frontend passes the freshly captured face image; the real backend would
- * compare it to the enrolled template. Here we only check that an image was
- * provided, then record the event.
+ * STRICT IDENTITY RULE: the freshly scanned face must match the photo
+ * registered to this Staff ID. The frontend passes the captured frame; this
+ * compares it to the enrolled image and refuses to record anything when the
+ * faces do not match — so one employee cannot scan their face against another
+ * employee's Staff ID. (A production backend would do real biometric matching
+ * server-side; this mock uses image similarity to enforce the same rule.)
  *
  * @param {object} params - { staffId, faceImage }
  * @returns {Promise<object>} the recorded attendance event.
  */
 export function recordAttendance({ staffId, faceImage }) {
   return new Promise((resolve, reject) => {
-    setTimeout(() => {
+    setTimeout(async () => {
       const employee = mockFindEmployeeByStaffId(staffId)
       if (!employee) {
         reject(new Error('Staff ID not found. Please register first.'))
@@ -129,6 +133,34 @@ export function recordAttendance({ staffId, faceImage }) {
         reject(
           new Error(
             'Face verification is required. Please capture your photo to continue.',
+          ),
+        )
+        return
+      }
+
+      // STRICT IDENTITY RULE: verify the scanned face matches the registered
+      // face for this Staff ID before recording anything.
+      if (!employee.faceImage) {
+        reject(
+          new Error(
+            'No registered face photo on file for this Staff ID. Please contact HR.',
+          ),
+        )
+        return
+      }
+      let score = 0
+      try {
+        score = await faceSimilarity(faceImage, employee.faceImage)
+      } catch {
+        reject(
+          new Error('Face verification failed. Please try the scan again.'),
+        )
+        return
+      }
+      if (score < FACE_MATCH_THRESHOLD) {
+        reject(
+          new Error(
+            'Face does not match this Staff ID. You can only check in or out with your own registered face.',
           ),
         )
         return
