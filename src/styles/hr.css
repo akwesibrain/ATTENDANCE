@@ -351,41 +351,83 @@
 
 /* ---------- Monthly report ---------- */
 
+.hr-report {
+  padding: 0;
+}
+
+.hr-report-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 18px 18px 16px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.hr-report-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.hr-report-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  background: var(--accent-soft);
+  color: var(--accent);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.hr-report-title h2 {
+  font-size: var(--t-h2);
+  font-weight: 700;
+  color: var(--brand);
+  margin: 0;
+}
+
 .hr-report-sub {
   font-size: 13px;
   color: var(--ink-2);
-  margin: 4px 0 0;
+  margin: 3px 0 0;
 }
 
-.hr-report-totals {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 14px;
-  margin-bottom: 18px;
-}
-
-.hr-report-total {
-  background: var(--ground);
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-md);
-  padding: 14px 16px;
+.hr-report-actions {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
-.hr-report-total-value {
-  font-size: 26px;
-  font-weight: 800;
-  color: var(--ink);
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
+.hr-report-period {
+  min-height: 42px;
 }
 
-.hr-report-total-label {
-  font-size: 12.5px;
-  font-weight: 600;
+.hr-report-btn {
+  min-height: 42px;
+  padding: 9px 14px;
+  font-size: 14px;
+}
+
+.hr-report-table {
+  font-size: 14px;
+}
+
+.hr-report-table thead th {
+  background: var(--ground);
+}
+
+.hr-rownum {
   color: var(--ink-2);
+  font-weight: 600;
+}
+
+.hr-rate {
+  font-weight: 700;
+  color: var(--brand);
 }
 
 .hr-num {
@@ -401,6 +443,36 @@
 .hr-cell-crit {
   color: var(--crit);
   font-weight: 700;
+}
+
+/* Status tier badges (word + soft hue). */
+.report-tier {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: var(--radius-pill);
+  white-space: nowrap;
+}
+
+.report-tier-perfect {
+  background: #e3f2fd;
+  color: #1565c0;
+}
+
+.report-tier-excellent {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.report-tier-good {
+  background: #e8f4ec;
+  color: #2e7d32;
+}
+
+.report-tier-needs-attention {
+  background: var(--warn-soft);
+  color: var(--warn);
 }
 
 .hr-register .hr-panel-head {
@@ -617,9 +689,6 @@
     grid-template-columns: 1fr;
   }
   .hr-stats {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  .hr-report-totals {
     grid-template-columns: repeat(2, 1fr);
   }
 }

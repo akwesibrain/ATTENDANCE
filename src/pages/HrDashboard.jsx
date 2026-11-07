@@ -35,6 +35,13 @@ function formatPeriodDate(date) {
   })
 }
 
+const TIER_LABELS = {
+  perfect: 'Perfect',
+  excellent: 'Excellent',
+  good: 'Good',
+  'needs-attention': 'Needs Attention',
+}
+
 function Icon({ name, size = 20 }) {
   const paths = {
     grid: (
@@ -62,6 +69,19 @@ function Icon({ name, size = 20 }) {
       <>
         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
         <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" />
+      </>
+    ),
+    download: (
+      <>
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+        <path d="M7 10l5 5 5-5M12 15V3" />
+      </>
+    ),
+    print: (
+      <>
+        <path d="M6 9V2h12v7" />
+        <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+        <rect x="6" y="14" width="12" height="8" />
       </>
     ),
     bell: (
@@ -202,33 +222,58 @@ export default function HrDashboard({ onBack }) {
     [reportPeriods, reportPeriodKey],
   )
 
-  // One report row per employee: days worked, late days, absent marks and the
-  // total days in the selected period.
+  // One report row per employee: total days in the period, days present, late
+  // days, absent days, attendance rate and a status tier.
   const reportRows = useMemo(() => {
     const dates = new Set(payPeriodDates(reportPeriod))
+    const totalDays = dates.size
     return companyEmployees.map((emp) => {
       const empEvents = companyEvents.filter(
         (e) => e.staffId === emp.staffId && dates.has(e.date),
       )
       const checkIns = empEvents.filter((e) => e.type === 'check-in')
-      const daysWorked = new Set(checkIns.map((e) => e.date)).size
-      const lateDays = new Set(
+      const present = new Set(checkIns.map((e) => e.date)).size
+      const late = new Set(
         checkIns.filter((e) => e.status === 'late').map((e) => e.date),
       ).size
-      const absentDays = empEvents.filter((e) => e.type === 'absent').length
-      return { emp, daysWorked, lateDays, absentDays }
+      const absent = Math.max(totalDays - present, 0)
+      const rate = totalDays ? (present / totalDays) * 100 : 0
+      let tier = 'needs-attention'
+      if (rate >= 99) tier = 'perfect'
+      else if (rate >= 95) tier = 'excellent'
+      else if (rate >= 90) tier = 'good'
+      return { emp, totalDays, present, late, absent, rate, tier }
     })
   }, [companyEmployees, companyEvents, reportPeriod])
 
-  const reportTotals = useMemo(() => {
-    const daysInPeriod = payPeriodDates(reportPeriod).length
-    return {
-      daysInPeriod,
-      daysWorked: reportRows.reduce((sum, r) => sum + r.daysWorked, 0),
-      lateDays: reportRows.reduce((sum, r) => sum + r.lateDays, 0),
-      absentDays: reportRows.reduce((sum, r) => sum + r.absentDays, 0),
-    }
-  }, [reportRows, reportPeriod])
+  // Download the current report as a CSV file.
+  const downloadReport = () => {
+    const header = ['#', 'Employee Name', 'Employee ID', 'Position', 'Total Days', 'Present', 'Late', 'Absent', 'Attendance Rate', 'Status']
+    const lines = reportRows.map((r, i) => [
+      i + 1,
+      r.emp.fullName,
+      r.emp.staffId,
+      r.emp.position,
+      r.totalDays,
+      r.present,
+      r.late,
+      r.absent,
+      `${r.rate.toFixed(1)}%`,
+      TIER_LABELS[r.tier],
+    ])
+    const csv = [header, ...lines]
+      .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+      .join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `attendance-report-${company.id}-${reportPeriod.key}.csv`
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
+  }
 
   return (
     <div className="hr-layout">
@@ -548,65 +593,71 @@ export default function HrDashboard({ onBack }) {
           )}
 
           {activeNav === 'reports' && (
-            <section className="hr-panel">
-              <div className="hr-panel-head">
-                <div>
-                  <h2>Monthly report — {company.name}</h2>
-                  <p className="hr-report-sub">
-                    {reportPeriod.label} · runs {formatPeriodDate(reportPeriod.start)} to{' '}
-                    {formatPeriodDate(reportPeriod.end)} (day 1 is the 26th)
-                  </p>
+            <section className="hr-panel hr-report">
+              <div className="hr-report-head">
+                <div className="hr-report-title">
+                  <span className="hr-report-icon" aria-hidden="true">
+                    <Icon name="report" size={20} />
+                  </span>
+                  <div>
+                    <h2>Employee Attendance Details</h2>
+                    <p className="hr-report-sub">
+                      {reportPeriod.label} · {formatPeriodDate(reportPeriod.start)} to{' '}
+                      {formatPeriodDate(reportPeriod.end)}
+                    </p>
+                  </div>
                 </div>
-                <label className="sr-only" htmlFor="report-period">Report month</label>
-                <select
-                  id="report-period"
-                  className="hr-company-select"
-                  value={reportPeriod.key}
-                  onChange={(e) => setReportPeriodKey(e.target.value)}
-                >
-                  {reportPeriods.map((p) => (
-                    <option key={p.key} value={p.key}>
-                      {p.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Period totals */}
-              <div className="hr-report-totals">
-                <div className="hr-report-total">
-                  <span className="hr-report-total-value">{reportTotals.daysWorked}</span>
-                  <span className="hr-report-total-label">Days worked</span>
-                </div>
-                <div className="hr-report-total">
-                  <span className="hr-report-total-value hr-stat-warn">{reportTotals.lateDays}</span>
-                  <span className="hr-report-total-label">Late days</span>
-                </div>
-                <div className="hr-report-total">
-                  <span className="hr-report-total-value hr-stat-crit">{reportTotals.absentDays}</span>
-                  <span className="hr-report-total-label">Absent marks</span>
-                </div>
-                <div className="hr-report-total">
-                  <span className="hr-report-total-value">{reportTotals.daysInPeriod}</span>
-                  <span className="hr-report-total-label">Days in period</span>
+                <div className="hr-report-actions">
+                  <label className="sr-only" htmlFor="report-period">Report month</label>
+                  <select
+                    id="report-period"
+                    className="hr-company-select hr-report-period"
+                    value={reportPeriod.key}
+                    onChange={(e) => setReportPeriodKey(e.target.value)}
+                  >
+                    {reportPeriods.map((p) => (
+                      <option key={p.key} value={p.key}>
+                        {p.label}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    className="btn btn-secondary hr-report-btn"
+                    onClick={downloadReport}
+                  >
+                    <Icon name="download" size={16} /> Download Report
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary hr-report-btn"
+                    onClick={() => window.print()}
+                  >
+                    <Icon name="print" size={16} /> Print
+                  </button>
                 </div>
               </div>
 
               <div className="hr-table-wrap">
-                <table className="hr-table">
+                <table className="hr-table hr-report-table">
                   <thead>
                     <tr>
-                      <th>Employee</th>
-                      <th>Staff ID</th>
+                      <th>#</th>
+                      <th>Employee Name</th>
+                      <th>Employee ID</th>
                       <th>Position</th>
-                      <th className="hr-num">Days worked</th>
+                      <th className="hr-num">Total Days</th>
+                      <th className="hr-num">Present</th>
                       <th className="hr-num">Late</th>
                       <th className="hr-num">Absent</th>
+                      <th className="hr-num">Attendance Rate</th>
+                      <th>Status</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {reportRows.map(({ emp, daysWorked, lateDays, absentDays }) => (
+                    {reportRows.map(({ emp, totalDays, present, late, absent, rate, tier }, i) => (
                       <tr key={emp.staffId}>
+                        <td className="hr-num hr-rownum">{i + 1}</td>
                         <td>
                           <div className="hr-employee">
                             {emp.faceImage ? (
@@ -621,18 +672,25 @@ export default function HrDashboard({ onBack }) {
                         </td>
                         <td className="hr-mono">{emp.staffId}</td>
                         <td>{emp.position}</td>
-                        <td className="hr-num">{daysWorked}</td>
+                        <td className="hr-num">{totalDays}</td>
+                        <td className="hr-num">{present}</td>
                         <td className="hr-num">
-                          {lateDays > 0 ? <span className="hr-cell-warn">{lateDays}</span> : lateDays}
+                          {late > 0 ? <span className="hr-cell-warn">{late}</span> : late}
                         </td>
                         <td className="hr-num">
-                          {absentDays > 0 ? <span className="hr-cell-crit">{absentDays}</span> : absentDays}
+                          {absent > 0 ? <span className="hr-cell-crit">{absent}</span> : absent}
+                        </td>
+                        <td className="hr-num hr-rate">{rate.toFixed(1)}%</td>
+                        <td>
+                          <span className={`report-tier report-tier-${tier}`}>
+                            {TIER_LABELS[tier]}
+                          </span>
                         </td>
                       </tr>
                     ))}
                     {reportRows.length === 0 && (
                       <tr>
-                        <td colSpan="6" className="hr-empty">
+                        <td colSpan="10" className="hr-empty">
                           No employees registered for {company.name} yet.
                         </td>
                       </tr>
