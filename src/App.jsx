@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Home from './pages/Home'
 import EmployeeRegistration from './pages/EmployeeRegistration'
 import AttendanceCheckIn from './pages/AttendanceCheckIn'
@@ -11,8 +11,41 @@ const VIEW = {
   hr: 'hr',
 }
 
+const PATH_TO_VIEW = {
+  '/': VIEW.home,
+  '/register': VIEW.register,
+  '/attendance': VIEW.attendance,
+  '/hr': VIEW.hr,
+}
+
+const VIEW_TO_PATH = {
+  [VIEW.home]: '/',
+  [VIEW.register]: '/register',
+  [VIEW.attendance]: '/attendance',
+  [VIEW.hr]: '/hr',
+}
+
+function viewFromLocation() {
+  return PATH_TO_VIEW[window.location.pathname] ?? VIEW.home
+}
+
 function App() {
-  const [view, setView] = useState(VIEW.home)
+  const [view, setView] = useState(viewFromLocation)
+
+  // Keep the URL in sync so each page has a shareable link.
+  useEffect(() => {
+    const path = VIEW_TO_PATH[view]
+    if (window.location.pathname !== path) {
+      window.history.pushState(null, '', path)
+    }
+  }, [view])
+
+  // Support browser back/forward buttons.
+  useEffect(() => {
+    const onPopState = () => setView(viewFromLocation())
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  }, [])
 
   if (view === VIEW.register) {
     return <EmployeeRegistration onBack={() => setView(VIEW.home)} />

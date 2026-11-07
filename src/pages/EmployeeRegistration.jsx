@@ -11,6 +11,7 @@ import {
 import RegistrationReview from '../components/registration/RegistrationReview'
 import RegistrationSuccess from '../components/registration/RegistrationSuccess'
 import { submitRegistration } from '../services/registrationService'
+import { getCompanyById } from '../constants/companies'
 import '../styles/registration.css'
 
 const STEP = {
@@ -121,6 +122,7 @@ export default function EmployeeRegistration({ onBack }) {
 
   const showProgress = step >= STEP.personal && step <= STEP.review
   const showBack = step > STEP.personal && step <= STEP.review
+  const company = getCompanyById(formData.companyId)
 
   if (step === STEP.welcome) {
     return (
@@ -138,11 +140,23 @@ export default function EmployeeRegistration({ onBack }) {
   return (
     <main className="registration-page">
       <div className="registration-shell">
-        <header className="registration-brand">
-          <span className="registration-brand-mark" aria-hidden="true">
-            WA
+        <header className="registration-brand registration-brand-with-company">
+          <span className="registration-brand-name">
+            <span className="registration-brand-mark" aria-hidden="true">
+              WA
+            </span>
+            Workforce Attendance
           </span>
-          Workforce Attendance
+          {company && (
+            <span className="registration-company-badge">
+              <span
+                className={`company-logo company-logo-img company-logo-${company.id}`}
+              >
+                <img src={company.logo} alt={`${company.name} logo`} />
+              </span>
+              <span className="registration-company-name">{company.name}</span>
+            </span>
+          )}
         </header>
 
         {showProgress && (
