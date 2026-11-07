@@ -27,20 +27,19 @@ function ShieldCheckIcon({ size = 18 }) {
   )
 }
 
-function CircleCheckIcon() {
+function CheckIcon() {
   return (
     <svg
-      width="20"
-      height="20"
+      width="18"
+      height="18"
       viewBox="0 0 24 24"
       fill="none"
       aria-hidden="true"
     >
-      <circle cx="12" cy="12" r="10" fill="currentColor" />
       <path
-        d="m8.5 12.2 2.4 2.4 4.6-4.8"
-        stroke="#fff"
-        strokeWidth="2"
+        d="m4.5 12.5 5 5 10-11"
+        stroke="currentColor"
+        strokeWidth="2.4"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
@@ -49,63 +48,10 @@ function CircleCheckIcon() {
 }
 
 const HERO_POINTS = [
-  'Quick and easy registration',
-  'Get your Staff ID automatically',
-  'Start using the system immediately',
+  'Type your details and take one face photo',
+  'Your Staff ID is issued the moment you finish',
+  'Check in and out with that ID and your face',
 ]
-
-const FEATURES = [
-  {
-    title: 'Secure Platform',
-    text: 'Your data is protected with enterprise-grade security.',
-    icon: 'shield',
-  },
-  {
-    title: 'Fast & Reliable',
-    text: 'Register in minutes and start tracking attendance right away.',
-    icon: 'bolt',
-  },
-  {
-    title: 'Professional Support',
-    text: 'Our team is here to help you every step of the way.',
-    icon: 'headset',
-  },
-]
-
-function FeatureIcon({ name }) {
-  if (name === 'shield') return <ShieldCheckIcon size={22} />
-  if (name === 'bolt') {
-    return (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <path
-          d="M13 2 3 14h7l-1 8 10-12h-7l1-8z"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
-    )
-  }
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M3 18v-6a9 9 0 0 1 18 0v6"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3v5zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3v5z"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  )
-}
 
 /**
  * Registration landing page — hero plus company selection card.
@@ -129,24 +75,23 @@ export default function RegistrationWelcome({
           </span>
           <span className="landing-secure-badge">
             <ShieldCheckIcon size={15} />
-            Secure &amp; Trusted
+            Secure &amp; trusted
           </span>
         </header>
 
         <div className="landing-main">
           <div className="landing-hero">
-            <span className="landing-pill">Employee Registration Portal</span>
-            <h1 className="landing-title">Employee Registration</h1>
+            <h1 className="landing-title">Employee registration</h1>
             <p className="landing-description">
-              Register your employee profile to access your company&apos;s
-              workforce attendance system. It only takes a few minutes.
+              Create your employee profile for Box For Less or Double A. After
+              that, attendance is your Staff ID and your face, in seconds.
             </p>
 
             <ul className="landing-points">
               {HERO_POINTS.map((point) => (
                 <li key={point}>
                   <span className="landing-point-icon" aria-hidden="true">
-                    <CircleCheckIcon />
+                    <CheckIcon />
                   </span>
                   {point}
                 </li>
@@ -176,8 +121,8 @@ export default function RegistrationWelcome({
                 />
               </svg>
               <span>
-                Your Staff ID will be generated automatically after successful
-                registration.
+                Your Staff ID is generated automatically when your registration
+                is complete. Keep it safe; you need it every time you check in.
               </span>
             </div>
           </div>
@@ -186,9 +131,9 @@ export default function RegistrationWelcome({
             className="landing-card"
             aria-label="Start your registration"
           >
-            <h2 className="landing-card-title">Start Your Registration</h2>
+            <h2 className="landing-card-title">Start your registration</h2>
             <p className="landing-card-subtitle">
-              Select your company to begin
+              Choose your company to begin
             </p>
 
             <div className="landing-options" role="radiogroup" aria-label="Company">
@@ -248,7 +193,7 @@ export default function RegistrationWelcome({
 
             <p className="landing-card-note">
               <ShieldCheckIcon size={14} />
-              Secure registration process
+              Your photo is used only to verify your attendance
             </p>
 
             {onBack && (
@@ -257,29 +202,15 @@ export default function RegistrationWelcome({
                 className="landing-back-link"
                 onClick={onBack}
               >
-                Back to Home
+                Back to home
               </button>
             )}
           </section>
         </div>
 
-        <div className="landing-features">
-          {FEATURES.map((feature) => (
-            <div className="landing-feature" key={feature.title}>
-              <span className="landing-feature-icon" aria-hidden="true">
-                <FeatureIcon name={feature.icon} />
-              </span>
-              <div>
-                <h3>{feature.title}</h3>
-                <p>{feature.text}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-
         <footer className="landing-footer">
-          <span>Workforce Attendance © 2025</span>
-          <span>Built for a more productive workplace 💙</span>
+          <span>Workforce Attendance · Box For Less &amp; Double A</span>
+          <span>© 2025</span>
         </footer>
       </div>
     </div>

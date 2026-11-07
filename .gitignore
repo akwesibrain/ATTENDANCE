@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Design-tooling output (web-designer screenshots/matrix)
+shots/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

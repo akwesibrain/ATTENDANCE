@@ -64,7 +64,7 @@
 }
 
 .hr-brand-text span {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   color: rgba(255, 255, 255, 0.65);
   letter-spacing: 0.02em;
@@ -86,7 +86,7 @@
   width: 100%;
   text-align: left;
   background: transparent;
-  border: none;
+  border: 1px solid transparent;
   color: rgba(255, 255, 255, 0.78);
   font-size: 14.5px;
   font-weight: 500;
@@ -94,8 +94,8 @@
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition:
-    background 0.15s ease,
-    color 0.15s ease;
+    background 0.16s var(--ease-out),
+    color 0.16s var(--ease-out);
 }
 
 .hr-nav-item:hover {
@@ -121,7 +121,7 @@
 
 .hr-footer-sub {
   display: block;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   color: rgba(255, 255, 255, 0.6);
 }
@@ -153,9 +153,10 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  background: var(--color-card);
-  border-bottom: 1px solid var(--color-border);
+  gap: 12px;
+  flex-wrap: wrap;
+  background: var(--surface);
+  border-bottom: 1px solid var(--rule);
   padding: 14px 28px;
   position: sticky;
   top: 0;
@@ -184,7 +185,9 @@
 .hr-topbar-right {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
+  flex-wrap: wrap;
+  min-width: 0;
 }
 
 .hr-icon-btn {
@@ -212,9 +215,9 @@
   min-width: 18px;
   height: 18px;
   border-radius: 999px;
-  background: var(--color-danger);
+  background: var(--crit);
   color: #fff;
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 700;
   display: grid;
   place-items: center;
@@ -272,14 +275,15 @@
 }
 
 .hr-welcome h1 {
-  font-size: 26px;
+  font-size: var(--t-h1);
   font-weight: 800;
-  color: var(--color-primary);
+  color: var(--brand);
   margin: 0;
+  letter-spacing: -0.01em;
 }
 
 .hr-welcome p {
-  color: var(--color-text-secondary);
+  color: var(--ink-2);
   font-size: 14.5px;
   margin: 4px 0 0;
 }
@@ -288,91 +292,64 @@
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  background: var(--color-card);
-  border: 1px solid var(--color-border);
+  background: var(--surface);
+  border: 1px solid var(--rule);
   border-radius: var(--radius-md);
   padding: 9px 14px;
   font-size: 13.5px;
   font-weight: 600;
-  color: var(--color-primary);
+  color: var(--brand);
 }
 
-/* ---------- Stat cards ---------- */
+/* ---------- Today summary line + register (the hero) ---------- */
 
-.hr-stats {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
+.hr-summary {
+  font-size: 15px;
+  color: var(--ink-2);
+  margin: 0;
 }
 
-.hr-stat {
-  background: var(--color-card);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-card);
-  padding: 18px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  overflow: hidden;
+.hr-summary strong {
+  color: var(--ink);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
-.hr-stat-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.hr-stat-icon {
-  width: 34px;
-  height: 34px;
-  border-radius: 9px;
-  display: grid;
-  place-items: center;
-  flex-shrink: 0;
-}
-
-.icon-blue { background: var(--color-secondary-soft); color: var(--color-secondary); }
-.icon-green { background: #e8f4ed; color: #16834b; }
-.icon-red { background: var(--color-danger-soft); color: var(--color-danger); }
-.icon-amber { background: var(--color-warning-soft); color: var(--color-warning); }
-
-.hr-stat-title {
-  font-size: 13px;
+.hr-summary-late {
+  color: var(--warn);
   font-weight: 600;
-  color: var(--color-text-secondary);
 }
 
-.hr-stat-value {
-  font-size: 32px;
-  font-weight: 800;
-  color: var(--color-text);
-  line-height: 1;
+.hr-summary-absent {
+  color: var(--crit);
+  font-weight: 600;
 }
 
-.sparkline {
-  width: 100%;
-  height: 44px;
-  display: block;
+.hr-register {
+  padding: 0;
 }
 
-.hr-rate {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+.hr-register .hr-panel-head {
+  padding: 18px 18px 0;
+  margin-bottom: 6px;
+}
+
+.hr-table-wrap {
+  overflow-x: auto;
+}
+
+.hr-time {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 /* ---------- Panels / tables ---------- */
 
-.hr-panels {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-}
-
 .hr-panel {
-  background: var(--color-card);
-  border: 1px solid var(--color-border);
+  background: var(--surface);
+  border: 1px solid var(--rule);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-card);
   padding: 18px;
@@ -397,12 +374,13 @@
 
 .hr-link {
   background: none;
-  border: none;
-  color: var(--color-secondary);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--accent);
   font-size: 13.5px;
   font-weight: 600;
   cursor: pointer;
-  padding: 0;
+  padding: 4px 6px;
 }
 
 .hr-link:hover {
@@ -428,20 +406,23 @@
 
 .hr-table thead th {
   text-align: left;
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--color-text-secondary);
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--color-border);
+  color: var(--ink-2);
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--rule);
   white-space: nowrap;
+  background: var(--surface);
+  position: sticky;
+  top: 0;
 }
 
 .hr-table tbody td {
-  padding: 11px 12px;
-  border-bottom: 1px solid var(--color-border);
-  color: var(--color-text);
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--rule);
+  color: var(--ink);
   vertical-align: middle;
 }
 
@@ -450,7 +431,7 @@
 }
 
 .hr-table tbody tr:hover {
-  background: var(--color-bg);
+  background: var(--ground);
 }
 
 .hr-employee {
@@ -471,15 +452,16 @@
 .hr-avatar-fallback {
   display: grid;
   place-items: center;
-  background: var(--color-secondary-soft);
-  color: var(--color-secondary);
+  background: var(--accent-soft);
+  color: var(--brand);
   font-size: 11.5px;
   font-weight: 700;
 }
 
 .hr-mono {
-  font-family: ui-monospace, 'SFMono-Regular', Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 12.5px;
+  font-weight: 500;
   letter-spacing: 0.02em;
 }
 
@@ -502,17 +484,19 @@
   border: 1px solid var(--color-border);
 }
 
+/* Status shown by word + a distinct shape; hue only reinforces. */
 .status-badge {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  background: var(--color-secondary-soft);
-  color: var(--color-secondary);
+  gap: 7px;
+  background: var(--ok-soft);
+  color: var(--ok);
   font-size: 12px;
   font-weight: 700;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.03em;
   padding: 4px 12px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
+  border: 1px solid currentColor;
   white-space: nowrap;
 }
 
@@ -521,25 +505,29 @@
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--color-secondary);
+  background: currentColor;
+  flex-shrink: 0;
 }
 
 .status-badge.status-late {
-  background: var(--color-warning-soft);
-  color: var(--color-warning);
+  background: var(--warn-soft);
+  color: var(--warn);
 }
 
 .status-badge.status-late::before {
-  background: var(--color-warning);
+  border-radius: 2px;
 }
 
 .status-badge.status-absent {
-  background: var(--color-danger-soft);
-  color: var(--color-danger);
+  background: var(--crit-soft);
+  color: var(--crit);
 }
 
 .status-badge.status-absent::before {
-  background: var(--color-danger);
+  background: transparent;
+  border: 2px solid currentColor;
+  width: 6px;
+  height: 6px;
 }
 
 .hr-empty {
@@ -551,9 +539,6 @@
 /* ---------- Responsive ---------- */
 
 @media (max-width: 1000px) {
-  .hr-stats {
-    grid-template-columns: repeat(2, 1fr);
-  }
   .hr-panels {
     grid-template-columns: 1fr;
   }
@@ -598,5 +583,28 @@
   }
   .hr-profile-text {
     display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .hr-topbar {
+    gap: 8px;
+  }
+  .hr-topbar-right {
+    gap: 8px;
+  }
+  /* Keep the bar within the viewport: drop the bell, shrink Exit. */
+  .hr-icon-btn {
+    display: none;
+  }
+  .hr-exit {
+    min-height: 40px;
+    padding: 8px 12px;
+    font-size: 14px;
+  }
+  .hr-company-select {
+    max-width: 100%;
+    font-size: 13.5px;
+    padding: 9px 10px;
   }
 }

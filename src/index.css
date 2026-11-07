@@ -1,30 +1,71 @@
 :root {
-  /* Design tokens — white & blue enterprise palette */
-  --color-primary: #0b3d91;
-  --color-primary-dark: #082c6b;
-  --color-secondary: #1c6fe0;
-  --color-secondary-hover: #1559b8;
-  --color-secondary-soft: #e8f1fd;
-  --color-bg: #f5f8fc;
-  --color-text: #101d33;
-  --color-text-secondary: #5b6b84;
-  --color-card: #ffffff;
-  --color-border: #e3eaf3;
-  --color-warning: #e9a23b;
-  --color-warning-soft: #fdf3e3;
-  --color-danger: #d94a4a;
-  --color-danger-soft: #fbecec;
+  color-scheme: light;
 
+  /* ---- Ground & ink (cool registration-office light) ---- */
+  --ground: #f6f9fd;
+  --surface: #ffffff;
+  --ink: #0e1f3d;
+  --ink-2: #51637f;
+  --rule: #e2eaf4;
+
+  /* ---- Brand structure (not accents) ---- */
+  --brand: #0b3d91;
+  --brand-dark: #082c6b;
+
+  /* ---- The ONE accent, one job: primary action / "now" ---- */
+  --accent: #1c6fe0;
+  --accent-hover: #1559b8;
+  --accent-soft: #e8f1fd;
+  --accent-ink: #ffffff;
+  --focus: #1c6fe0;
+
+  /* ---- Status: hue + word + shape, never hue alone ---- */
+  --ok: #1a8a4a;
+  --ok-soft: #e5f4ec;
+  --warn: #b8770e;
+  --warn-soft: #fbf0da;
+  --crit: #c43d3d;
+  --crit-soft: #fae9e9;
+
+  /* ---- Legacy aliases (so existing components keep compiling) ---- */
+  --color-primary: var(--brand);
+  --color-primary-dark: var(--brand-dark);
+  --color-secondary: var(--accent);
+  --color-secondary-hover: var(--accent-hover);
+  --color-secondary-soft: var(--accent-soft);
+  --color-bg: var(--ground);
+  --color-text: var(--ink);
+  --color-text-secondary: var(--ink-2);
+  --color-card: var(--surface);
+  --color-border: var(--rule);
+  --color-warning: var(--warn);
+  --color-warning-soft: var(--warn-soft);
+  --color-danger: var(--crit);
+  --color-danger-soft: var(--crit-soft);
+
+  /* ---- Radius family (mixed by role) ---- */
   --radius-sm: 8px;
   --radius-md: 12px;
-  --radius-lg: 16px;
+  --radius-lg: 18px;
+  --radius-pill: 999px;
 
-  --shadow-card:
-    0 1px 2px rgba(11, 61, 145, 0.05), 0 4px 16px rgba(11, 61, 145, 0.07);
+  /* ---- Shadows only on what floats ---- */
+  --shadow-card: 0 1px 2px rgba(11, 61, 145, 0.05), 0 4px 16px rgba(11, 61, 145, 0.07);
   --shadow-raised: 0 8px 28px rgba(11, 61, 145, 0.14);
 
-  --font-family:
-    'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  /* ---- Type ---- */
+  --font-family: 'Public Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  --t-display: clamp(2.25rem, 1.4rem + 3vw, 3.5rem);
+  --t-h1: 1.5rem;
+  --t-h2: 1.25rem;
+  --t-body: 1rem;
+  --t-small: 0.9375rem;
+  --t-meta: 0.8125rem;
+
+  /* ---- Motion ---- */
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
 }
 
 *,
@@ -42,8 +83,8 @@ body {
   font-family: var(--font-family);
   font-size: 16px;
   line-height: 1.5;
-  color: var(--color-text);
-  background-color: var(--color-bg);
+  color: var(--ink);
+  background-color: var(--ground);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -66,9 +107,28 @@ video {
   display: block;
 }
 
+/* Visible, consistent focus for keyboard users. */
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
 #root {
   min-height: 100vh;
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
+}
+
+/* Respect reduced motion: no entrance/loop animation, content stays visible. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

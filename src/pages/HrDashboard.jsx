@@ -14,6 +14,13 @@ function todayKey(date = new Date()) {
   return date.toISOString().slice(0, 10)
 }
 
+function formatTime(iso) {
+  return new Date(iso).toLocaleTimeString([], {
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
+
 function Icon({ name, size = 20 }) {
   const paths = {
     grid: (
@@ -37,13 +44,6 @@ function Icon({ name, size = 20 }) {
         <path d="M12 7v5l3 2" />
       </>
     ),
-    check: <path d="M20 6L9 17l-5-5" />,
-    x: (
-      <>
-        <path d="M18 6L6 18M6 6l12 12" />
-      </>
-    ),
-    login: <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3" />,
     bell: (
       <>
         <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
@@ -70,24 +70,6 @@ function Icon({ name, size = 20 }) {
       aria-hidden="true"
     >
       {paths[name]}
-    </svg>
-  )
-}
-
-function Sparkline({ points, color }) {
-  const w = 200
-  const h = 44
-  const max = Math.max(...points, 1)
-  const min = Math.min(...points, 0)
-  const range = max - min || 1
-  const step = w / (points.length - 1 || 1)
-  const coords = points.map((p, i) => [i * step, h - 6 - ((p - min) / range) * (h - 12)])
-  const line = coords.map((c, i) => `${i === 0 ? 'M' : 'L'}${c[0].toFixed(1)},${c[1].toFixed(1)}`).join(' ')
-  const area = `${line} L${w},${h} L0,${h} Z`
-  return (
-    <svg className="sparkline" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" aria-hidden="true">
-      <path d={area} fill={color} opacity="0.12" />
-      <path d={line} fill="none" stroke={color} strokeWidth="2" />
     </svg>
   )
 }
@@ -129,12 +111,6 @@ export default function HrDashboard({ onBack }) {
     return { total, present, absent, late: late.length, currentlyIn, rate }
   }, [companyEmployees, companyEvents])
 
-  const recentRegistrations = useMemo(() => companyEmployees.slice(0, 5), [companyEmployees])
-  const recentCheckIns = useMemo(
-    () => companyEvents.filter((e) => e.type === 'check-in').slice().reverse().slice(0, 5),
-    [companyEvents],
-  )
-
   // One row per employee for the selected date: their check-in time,
   // check-out time and derived status (Late / On time / Absent).
   const attendanceRows = useMemo(() => {
@@ -150,6 +126,25 @@ export default function HrDashboard({ onBack }) {
       return { emp, checkIn, checkOut, absentMark, status }
     })
   }, [companyEmployees, companyEvents, attendanceDate])
+
+  // Today's register: one row per employee for today, present first, then
+  // late, then absent — so who needs attention rises to the top.
+  const todayRows = useMemo(() => {
+    const today = todayKey()
+    const rows = companyEmployees.map((emp) => {
+      const empEvents = companyEvents.filter(
+        (e) => e.staffId === emp.staffId && e.date === today,
+      )
+      const checkIn = empEvents.find((e) => e.type === 'check-in')
+      const checkOut = empEvents.find((e) => e.type === 'check-out')
+      const absentMark = empEvents.find((e) => e.type === 'absent')
+      let status = null
+      if (checkIn) status = checkIn.status === 'late' ? 'late' : 'on-time'
+      return { emp, checkIn, checkOut, absentMark, status }
+    })
+    const rank = (r) => (r.status === 'on-time' ? 0 : r.status === 'late' ? 1 : 2)
+    return rows.sort((a, b) => rank(a) - rank(b))
+  }, [companyEmployees, companyEvents])
 
   const filteredEmployees = useMemo(() => {
     const term = search.trim().toLowerCase()
@@ -176,13 +171,6 @@ export default function HrDashboard({ onBack }) {
     })
     return counts
   }, [companyEvents])
-
-  const spark = {
-    total: [3, 4, 3, 5, 4, 6, 5, stats.total],
-    present: [2, 3, 2, 4, 3, 4, 3, stats.present],
-    absent: [1, 0, 1, 1, 0, 1, 0, stats.absent],
-    late: [0, 1, 0, 0, 1, 0, 1, stats.late],
-  }
 
   return (
     <div className="hr-layout">
@@ -273,8 +261,14 @@ export default function HrDashboard({ onBack }) {
         <div className="hr-content">
           <div className="hr-welcome">
             <div>
-              <h1>Welcome back, John!</h1>
-              <p>Here&apos;s what&apos;s happening at {company.name} today.</p>
+              <h1>{company.name}</h1>
+              <p>
+                {new Date(`${todayKey()}T00:00:00`).toLocaleDateString([], {
+                  weekday: 'long',
+                  month: 'long',
+                  day: 'numeric',
+                })}
+              </p>
             </div>
             <span className="hr-today">
               <Icon name="clock" size={16} /> Today
@@ -283,77 +277,48 @@ export default function HrDashboard({ onBack }) {
 
           {activeNav === 'dashboard' && (
             <>
-              {/* Stat cards */}
-              <div className="hr-stats">
-                <div className="hr-stat">
-                  <div className="hr-stat-head">
-                    <span className="hr-stat-icon icon-blue"><Icon name="users" /></span>
-                    <span className="hr-stat-title">Total Employees</span>
-                  </div>
-                  <div className="hr-stat-value">{stats.total}</div>
-                  <Sparkline points={spark.total} color="#1c6fe0" />
-                </div>
+              {/* The day's register is the hero. One quiet summary line, then
+                  the table of who is in, late or absent. */}
+              <p className="hr-summary" role="status">
+                <strong>{stats.present}</strong> of <strong>{stats.total}</strong>{' '}
+                present
+                {stats.late > 0 && (
+                  <>
+                    {' '}· <span className="hr-summary-late">{stats.late} late</span>
+                  </>
+                )}
+                {stats.absent > 0 && (
+                  <>
+                    {' '}· <span className="hr-summary-absent">{stats.absent} absent</span>
+                  </>
+                )}
+                {' '}· {stats.currentlyIn} in now
+              </p>
 
-                <div className="hr-stat">
-                  <div className="hr-stat-head">
-                    <span className="hr-stat-icon icon-green"><Icon name="check" /></span>
-                    <span className="hr-stat-title">Present Today</span>
-                  </div>
-                  <div className="hr-stat-value">{stats.present}</div>
-                  <Sparkline points={spark.present} color="#16834b" />
+              <section className="hr-panel hr-register">
+                <div className="hr-panel-head">
+                  <h2>Today&apos;s register</h2>
+                  <button
+                    type="button"
+                    className="hr-link"
+                    onClick={() => setActiveNav('attendance')}
+                  >
+                    Full attendance →
+                  </button>
                 </div>
-
-                <div className="hr-stat">
-                  <div className="hr-stat-head">
-                    <span className="hr-stat-icon icon-red"><Icon name="x" /></span>
-                    <span className="hr-stat-title">Absent Today</span>
-                  </div>
-                  <div className="hr-stat-value">{stats.absent}</div>
-                  <Sparkline points={spark.absent} color="#d94a4a" />
-                </div>
-
-                <div className="hr-stat">
-                  <div className="hr-stat-head">
-                    <span className="hr-stat-icon icon-amber"><Icon name="clock" /></span>
-                    <span className="hr-stat-title">Late Arrivals</span>
-                  </div>
-                  <div className="hr-stat-value">{stats.late}</div>
-                  <Sparkline points={spark.late} color="#e9a23b" />
-                </div>
-
-                <div className="hr-stat">
-                  <div className="hr-stat-head">
-                    <span className="hr-stat-icon icon-blue"><Icon name="login" /></span>
-                    <span className="hr-stat-title">Currently Checked In</span>
-                  </div>
-                  <div className="hr-stat-value">{stats.currentlyIn}</div>
-                </div>
-
-                <div className="hr-stat">
-                  <div className="hr-stat-head">
-                    <span className="hr-stat-title">Attendance Rate</span>
-                  </div>
-                  <div className="hr-rate">
-                    <span className="hr-stat-value">{stats.rate}%</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Recent lists */}
-              <div className="hr-panels">
-                <section className="hr-panel">
-                  <div className="hr-panel-head">
-                    <h2>Recent Registrations</h2>
-                    <button type="button" className="hr-link" onClick={() => setActiveNav('employees')}>
-                      View All →
-                    </button>
-                  </div>
+                <div className="hr-table-wrap">
                   <table className="hr-table">
                     <thead>
-                      <tr><th>Employee</th><th>Staff ID</th><th>Position</th></tr>
+                      <tr>
+                        <th>Employee</th>
+                        <th>Staff ID</th>
+                        <th>Check in</th>
+                        <th>Check out</th>
+                        <th>Status</th>
+                      </tr>
                     </thead>
                     <tbody>
-                      {recentRegistrations.map((emp) => (
+                      {todayRows.map(({ emp, checkIn, checkOut, absentMark, status }) => (
                         <tr key={emp.staffId}>
                           <td>
                             <div className="hr-employee">
@@ -368,42 +333,39 @@ export default function HrDashboard({ onBack }) {
                             </div>
                           </td>
                           <td className="hr-mono">{emp.staffId}</td>
-                          <td>{emp.position}</td>
+                          <td className="hr-time">
+                            {checkIn ? formatTime(checkIn.time) : '—'}
+                          </td>
+                          <td className="hr-time">
+                            {checkOut ? formatTime(checkOut.time) : '—'}
+                          </td>
+                          <td>
+                            {status === 'late' ? (
+                              <span className="status-badge status-late">Late</span>
+                            ) : status === 'on-time' ? (
+                              <span className="status-badge">On time</span>
+                            ) : (
+                              <span
+                                className="status-badge status-absent"
+                                title={absentMark?.reason}
+                              >
+                                Absent
+                              </span>
+                            )}
+                          </td>
                         </tr>
                       ))}
-                      {recentRegistrations.length === 0 && (
-                        <tr><td colSpan="3" className="hr-empty">No registrations yet.</td></tr>
+                      {todayRows.length === 0 && (
+                        <tr>
+                          <td colSpan="5" className="hr-empty">
+                            No employees registered for {company.name} yet.
+                          </td>
+                        </tr>
                       )}
                     </tbody>
                   </table>
-                </section>
-
-                <section className="hr-panel">
-                  <div className="hr-panel-head">
-                    <h2>Recent Check-Ins</h2>
-                    <button type="button" className="hr-link" onClick={() => setActiveNav('attendance')}>
-                      View All →
-                    </button>
-                  </div>
-                  <table className="hr-table">
-                    <thead>
-                      <tr><th>Employee</th><th>Staff ID</th><th>Time</th></tr>
-                    </thead>
-                    <tbody>
-                      {recentCheckIns.map((ev) => (
-                        <tr key={ev.id}>
-                          <td>{ev.fullName}</td>
-                          <td className="hr-mono">{ev.staffId}</td>
-                          <td>{new Date(ev.time).toLocaleTimeString()}</td>
-                        </tr>
-                      ))}
-                      {recentCheckIns.length === 0 && (
-                        <tr><td colSpan="3" className="hr-empty">No check-ins yet.</td></tr>
-                      )}
-                    </tbody>
-                  </table>
-                </section>
-              </div>
+                </div>
+              </section>
             </>
           )}
 
