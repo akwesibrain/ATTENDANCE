@@ -1,4 +1,5 @@
 import { getCompanyById } from '../../constants/companies'
+import { getPaymentMethodLabel } from '../../constants/paymentMethods'
 
 function ReviewSection({ title, onEdit, children }) {
   return (
@@ -68,6 +69,10 @@ export default function RegistrationReview({
           <ReviewRow label="Phone number" value={data.phone.trim()} />
           <ReviewRow label="Email address" value={data.email.trim()} />
           <ReviewRow label="Residential address" value={data.address.trim()} />
+          <ReviewRow
+            label="Payment method"
+            value={getPaymentMethodLabel(data.paymentMethod)}
+          />
           {hasEmergencyContact && (
             <ReviewRow
               label="Emergency contact"

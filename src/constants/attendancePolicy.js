@@ -25,6 +25,10 @@ function hourOf(date) {
  * @returns {{allowed: boolean, status: 'on-time'|'late'|null, message: string}}
  */
 export function evaluateCheckIn(now = new Date()) {
+  // Weekend work is overtime and is not bound by the weekday window.
+  if (isWeekend(now)) {
+    return { allowed: true, status: 'on-time', message: '', overtime: true }
+  }
   const h = hourOf(now)
   if (h < CHECK_IN_START_HOUR) {
     return {
@@ -45,6 +49,10 @@ export function evaluateCheckIn(now = new Date()) {
  * @returns {{allowed: boolean, status: 'on-time'|null, message: string}}
  */
 export function evaluateCheckOut(now = new Date()) {
+  // Weekend work is overtime and is not bound by the weekday window.
+  if (isWeekend(now)) {
+    return { allowed: true, status: 'on-time', message: '', overtime: true }
+  }
   const h = hourOf(now)
   if (h < CHECK_OUT_START_HOUR) {
     return {
@@ -66,4 +74,27 @@ export function evaluateCheckOut(now = new Date()) {
 /** Evaluate the window for a given action type. */
 export function evaluateAction(type, now = new Date()) {
   return type === 'check-in' ? evaluateCheckIn(now) : evaluateCheckOut(now)
+}
+
+/* ---------- Working days, weekends and overtime ---------- */
+
+/** Working days are Monday to Friday. Saturday and Sunday are weekends. */
+export function isWeekend(date = new Date()) {
+  const day = date.getDay() // 0 = Sunday, 6 = Saturday
+  return day === 0 || day === 6
+}
+
+/**
+ * Overtime hours for a day's work. Weekend work (Sat/Sun) counts as overtime:
+ * the hours between check-in and check-out. Returns hours rounded to one
+ * decimal, or 0 when there is no complete in/out pair or it is a weekday.
+ */
+export function overtimeHours(checkInTime, checkOutTime, date = new Date()) {
+  if (!isWeekend(date)) return 0
+  if (!checkInTime || !checkOutTime) return 0
+  const start = new Date(checkInTime).getTime()
+  const end = new Date(checkOutTime).getTime()
+  const hours = (end - start) / 3600000
+  if (!Number.isFinite(hours) || hours <= 0) return 0
+  return Math.round(hours * 10) / 10
 }

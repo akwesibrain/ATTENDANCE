@@ -36,7 +36,10 @@ export function validatePersonalInformation(data) {
 }
 
 export function isPersonalInformationValid(data) {
-  return Object.values(validatePersonalInformation(data)).every((e) => e === '')
+  return (
+    Object.values(validatePersonalInformation(data)).every((e) => e === '') &&
+    Boolean(data.paymentMethod)
+  )
 }
 
 /**

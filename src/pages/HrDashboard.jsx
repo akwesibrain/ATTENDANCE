@@ -7,6 +7,9 @@ import {
   listPayPeriods,
   payPeriodDates,
 } from '../utils/payPeriod'
+import { getHoliday } from '../constants/holidays'
+import { getPaymentMethodLabel } from '../constants/paymentMethods'
+import { isWeekend } from '../constants/attendancePolicy'
 import '../styles/hr.css'
 
 const NAV = [
@@ -176,8 +179,9 @@ export default function HrDashboard({ onBack }) {
   }, [companyEmployees, companyEvents])
 
   // One row per employee for the selected date: their check-in time,
-  // check-out time and derived status (Late / On time / Absent).
+  // check-out time and derived status (Late / On time / Absent / Overtime).
   const attendanceRows = useMemo(() => {
+    const weekend = isWeekend(new Date(`${attendanceDate}T00:00:00`))
     return companyEmployees.map((emp) => {
       const empEvents = companyEvents.filter(
         (e) => e.staffId === emp.staffId && e.date === attendanceDate,
@@ -187,7 +191,10 @@ export default function HrDashboard({ onBack }) {
       const absentMark = empEvents.find((e) => e.type === 'absent')
       let status = null
       if (checkIn) status = checkIn.status === 'late' ? 'late' : 'on-time'
-      return { emp, checkIn, checkOut, absentMark, status }
+      // Weekend work is overtime; surface the hours when checked out.
+      const overtime = checkOut?.overtimeHours ?? 0
+      const workedWeekend = weekend && Boolean(checkIn)
+      return { emp, checkIn, checkOut, absentMark, status, overtime, workedWeekend }
     })
   }, [companyEmployees, companyEvents, attendanceDate])
 
@@ -245,10 +252,16 @@ export default function HrDashboard({ onBack }) {
   )
 
   // One report row per employee: total days in the period, days present, late
-  // days, absent days, attendance rate and a status tier.
+  // days, absent days, overtime hours (weekend work), holidays in the period,
+  // attendance rate and a status tier.
   const reportRows = useMemo(() => {
-    const dates = new Set(payPeriodDates(reportPeriod))
-    const totalDays = dates.size
+    const periodDateList = payPeriodDates(reportPeriod)
+    const dates = new Set(periodDateList)
+    const totalDays = periodDateList.length
+    // Holidays falling inside the period.
+    const holidaysInPeriod = periodDateList
+      .map((d) => ({ date: d, ...getHoliday(new Date(`${d}T00:00:00`)) }))
+      .filter((d) => d.holiday)
     return companyEmployees.map((emp) => {
       const empEvents = companyEvents.filter(
         (e) => e.staffId === emp.staffId && dates.has(e.date),
@@ -259,27 +272,44 @@ export default function HrDashboard({ onBack }) {
         checkIns.filter((e) => e.status === 'late').map((e) => e.date),
       ).size
       const absent = Math.max(totalDays - present, 0)
+      // Overtime = total weekend hours worked in the period.
+      const overtime = empEvents
+        .filter((e) => e.type === 'check-out' && e.overtimeHours)
+        .reduce((sum, e) => sum + e.overtimeHours, 0)
       const rate = totalDays ? (present / totalDays) * 100 : 0
       let tier = 'needs-attention'
       if (rate >= 99) tier = 'perfect'
       else if (rate >= 95) tier = 'excellent'
       else if (rate >= 90) tier = 'good'
-      return { emp, totalDays, present, late, absent, rate, tier }
+      return {
+        emp,
+        totalDays,
+        present,
+        late,
+        absent,
+        overtime: Math.round(overtime * 10) / 10,
+        holidays: holidaysInPeriod.length,
+        rate,
+        tier,
+      }
     })
   }, [companyEmployees, companyEvents, reportPeriod])
 
   // Download the current report as a CSV file.
   const downloadReport = () => {
-    const header = ['#', 'Employee Name', 'Employee ID', 'Position', 'Total Days', 'Present', 'Late', 'Absent', 'Attendance Rate', 'Status']
+    const header = ['#', 'Employee Name', 'Employee ID', 'Position', 'Payment Method', 'Total Days', 'Present', 'Late', 'Absent', 'Overtime (hrs)', 'Holidays', 'Attendance Rate', 'Status']
     const lines = reportRows.map((r, i) => [
       i + 1,
       r.emp.fullName,
       r.emp.staffId,
       r.emp.position,
+      getPaymentMethodLabel(r.emp.paymentMethod),
       r.totalDays,
       r.present,
       r.late,
       r.absent,
+      r.overtime,
+      r.holidays,
       `${r.rate.toFixed(1)}%`,
       TIER_LABELS[r.tier],
     ])
@@ -571,7 +601,7 @@ export default function HrDashboard({ onBack }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {attendanceRows.map(({ emp, checkIn, checkOut, absentMark, status }) => (
+                  {attendanceRows.map(({ emp, checkIn, checkOut, absentMark, status, overtime, workedWeekend }) => (
                     <tr key={emp.staffId}>
                       <td>
                         <div className="hr-employee">
@@ -592,7 +622,11 @@ export default function HrDashboard({ onBack }) {
                       <td>{new Date(`${attendanceDate}T00:00:00`).toLocaleDateString()}</td>
                       <td>{daysWorkedByStaffId[emp.staffId] ?? 0}</td>
                       <td>
-                        {status === 'late' ? (
+                        {workedWeekend ? (
+                          <span className="status-badge status-overtime">
+                            OVERTIME{overtime > 0 ? ` · ${overtime}h` : ''}
+                          </span>
+                        ) : status === 'late' ? (
                           <span className="status-badge status-late">LATE</span>
                         ) : status === 'on-time' ? (
                           <span className="status-badge">ON TIME</span>
@@ -671,16 +705,19 @@ export default function HrDashboard({ onBack }) {
                       <th>Employee Name</th>
                       <th>Employee ID</th>
                       <th>Position</th>
+                      <th>Payment Method</th>
                       <th className="hr-num">Total Days</th>
                       <th className="hr-num">Present</th>
                       <th className="hr-num">Late</th>
                       <th className="hr-num">Absent</th>
+                      <th className="hr-num">Overtime (hrs)</th>
+                      <th className="hr-num">Holidays</th>
                       <th className="hr-num">Attendance Rate</th>
                       <th>Status</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {reportRows.map(({ emp, totalDays, present, late, absent, rate, tier }, i) => (
+                    {reportRows.map(({ emp, totalDays, present, late, absent, overtime, holidays, rate, tier }, i) => (
                       <tr key={emp.staffId}>
                         <td className="hr-num hr-rownum">{i + 1}</td>
                         <td>
@@ -697,6 +734,7 @@ export default function HrDashboard({ onBack }) {
                         </td>
                         <td className="hr-mono">{emp.staffId}</td>
                         <td>{emp.position}</td>
+                        <td>{getPaymentMethodLabel(emp.paymentMethod) || '—'}</td>
                         <td className="hr-num">{totalDays}</td>
                         <td className="hr-num">{present}</td>
                         <td className="hr-num">
@@ -705,6 +743,10 @@ export default function HrDashboard({ onBack }) {
                         <td className="hr-num">
                           {absent > 0 ? <span className="hr-cell-crit">{absent}</span> : absent}
                         </td>
+                        <td className="hr-num">
+                          {overtime > 0 ? <span className="hr-cell-overtime">{overtime}</span> : overtime}
+                        </td>
+                        <td className="hr-num">{holidays}</td>
                         <td className="hr-num hr-rate">{rate.toFixed(1)}%</td>
                         <td>
                           <span className={`report-tier report-tier-${tier}`}>
@@ -715,7 +757,7 @@ export default function HrDashboard({ onBack }) {
                     ))}
                     {reportRows.length === 0 && (
                       <tr>
-                        <td colSpan="10" className="hr-empty">
+                        <td colSpan="13" className="hr-empty">
                           No employees registered for {company.name} yet.
                         </td>
                       </tr>

@@ -17,7 +17,11 @@
  */
 
 import { mockFindEmployeeByStaffId } from './registrationService'
-import { evaluateAction } from '../constants/attendancePolicy'
+import {
+  evaluateAction,
+  isWeekend,
+  overtimeHours,
+} from '../constants/attendancePolicy'
 import { faceSimilarity, FACE_MATCH_THRESHOLD } from '../utils/faceMatch'
 
 /** localStorage key for mock attendance events. */
@@ -298,6 +302,7 @@ export function recordAttendance({ staffId, faceImage }) {
         return
       }
 
+      const weekend = isWeekend(now)
       const event = {
         id: `${staffId}-${now.getTime()}`,
         staffId: employee.staffId,
@@ -308,7 +313,17 @@ export function recordAttendance({ staffId, faceImage }) {
         status: window.status,
         date: todayKey(now),
         time: now.toISOString(),
+        // Weekend work is overtime.
+        weekend,
       }
+
+      // On a weekend check-out, compute the overtime hours worked today
+      // (check-in to check-out) and store them on the check-out event.
+      if (type === 'check-out' && weekend) {
+        const checkIn = getTodayEvents(staffId).find((e) => e.type === 'check-in')
+        event.overtimeHours = overtimeHours(checkIn?.time, event.time, now)
+      }
+
       const events = readEvents()
       events.push(event)
       writeEvents(events)

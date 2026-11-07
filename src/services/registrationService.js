@@ -179,6 +179,7 @@ export function submitRegistration(registration) {
           companyName: company.name,
           fullName,
           position,
+          paymentMethod: registration.paymentMethod ?? '',
           faceImage: registration.faceImage ?? null,
           registeredAt: new Date().toISOString(),
         }

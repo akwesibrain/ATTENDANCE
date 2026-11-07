@@ -470,6 +470,11 @@
   font-weight: 700;
 }
 
+.hr-cell-overtime {
+  color: var(--accent);
+  font-weight: 700;
+}
+
 /* Status tier badges (word + soft hue). */
 .report-tier {
   display: inline-block;
@@ -699,6 +704,17 @@
   border: 2px solid currentColor;
   width: 6px;
   height: 6px;
+}
+
+/* Overtime (weekend work) = accent blue with a clock-like square marker. */
+.status-badge.status-overtime {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.status-badge.status-overtime::before {
+  border-radius: 2px;
+  background: currentColor;
 }
 
 .hr-empty {

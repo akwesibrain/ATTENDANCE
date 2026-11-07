@@ -37,6 +37,7 @@ const INITIAL_FORM_DATA = {
   emergencyContactPhone: '',
   faceImage: null,
   position: '',
+  paymentMethod: '',
   confirmed: false,
 }
 

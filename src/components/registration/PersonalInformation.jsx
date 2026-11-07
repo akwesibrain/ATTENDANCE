@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { validatePersonalInformation } from '../../utils/registrationValidation'
+import { PAYMENT_METHODS } from '../../constants/paymentMethods'
 
 const FIELDS = [
   { name: 'firstName', label: 'First name', required: true, autoComplete: 'given-name', placeholder: 'e.g. John' },
@@ -75,6 +76,57 @@ export default function PersonalInformation({ data, onChange, showErrors }) {
             </div>
           )
         })}
+
+        {/* Payment method — how the employee's salary is paid. */}
+        <h3 className="form-section-title">Salary payment</h3>
+        <div className="form-field is-full">
+          <span className="form-label" id="payment-method-label">
+            Payment method
+          </span>
+          <div
+            className="payment-methods"
+            role="radiogroup"
+            aria-labelledby="payment-method-label"
+          >
+            {PAYMENT_METHODS.map((method) => {
+              const selected = data.paymentMethod === method.id
+              return (
+                <button
+                  key={method.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={selected}
+                  className={`payment-method${selected ? ' is-selected' : ''}`}
+                  onClick={() => onChange('paymentMethod', method.id)}
+                >
+                  <span className="payment-method-radio" aria-hidden="true">
+                    {selected && (
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                        <path
+                          d="m5 13 4 4L19 7"
+                          stroke="currentColor"
+                          strokeWidth="3"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    )}
+                  </span>
+                  {method.label}
+                </button>
+              )
+            })}
+          </div>
+          {showErrors && !data.paymentMethod && (
+            <span className="field-error" role="alert">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" />
+                <path d="M12 8v4M12 16h.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+              Please choose how your salary is paid.
+            </span>
+          )}
+        </div>
       </div>
     </section>
   )
