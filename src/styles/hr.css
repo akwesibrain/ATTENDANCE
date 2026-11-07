@@ -301,28 +301,48 @@
   color: var(--brand);
 }
 
-/* ---------- Today summary line + register (the hero) ---------- */
+/* ---------- Today stat strip + register (the hero) ---------- */
 
-.hr-summary {
-  font-size: 15px;
-  color: var(--ink-2);
-  margin: 0;
+.hr-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
 }
 
-.hr-summary strong {
+.hr-stat {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.hr-stat-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.hr-stat-value {
+  font-size: 30px;
+  font-weight: 800;
   color: var(--ink);
-  font-weight: 700;
+  line-height: 1;
   font-variant-numeric: tabular-nums;
 }
 
-.hr-summary-late {
-  color: var(--warn);
-  font-weight: 600;
+.hr-stat-ok {
+  color: var(--ok);
 }
 
-.hr-summary-absent {
+.hr-stat-warn {
+  color: var(--warn);
+}
+
+.hr-stat-crit {
   color: var(--crit);
-  font-weight: 600;
 }
 
 .hr-register {
@@ -541,6 +561,9 @@
 @media (max-width: 1000px) {
   .hr-panels {
     grid-template-columns: 1fr;
+  }
+  .hr-stats {
+    grid-template-columns: repeat(2, 1fr);
   }
 }
 

@@ -277,23 +277,26 @@ export default function HrDashboard({ onBack }) {
 
           {activeNav === 'dashboard' && (
             <>
-              {/* The day's register is the hero. One quiet summary line, then
-                  the table of who is in, late or absent. */}
-              <p className="hr-summary" role="status">
-                <strong>{stats.present}</strong> of <strong>{stats.total}</strong>{' '}
-                present
-                {stats.late > 0 && (
-                  <>
-                    {' '}· <span className="hr-summary-late">{stats.late} late</span>
-                  </>
-                )}
-                {stats.absent > 0 && (
-                  <>
-                    {' '}· <span className="hr-summary-absent">{stats.absent} absent</span>
-                  </>
-                )}
-                {' '}· {stats.currentlyIn} in now
-              </p>
+              {/* The four numbers HR needs, as a clean stat strip. The day's
+                  register below stays the hero. */}
+              <div className="hr-stats" role="status" aria-label="Today's attendance summary">
+                <div className="hr-stat">
+                  <span className="hr-stat-label">Total employees</span>
+                  <span className="hr-stat-value">{stats.total}</span>
+                </div>
+                <div className="hr-stat">
+                  <span className="hr-stat-label">Present today</span>
+                  <span className="hr-stat-value hr-stat-ok">{stats.present}</span>
+                </div>
+                <div className="hr-stat">
+                  <span className="hr-stat-label">Absent today</span>
+                  <span className="hr-stat-value hr-stat-crit">{stats.absent}</span>
+                </div>
+                <div className="hr-stat">
+                  <span className="hr-stat-label">Late coming</span>
+                  <span className="hr-stat-value hr-stat-warn">{stats.late}</span>
+                </div>
+              </div>
 
               <section className="hr-panel hr-register">
                 <div className="hr-panel-head">
