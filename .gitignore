@@ -20,6 +20,7 @@ public/face-models
 !.env.example
 supabase/.temp
 supabase/.branches
+deno.lock
 
 # Design-tooling output (web-designer screenshots/matrix)
 shots/
