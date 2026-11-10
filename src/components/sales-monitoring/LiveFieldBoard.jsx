@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { FIELD_STATE, getLiveFieldBoard } from '../../services/salesMonitoringService'
 import { RESULT_LABELS, initials } from './labels'
 import { formatAccraTime } from '../../utils/accraTime'
+import GhanaFieldMap from './GhanaFieldMap'
 
 const REFRESH_SECONDS = 30
 const ON_DUTY = ['inside', 'outside', 'face-failed', 'location-unknown', 'no-response', 'awaiting-check']
@@ -51,6 +52,8 @@ export default function LiveFieldBoard({ company, onViewRep }) {
   const [paused, setPaused] = useState(false)
   const [stateFilter, setStateFilter] = useState('')
   const [shopFilter, setShopFilter] = useState('')
+  // null = whole of Ghana; otherwise the shop IDs shown in the close-up.
+  const [focus, setFocus] = useState(null)
 
   useEffect(() => {
     if (paused) return undefined
@@ -60,7 +63,9 @@ export default function LiveFieldBoard({ company, onViewRep }) {
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const board = useMemo(() => getLiveFieldBoard(company.id), [company.id, tick])
-  const { located, project } = useProjection(board.shops)
+  const allLocated = board.shops.filter((s) => s.latitude != null && s.longitude != null)
+  const closeUpShops = focus ? board.shops.filter((s) => focus.includes(s.shopId)) : board.shops
+  const { located, project } = useProjection(closeUpShops)
   const unlocated = board.shops.filter((s) => s.latitude == null || s.longitude == null)
   const repsAt = (shopId) => board.reps.filter((r) => r.shop?.shopId === shopId)
 
@@ -109,13 +114,27 @@ export default function LiveFieldBoard({ company, onViewRep }) {
 
       <section className="sm-panel">
         <div className="sm-panel-head">
-          <h3>Shops — {company.name}</h3>
-          <span className="sm-muted">Positions from Shop Directory coordinates · geofence rings not to scale</span>
+          <h3>{focus ? `Close-up — ${closeUpShops.map((s) => s.baseName).join(', ')}` : `Ghana — ${company.name} shops`}</h3>
+          {focus
+            ? <button type="button" className="sm-actions-btn" onClick={() => { setFocus(null); setShopFilter('') }}>← Back to map of Ghana</button>
+            : <span className="sm-muted">Shops at their Shop Directory coordinates · select a marker for a close-up</span>}
         </div>
-        {located.length === 0 ? (
+        {allLocated.length === 0 ? (
           <p className="sm-empty">No shops have GPS coordinates yet, so nothing can be placed on the map.</p>
+        ) : !focus ? (
+          <div className="lf-map-wrap">
+            <GhanaFieldMap shops={allLocated} repsAt={repsAt} onOpen={(ids) => { setFocus(ids); if (ids.length === 1) setShopFilter(ids[0]) }} />
+            <ul className="lf-legend" aria-label="Legend">
+              {['outside', 'no-response', 'awaiting-check', 'inside', 'off-schedule'].map((k) => (
+                <li key={k}><span className={`lf-key lf-tone-${FIELD_STATE[k].tone}`} aria-hidden="true" />{FIELD_STATE[k].short}</li>
+              ))}
+              <li><span className="lf-key-count" aria-hidden="true">3</span>Reps at the shop(s)</li>
+            </ul>
+            <p className="at-rules lf-map-note">Marker colour shows the most urgent latest check among the reps there. The country outline is simplified (Natural Earth, public domain).</p>
+          </div>
         ) : (
           <div className="lf-map-wrap">
+            <span className="sm-muted">Geofence rings not to scale</span>
             <svg viewBox={`0 0 ${MAP_W} ${MAP_H}`} className="lf-map" role="img" aria-label={`Map of ${located.length} shops with their reps' latest check results`}>
               {[1, 2, 3].map((i) => <line key={`h${i}`} x1="0" x2={MAP_W} y1={(MAP_H / 4) * i} y2={(MAP_H / 4) * i} className="lf-grid" />)}
               {[1, 2, 3, 4, 5].map((i) => <line key={`v${i}`} y1="0" y2={MAP_H} x1={(MAP_W / 6) * i} x2={(MAP_W / 6) * i} className="lf-grid" />)}

@@ -41,6 +41,7 @@ import { getAllEvents } from '../../services/attendanceService'
 import { elapsedPeriodDateKeys, periodForDateKey } from '../../utils/attendanceRules'
 import { accraTodayKey, formatAccraDate, formatAccraDateTime } from '../../utils/accraTime'
 import { ConfirmChange, Field, Locked, SectionCard, StatusRow, Toggle } from './SettingsKit'
+import { compressImageDataUrl } from '../../utils/imageCompression'
 
 const DAYS = [
   { v: 1, l: 'Mon' }, { v: 2, l: 'Tue' }, { v: 3, l: 'Wed' }, { v: 4, l: 'Thu' }, { v: 5, l: 'Fri' }, { v: 6, l: 'Sat' }, { v: 0, l: 'Sun' },
@@ -80,7 +81,8 @@ function readImage(file, maxBytes, onDone, onError) {
   if (!file.type.startsWith('image/')) { onError('Choose an image (PNG, JPG, SVG or WEBP).'); return }
   if (file.size > maxBytes) { onError(`Choose an image under ${Math.round(maxBytes / 1024)} KB.`); return }
   const reader = new FileReader()
-  reader.onload = () => onDone(reader.result)
+  // Logos are shown small: resize to 256 px and re-encode (SVGs kept as they are).
+  reader.onload = () => compressImageDataUrl(reader.result).then(onDone)
   reader.onerror = () => onError('The image could not be read.')
   reader.readAsDataURL(file)
 }

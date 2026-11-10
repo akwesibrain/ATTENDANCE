@@ -20,6 +20,7 @@ import { clockText, durationText, initials } from '../components/attendance/form
 import '../styles/sales-monitoring.css'
 import '../styles/shifts.css'
 import '../styles/attendance.css'
+import { SkeletonLine, SkeletonTable } from '../components/common/Skeletons'
 
 const PAGE_SIZE = 12
 const NON_WORKING = ['rest-day', 'holiday']
@@ -327,17 +328,17 @@ export default function AttendanceManagement({ company, user, onChanged, focus =
 
       {/* Daily summary */}
       <div className="sm-stats" role="status" aria-label={`Attendance summary ${dayLabel}`} aria-busy={loading}>
-        <Stat label={`Present ${dayLabel}`} value={loading ? '–' : daySummary.present} tone="ok" />
-        <Stat label={`Absent ${dayLabel}`} value={loading ? '–' : daySummary.absent} tone="crit" />
-        <Stat label="Late arrivals" value={loading ? '–' : daySummary.late} tone="warn" />
+        <Stat label={`Present ${dayLabel}`} value={loading ? <SkeletonLine width="52px" size="xl" /> : daySummary.present} tone="ok" />
+        <Stat label={`Absent ${dayLabel}`} value={loading ? <SkeletonLine width="52px" size="xl" /> : daySummary.absent} tone="crit" />
+        <Stat label="Late arrivals" value={loading ? <SkeletonLine width="52px" size="xl" /> : daySummary.late} tone="warn" />
         <Stat
           label="Currently at work"
-          value={loading ? '–' : isTodaySelected ? daySummary.atWork : '—'}
+          value={loading ? <SkeletonLine width="52px" size="xl" /> : isTodaySelected ? daySummary.atWork : '—'}
           tone="accent"
           sub={isTodaySelected ? null : 'Only shown for today'}
         />
-        <Stat label="On approved leave" value={loading ? '–' : daySummary.onLeave} />
-        <Stat label="Incomplete records" value={loading ? '–' : daySummary.incomplete} tone="warn" />
+        <Stat label="On approved leave" value={loading ? <SkeletonLine width="52px" size="xl" /> : daySummary.onLeave} />
+        <Stat label="Incomplete records" value={loading ? <SkeletonLine width="52px" size="xl" /> : daySummary.incomplete} tone="warn" />
       </div>
 
       {/* Filters */}
@@ -392,15 +393,13 @@ export default function AttendanceManagement({ company, user, onChanged, focus =
               : `Attendance records — ${period.label} period (to ${formatAccraDate(today, { day: 'numeric', month: 'short' })})`}
           </h3>
           <span className="sm-muted">
-            {companyName} · {loading ? 'Loading…' : `${tableRecords.length} record${tableRecords.length === 1 ? '' : 's'}`}
+            {companyName} · {loading ? 'Loading records…' : `${tableRecords.length} record${tableRecords.length === 1 ? '' : 's'}`}
           </span>
         </div>
 
         {loading ? (
-          <div className="at-skeleton" aria-label="Loading attendance records">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div className="at-skeleton-row" key={i} />
-            ))}
+          <div className="at-skeleton" role="status" aria-label="Loading attendance records">
+            <SkeletonTable rows={6} />
           </div>
         ) : isFuture ? (
           <p className="sm-empty">
@@ -537,12 +536,12 @@ export default function AttendanceManagement({ company, user, onChanged, focus =
           </span>
         </div>
         <div className="at-period-grid" aria-busy={loading}>
-          <Stat label="Present (incl. late)" value={loading ? '–' : periodSummary.present} tone="ok" sub="employee-days" />
-          <Stat label="Absent" value={loading ? '–' : periodSummary.absent} tone="crit" sub="employee-days" />
-          <Stat label="Late" value={loading ? '–' : periodSummary.late} tone="warn" sub="arrivals" />
-          <Stat label="On leave" value={loading ? '–' : periodSummary.onLeave} sub="employee-days" />
-          <Stat label="Incomplete" value={loading ? '–' : periodSummary.incomplete} tone="warn" sub="records" />
-          <Stat label="Total working hours" value={loading ? '–' : periodSummary.totalHours.toLocaleString()} tone="accent" sub="completed records" />
+          <Stat label="Present (incl. late)" value={loading ? <SkeletonLine width="52px" size="xl" /> : periodSummary.present} tone="ok" sub="employee-days" />
+          <Stat label="Absent" value={loading ? <SkeletonLine width="52px" size="xl" /> : periodSummary.absent} tone="crit" sub="employee-days" />
+          <Stat label="Late" value={loading ? <SkeletonLine width="52px" size="xl" /> : periodSummary.late} tone="warn" sub="arrivals" />
+          <Stat label="On leave" value={loading ? <SkeletonLine width="52px" size="xl" /> : periodSummary.onLeave} sub="employee-days" />
+          <Stat label="Incomplete" value={loading ? <SkeletonLine width="52px" size="xl" /> : periodSummary.incomplete} tone="warn" sub="records" />
+          <Stat label="Total working hours" value={loading ? <SkeletonLine width="52px" size="xl" /> : periodSummary.totalHours.toLocaleString()} tone="accent" sub="completed records" />
         </div>
         <p className="at-rules">
           Future dates, rest days, public holidays and approved leave are never counted as absences.

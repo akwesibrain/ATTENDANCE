@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
 import { COMPANIES } from '../constants/companies'
 import { listPayPeriods, payPeriodDates } from '../utils/payPeriod'
 import { holidayForKey } from '../utils/attendanceRules'
@@ -8,12 +8,9 @@ import { authorisedCompanies, can } from '../constants/hrUser'
 import { signOut } from '../services/permissionsService'
 import { refresh as reloadTables, useCacheVersion } from '../services/backend/cache'
 import { AccessDenied, HrGate } from '../components/access/AccessScreens'
-import Overtime from './Overtime'
 import { overtimeForRecord, formatCedis } from '../services/overtimeService'
 import { ATTENDANCE_STATUS } from '../constants/attendanceLabels'
 import HrAssistant from '../components/assistant/HrAssistant'
-import Settings from './Settings'
-import AuditLogs from './AuditLogs'
 import { companySettings, generalSettings } from '../services/settingsService'
 import { listEmployees } from '../services/registrationService'
 import {
@@ -21,17 +18,55 @@ import {
   listAttendanceRoster,
   summariseAttendance,
 } from '../services/attendanceRecordsService'
-import SalesMonitoring from './SalesMonitoring'
-import AttendanceManagement from './AttendanceManagement'
-import NotificationsCenter from './NotificationsCenter'
 import { listNotifications, unreadCount } from '../services/notificationsService'
 import EmployeeDirectory from '../components/hr/EmployeeDirectory'
 import AssignShopModal from '../components/hr/AssignShopModal'
 import { StatusBadge } from '../components/attendance/AttendanceBadges'
+import { SectionSkeleton } from '../components/common/Skeletons'
+import useScrollReveal from '../hooks/useScrollReveal'
+// All HR styles load up front in a fixed order (theme last), so lazily loaded
+// pages never flash unstyled or override the theme.
 import '../styles/hr.css'
 import '../styles/employee-directory.css'
 import '../styles/attendance.css'
+import '../styles/sales-monitoring.css'
+import '../styles/shifts.css'
+import '../styles/notifications.css'
+import '../styles/hr-users.css'
+import '../styles/charts.css'
+import '../styles/overtime.css'
+import '../styles/settings.css'
+import '../styles/shops.css'
+import '../styles/assistant.css'
 import '../styles/hr-neumorphism.css'
+
+// HR pages are downloaded when first opened (and prefetched when the browser
+// is idle), keeping the first load of the portal small.
+const loaders = {
+  attendance: () => import('./AttendanceManagement'),
+  sales: () => import('./SalesMonitoring'),
+  overtime: () => import('./Overtime'),
+  settings: () => import('./Settings'),
+  audit: () => import('./AuditLogs'),
+  notifications: () => import('./NotificationsCenter'),
+}
+const AttendanceManagement = lazy(loaders.attendance)
+const SalesMonitoring = lazy(loaders.sales)
+const Overtime = lazy(loaders.overtime)
+const Settings = lazy(loaders.settings)
+const AuditLogs = lazy(loaders.audit)
+const NotificationsCenter = lazy(loaders.notifications)
+
+function prefetchHrPages() {
+  const run = () => Object.values(loaders).forEach((load) => load().catch(() => {}))
+  if (typeof window === 'undefined') return undefined
+  if ('requestIdleCallback' in window) {
+    const id = window.requestIdleCallback(run, { timeout: 4000 })
+    return () => window.cancelIdleCallback(id)
+  }
+  const id = setTimeout(run, 1500)
+  return () => clearTimeout(id)
+}
 
 // `module` is the permission each page needs (services/permissionsService.js).
 // Pages with a `group` are not in the sidebar: they open as tabs inside that
@@ -215,6 +250,10 @@ const NOTIFICATIONS_SETTLE_MS = 2500
 const reloadNotificationsSoon = () => setTimeout(() => reloadTables('notifications', 'notification_history'), NOTIFICATIONS_SETTLE_MS)
 
 function HrDashboardContent({ onBack, user }) {
+  const contentRef = useRef(null)
+  useScrollReveal(contentRef)
+  // Fetch the other HR pages in the background once the dashboard is idle.
+  useEffect(() => prefetchHrPages(), [])
   const [activeNav, setActiveNavState] = useState(() => {
     const landing = generalSettings().landingPage
     const landingItem = NAV.find((n) => n.id === landing)
@@ -611,7 +650,7 @@ function HrDashboardContent({ onBack, user }) {
         </header>
 
         {/* Content */}
-        <div className="hr-content">
+        <div className="hr-content" ref={contentRef}>
           <div className="hr-welcome">
             <div>
               <h1>{isCombined ? 'All companies' : company.name}</h1>
@@ -642,6 +681,7 @@ function HrDashboardContent({ onBack, user }) {
             </div>
           )}
 
+          <Suspense fallback={<SectionSkeleton label={`Loading ${navItem?.label ?? 'page'}`} />}>
           {!permitted && (
             <AccessDenied moduleLabel={navItem?.label ?? 'this page'} user={user} onHome={() => goTo('dashboard')} />
           )}
@@ -1029,6 +1069,8 @@ function HrDashboardContent({ onBack, user }) {
               )}
             </section>
           )}
+
+          </Suspense>
         </div>
       </div>
 

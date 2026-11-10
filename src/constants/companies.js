@@ -1,5 +1,5 @@
-import boxForLessLogo from '../assets/box-for-less-logo.png'
-import doubleALogo from '../assets/double-a-logo.png'
+import boxForLessLogo from '../assets/box-for-less-logo.webp'
+import doubleALogo from '../assets/double-a-logo.webp'
 
 /**
  * Companies available for self-registration at this stage.

@@ -188,3 +188,73 @@ input:disabled {
     min-height: 44px;
   }
 }
+
+/* ------------------------------------------------------------------
+ * Skeleton loaders — placeholders shaped like the content that is coming.
+ * The shimmer stops under reduced motion (the shapes stay).
+ * ------------------------------------------------------------------ */
+.skel {
+  display: block;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--ink-2) 10%, transparent) 0%,
+    color-mix(in srgb, var(--ink-2) 18%, transparent) 50%,
+    color-mix(in srgb, var(--ink-2) 10%, transparent) 100%
+  );
+  background-size: 200% 100%;
+  animation: skel-shimmer 1.3s ease-in-out infinite;
+}
+.skel-line { height: 12px; }
+.skel-line.is-lg { height: 22px; }
+.skel-line.is-xl { height: 30px; }
+.skel-circle { border-radius: 50%; }
+.skel-card {
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.skel-row { display: flex; align-items: center; gap: 12px; }
+.skel-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+.skel-stack { display: flex; flex-direction: column; gap: 16px; }
+.skel-page { min-height: 100vh; min-height: 100dvh; display: flex; background: var(--ground); }
+.skel-side { width: 248px; flex-shrink: 0; padding: 22px 16px; display: flex; flex-direction: column; gap: 14px; }
+.skel-main { flex: 1; min-width: 0; padding: 28px 32px; display: flex; flex-direction: column; gap: 18px; }
+.skel-center { flex: 1; display: grid; place-items: center; padding: 24px; }
+@keyframes skel-shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: -100% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skel { animation: none; }
+}
+@media (max-width: 720px) {
+  .skel-page { flex-direction: column; }
+  .skel-side { width: auto; flex-direction: row; padding: 12px 16px; }
+  .skel-main { padding: 20px 16px; }
+}
+
+/* ------------------------------------------------------------------
+ * Scroll animations — cards and panels below the fold rise gently into view
+ * (350 ms, ease-out). Content already on screen is never hidden, and
+ * everything is static under reduced motion.
+ * ------------------------------------------------------------------ */
+@media (prefers-reduced-motion: no-preference) {
+  html { scroll-behavior: smooth; }
+  .reveal-pending {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  .reveal-in {
+    opacity: 1;
+    transform: none;
+    transition:
+      opacity 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+      transform 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    transition-delay: calc(var(--reveal-i, 0) * 60ms);
+  }
+}
