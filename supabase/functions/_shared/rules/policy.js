@@ -4,7 +4,7 @@
  *   - Check-in window: from 06:00. Up to and including 09:00 is on time; after
  *     09:00 a check-in is still recorded but flagged late.
  *   - Check-out window: 17:00 – 19:00. After 19:00 check-out is NOT recorded.
- *   - Saturdays and Sundays are overtime and are not bound by the windows.
+ *   - Saturdays, Sundays and holidays are overtime and are not bound by the windows.
  *
  * All times are Africa/Accra, which is UTC+0 all year, so the UTC clock is used
  * and the result does not depend on the device. The server's evaluation is the
@@ -30,9 +30,9 @@ export function isWeekend(date = new Date()) {
  * Evaluate the check-in window at a given time.
  * @returns {{allowed: boolean, status: 'on-time'|'late'|null, message: string}}
  */
-export function evaluateCheckIn(now = new Date()) {
-  // Weekend work is overtime and is not bound by the weekday window.
-  if (isWeekend(now)) {
+export function evaluateCheckIn(now = new Date(), { holiday = false } = {}) {
+  // Weekend and holiday work is overtime and is not bound by the weekday window.
+  if (holiday || isWeekend(now)) {
     return { allowed: true, status: 'on-time', message: '', overtime: true }
   }
   const minute = minuteOfDay(now)
@@ -54,9 +54,9 @@ export function evaluateCheckIn(now = new Date()) {
  * Evaluate the check-out window at a given time.
  * @returns {{allowed: boolean, status: 'on-time'|null, message: string}}
  */
-export function evaluateCheckOut(now = new Date()) {
-  // Weekend work is overtime and is not bound by the weekday window.
-  if (isWeekend(now)) {
+export function evaluateCheckOut(now = new Date(), { holiday = false } = {}) {
+  // Weekend and holiday work is overtime and is not bound by the weekday window.
+  if (holiday || isWeekend(now)) {
     return { allowed: true, status: 'on-time', message: '', overtime: true }
   }
   const minute = minuteOfDay(now)
@@ -78,8 +78,8 @@ export function evaluateCheckOut(now = new Date()) {
 }
 
 /** Evaluate the window for a given action type. */
-export function evaluateAction(type, now = new Date()) {
-  return type === 'check-in' ? evaluateCheckIn(now) : evaluateCheckOut(now)
+export function evaluateAction(type, now = new Date(), options = {}) {
+  return type === 'check-in' ? evaluateCheckIn(now, options) : evaluateCheckOut(now, options)
 }
 
 /**

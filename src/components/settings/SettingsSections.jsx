@@ -198,7 +198,7 @@ function CompanyForm({ companyId, user, onChanged }) {
         <Field id="c-address" label="Company address" full>
           <input id="c-address" className="sh-form-input" value={f.address} disabled={readOnly} onChange={(e) => s.set('address', e.target.value)} />
         </Field>
-        <Field id="c-status" label="Company status" applied={false} hint={canStatus ? 'Recorded only: an inactive company still appears in this demo.' : 'Your account cannot change a company’s status.'} error={s.errors.status}>
+        <Field id="c-status" label="Company status" applied={false} hint={canStatus ? 'Recorded only: an inactive company still appears everywhere.' : 'Your account cannot change a company’s status.'} error={s.errors.status}>
           <select id="c-status" className="sh-form-select" value={f.status} disabled={readOnly || !canStatus} onChange={(e) => s.set('status', e.target.value)}>
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
@@ -268,7 +268,7 @@ export function AttendanceSection({ user }) {
         <Field id="a-window" label="Missing clock-out: window after the end of the working day (minutes)" hint="After this, a clock-in without clock-out becomes Incomplete." error={s.errors.clockOutWindowMinutes}>
           <input id="a-window" type="number" min={15} max={360} className="sh-form-input" value={f.clockOutWindowMinutes} disabled={readOnly} onChange={(e) => s.set('clockOutWindowMinutes', e.target.value)} />
         </Field>
-        <Field id="a-missing" label="Missing clock-in handling" applied={f.missingClockIn === 'absent-after-shift-end'} hint="Nobody is ever absent before the working day has ended. A review-first workflow is not built in this prototype." error={s.errors.missingClockIn}>
+        <Field id="a-missing" label="Missing clock-in handling" applied={f.missingClockIn === 'absent-after-shift-end'} hint="Nobody is ever absent before the working day has ended. A review-first workflow is not built yet." error={s.errors.missingClockIn}>
           <select id="a-missing" className="sh-form-select" value={f.missingClockIn} disabled={readOnly} onChange={(e) => s.set('missingClockIn', e.target.value)}>
             <option value="absent-after-shift-end">Absent once the working day has ended (raise an exception)</option>
             <option value="review-before-absent">Hold for HR review before marking absent</option>
@@ -283,7 +283,7 @@ export function AttendanceSection({ user }) {
         <Field id="a-remarks" label="Manual correction: minimum remarks length" hint="A reason and remarks are always required; previous values are always kept." error={s.errors.minCorrectionRemarks}>
           <input id="a-remarks" type="number" min={10} max={200} className="sh-form-input" value={f.minCorrectionRemarks} disabled={readOnly} onChange={(e) => s.set('minCorrectionRemarks', e.target.value)} />
         </Field>
-        <Field id="a-approval" label="Attendance correction approval" applied={f.correctionApproval === 'not-required'} hint="A second-person approval workflow for corrections is not built in this prototype." error={s.errors.correctionApproval}>
+        <Field id="a-approval" label="Attendance correction approval" applied={f.correctionApproval === 'not-required'} hint="A second-person approval workflow for corrections is not built yet." error={s.errors.correctionApproval}>
           <select id="a-approval" className="sh-form-select" value={f.correctionApproval} disabled={readOnly} onChange={(e) => s.set('correctionApproval', e.target.value)}>
             <option value="not-required">Not required (audit trail only)</option>
             <option value="manager-approval">HR Manager approval required</option>
@@ -337,7 +337,7 @@ function HoursForm({ companyId, user }) {
   return (
     <SectionCard title={`Working Hours & Timezone — ${companySettings(companyId)?.displayName}`} description="The working hours every employee follows (no shifts). Default: Monday to Friday, 08:00 to 17:00." readOnly={readOnly} readOnlyReason={readOnly ? 'Editing needs Settings → Edit for this company.' : null} dirty={s.dirty} flash={s.flash} error={s.errors.form} onSave={() => s.setConfirming(true)} onCancel={s.reset}>
       <div className="st-grid">
-        <Locked label="System time zone" value={`${TIMEZONE} (UTC+0)`} hint="Changing the time zone is not supported by this prototype's calculations." />
+        <Locked label="System time zone" value={`${TIMEZONE} (UTC+0)`} hint="Attendance is always calculated in Accra time." />
         <Field id="w-days" label="Company working days" full error={s.errors.workingDays}>
           <div className="sh-days">
             {DAYS.map((d) => (
@@ -401,7 +401,7 @@ function PayForm({ companyId, user }) {
     s.done(message.length ? `Saved: ${message.join(' · ')}.` : 'Nothing has changed.', { overtimeRate: overtimeRateFor(companyId, today), effectiveFrom: today, vatRate: vatRateFor(companyId) })
   }
   return (
-    <SectionCard title={`Overtime Pay & VAT — ${name}`} description="Hourly overtime rate in Ghana cedis and the company VAT percentage. Mock calculation for HR review; not production payroll." readOnly={readOnly} readOnlyReason={readOnly ? 'Editing needs Settings → Edit for this company.' : null} dirty={s.dirty} flash={s.flash} error={s.errors.form} onSave={() => s.setConfirming(true)} onCancel={s.reset}>
+    <SectionCard title={`Overtime Pay & VAT — ${name}`} description="Hourly overtime rate in Ghana cedis and the company VAT percentage." readOnly={readOnly} readOnlyReason={readOnly ? 'Editing needs Settings → Edit for this company.' : null} dirty={s.dirty} flash={s.flash} error={s.errors.form} onSave={() => s.setConfirming(true)} onCancel={s.reset}>
       <div className="st-grid">
         <Field id="p-rate" label="Overtime rate (GH₵ per hour)" hint="Overtime pay = (overtime minutes ÷ 60) × this rate." error={s.errors.overtimeRate}>
           <input id="p-rate" type="number" min={0} step="0.01" className="sh-form-input" value={f.overtimeRate} disabled={readOnly} onChange={(e) => s.set('overtimeRate', e.target.value)} />
@@ -480,7 +480,7 @@ export function MonitoringSection({ user }) {
         <Field id="m-radius" label="Default shop geofence radius (metres)" hint="Applied to newly added shops (e.g. added during registration). Existing shops keep their own radius." error={s.errors.defaultGeofenceRadius}>
           <input id="m-radius" type="number" min={50} max={1000} className="sh-form-input" value={f.defaultGeofenceRadius} disabled={readOnly} onChange={(e) => s.set('defaultGeofenceRadius', e.target.value)} />
         </Field>
-        <Field id="m-window" label="Verification response window (minutes)" applied={false} hint="Used by the backend scheduler in production." error={s.errors.responseWindowMinutes}>
+        <Field id="m-window" label="Verification response window (minutes)" hint="How long each SMS link stays open." error={s.errors.responseWindowMinutes}>
           <input id="m-window" type="number" min={5} max={60} className="sh-form-input" value={f.responseWindowMinutes} disabled={readOnly} onChange={(e) => s.set('responseWindowMinutes', e.target.value)} />
         </Field>
         <Field id="m-repeat" label="Repeated-exception review threshold" hint="Exceptions in one day that flag an employee for HR review (alerts and notifications)." error={s.errors.repeatedExceptionThreshold}>
@@ -489,10 +489,10 @@ export function MonitoringSection({ user }) {
             <option value={3}>3 of 3 checks</option>
           </select>
         </Field>
-        <Field id="m-face" label="Face verification" applied={false}>
+        <Field id="m-face" label="Face verification">
           <Toggle id="m-face" checked={f.faceRequired} disabled={readOnly} onChange={(v) => s.set('faceRequired', v)} label="Required on every check" />
         </Field>
-        <Field id="m-gps" label="GPS verification" applied={false}>
+        <Field id="m-gps" label="GPS verification">
           <Toggle id="m-gps" checked={f.gpsRequired} disabled={readOnly} onChange={(v) => s.set('gpsRequired', v)} label="Required on every check" />
         </Field>
         <Field id="m-sms" label="SMS verification" hint={smsConfigured() ? 'Turns the three daily checks on or off from the next schedule.' : 'No SMS provider is connected yet, so no checks are being sent.'}>
@@ -527,7 +527,7 @@ export function NotificationSection({ user }) {
     s.done('Notification preferences saved. They apply to notifications raised from now on.', r.settings.notifications)
   }
   return (
-    <SectionCard title="Notification Settings" description="Which in-app notifications are raised, how severe they are and which roles see them. Demonstration only: no email, SMS or push messages are sent." readOnly={readOnly} readOnlyReason={readOnly ? SYSTEM_RO : null} dirty={s.dirty} flash={s.flash} error={s.errors.form} onSave={save} onCancel={s.reset}>
+    <SectionCard title="Notification Settings" description="Which in-app notifications are raised, how severe they are and which roles see them. These appear in the HR portal only; no email or push messages are sent." readOnly={readOnly} readOnlyReason={readOnly ? SYSTEM_RO : null} dirty={s.dirty} flash={s.flash} error={s.errors.form} onSave={save} onCancel={s.reset}>
       <div className="sm-table-wrap">
         <table className="sm-table st-notif-table">
           <thead><tr><th scope="col">Notification</th><th scope="col">Enabled</th><th scope="col">Severity</th></tr></thead>

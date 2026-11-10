@@ -822,7 +822,7 @@
   place-items: center;
 }
 
-/* ---------- Access screens (demo sign-in, session expired, denied) ---------- */
+/* ---------- Access screens (sign-in, session expired, denied) ---------- */
 .ac-shell {
   min-height: 100vh;
   display: grid;

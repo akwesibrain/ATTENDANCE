@@ -65,6 +65,18 @@ describe('attendance gate', () => {
     expect(gate(['check-in'], at('12:00', '2026-11-07')).blockedReason).toBeNull()
   })
 
+  it('leaves holidays outside the windows, like weekends', () => {
+    const onHoliday = (eventTypes, now) => attendanceGate({ fullName: 'Ama Mensah', status: 'ACTIVE', eventTypes, now, holiday: true })
+    expect(onHoliday([], at('05:00'))).toEqual({ nextAction: 'check-in', windowStatus: 'on-time', blockedReason: null })
+    expect(onHoliday([], at('11:00')).windowStatus).toBe('on-time')
+    expect(onHoliday(['check-in'], at('13:00')).blockedReason).toBeNull()
+    expect(onHoliday(['check-in'], at('20:00')).blockedReason).toBeNull()
+  })
+
+  it('still applies the windows on a normal weekday', () => {
+    expect(gate(['check-in'], at('13:00')).blockedReason).toMatch(/opens at 5:00/)
+  })
+
   it('blocks a completed day, an absent mark and an inactive employee', () => {
     expect(gate(['check-in', 'check-out'], at('18:00')).blockedReason).toMatch(/already completed/)
     expect(gate(['absent'], at('10:00')).blockedReason).toMatch(/ABSENT/)

@@ -6,6 +6,7 @@ import { accraDateKey } from '../_shared/rules/accraTime.js'
 import { attendanceGate, MAX_FACE_ATTEMPTS, normalizeStaffId } from '../_shared/rules/checkin.js'
 import { shopFromRow } from '../_shared/rules/facts.js'
 import { parseJpegDataUrl } from '../_shared/rules/faceTemplate.js'
+import { holidayNameFor } from '../_shared/rules/holidays.js'
 import { checkGeofence, verificationResult } from '../_shared/rules/monitoring.js'
 import { isWeekend, overtimeHours } from '../_shared/rules/policy.js'
 import { parseRegistration } from '../_shared/rules/registration.js'
@@ -145,6 +146,11 @@ async function eventsToday(staffId: string, date: string) {
   )
 }
 
+async function isHoliday(date: string) {
+  const custom = await found(db.from('holidays').select('date, name'))
+  return Boolean(holidayNameFor(date, custom))
+}
+
 async function failedAttemptsToday(staffId: string, date: string) {
   const row = await must(
     db.from('face_attempts').select('failed').eq('employee_id', staffId).eq('date', date).maybeSingle(),
@@ -160,15 +166,17 @@ publicRoutes.get('/attendance/lookup/:staffId', async (c) => {
 
   const now = new Date()
   const date = accraDateKey(now)
-  const [events, failed] = await Promise.all([
+  const [events, failed, holiday] = await Promise.all([
     eventsToday(employee.staff_id, date),
     failedAttemptsToday(employee.staff_id, date),
+    isHoliday(date),
   ])
   const gate = attendanceGate({
     fullName: employee.full_name,
     status: employee.status,
     eventTypes: events.map((e) => e.type),
     now,
+    holiday,
   })
   return c.json({
     staffId: employee.staff_id,
@@ -277,12 +285,13 @@ publicRoutes.post('/attendance/events', async (c) => {
 
   const now = new Date()
   const date = accraDateKey(now)
-  const events = await eventsToday(employee.staff_id, date)
+  const [events, holiday] = await Promise.all([eventsToday(employee.staff_id, date), isHoliday(date)])
   const gate = attendanceGate({
     fullName: employee.full_name,
     status: employee.status,
     eventTypes: events.map((e) => e.type),
     now,
+    holiday,
   })
   if (gate.blockedReason) throw new ApiError(409, gate.blockedReason, { code: 'blocked' })
 

@@ -29,7 +29,7 @@ export function nextAttendanceAction(eventTypes) {
  * Runs before the face scan, so a refused action never costs an attempt.
  * @returns {{ nextAction: string|null, windowStatus: string|null, blockedReason: string|null }}
  */
-export function attendanceGate({ fullName, status, eventTypes, now = new Date() }) {
+export function attendanceGate({ fullName, status, eventTypes, now = new Date(), holiday = false }) {
   if (status !== 'ACTIVE') {
     return { nextAction: null, windowStatus: null, blockedReason: 'This Staff ID is not active. Please contact HR.' }
   }
@@ -44,7 +44,7 @@ export function attendanceGate({ fullName, status, eventTypes, now = new Date() 
   if (nextAction === null) {
     return { nextAction: null, windowStatus: null, blockedReason: 'You have already completed check-in and check-out for today.' }
   }
-  const window = evaluateAction(nextAction, now)
+  const window = evaluateAction(nextAction, now, { holiday })
   if (!window.allowed) return { nextAction, windowStatus: null, blockedReason: window.message }
   return { nextAction, windowStatus: window.status, blockedReason: null }
 }

@@ -211,7 +211,6 @@ export default function LiveFieldBoard({ company, onViewRep }) {
           </div>
         )}
       </section>
-      <p className="mock-banner" style={{ textAlign: 'center', margin: 0 }}>Demo data — verification results are simulated, not genuine GPS evidence.</p>
     </div>
   )
 }

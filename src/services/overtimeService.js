@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * OVERTIME (mock calculation — not production payroll)
+ * OVERTIME
  * ============================================================================
  * Overtime is calculated from the shared attendance records, one record per
  * employee per day, so nothing is counted twice. Corrections are already

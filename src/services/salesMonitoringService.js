@@ -164,7 +164,7 @@ const ALERT_META = {
 }
 
 /**
- * MOCK ONLY — alerts for a company on a date, newest first.
+ * Alerts for a company on a date, newest first.
  * Alerts are derived from the day's records; HR review state persists.
  * NOTE: a missed SMS never marks anyone absent automatically. Every alert
  * requires management review.
@@ -286,7 +286,7 @@ function liveState(day, shift, dateKey, now) {
 }
 
 /**
- * MOCK ONLY — the live field board for a company, as of now.
+ * The live field board for a company, as of now.
  * @returns {{ asOf: string, reps: object[], counts: object, shops: object[] }}
  */
 export function getLiveFieldBoard(companyId) {
