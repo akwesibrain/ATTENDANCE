@@ -12,6 +12,13 @@ dist
 dist-ssr
 *.local
 
+# Secrets and Supabase CLI state
+.env
+.env.*
+!.env.example
+supabase/.temp
+supabase/.branches
+
 # Design-tooling output (web-designer screenshots/matrix)
 shots/
 

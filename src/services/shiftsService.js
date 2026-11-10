@@ -20,6 +20,7 @@
 
 import { getSessionUser } from './permissionsService'
 import { recordAuditEvent } from './auditStore'
+import { timeToMinutes } from '../../supabase/functions/_shared/rules/overtime.js'
 
 const SHIFTS_KEY = 'mock-shifts:definitions'
 
@@ -123,10 +124,7 @@ function writeShifts(shifts) {
  * ------------------------------------------------------------------------ */
 
 /** "HH:MM" -> minutes since midnight. */
-export function timeToMinutes(time) {
-  const [h, m] = (time ?? '0:0').split(':').map(Number)
-  return h * 60 + (m || 0)
-}
+export { timeToMinutes }
 
 /** Minutes since midnight -> "HH:MM". */
 export function minutesToTime(minutes) {
