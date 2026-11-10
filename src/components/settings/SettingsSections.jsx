@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { COMPANIES } from '../../constants/companies'
-import { authorisedCompanies, can, smsConfigured } from '../../services/permissionsService'
+import { authorisedCompanies, can, smsConfigured, faceRecognitionActive } from '../../services/permissionsService'
 import {
   CHECKS_PER_SHIFT,
   CYCLE_END_DAY,
@@ -248,7 +248,7 @@ export function AttendanceSection({ user }) {
   const period = periodForDateKey(today)
   const opts = { day: 'numeric', month: 'short', year: 'numeric' }
   const versions = attendanceRuleVersions()
-  const labels = { graceMinutes: 'Late grace', clockOutWindowMinutes: 'Clock-out window', missingClockIn: 'Missing clock-in', incompleteHandling: 'Incomplete records', minCorrectionRemarks: 'Minimum remarks', correctionApproval: 'Correction approval', effectiveFrom: 'Effective from' }
+  const labels = { clockOutWindowMinutes: 'Clock-out window', missingClockIn: 'Missing clock-in', incompleteHandling: 'Incomplete records', minCorrectionRemarks: 'Minimum remarks', correctionApproval: 'Correction approval', effectiveFrom: 'Effective from' }
   const save = async () => {
     const { effectiveFrom, ...values } = f
     const r = await saveAttendanceRules(values, effectiveFrom)
@@ -265,7 +265,7 @@ export function AttendanceSection({ user }) {
         <Locked label="Future dates" value="Never counted as absences" />
         <Locked label="Manual entry" value="Only dates HR enters — others are never marked absent by it" />
         <Locked label="Late arrival" value="Set per company" hint="Use the late-coming time in Working Hours & Timezone." />
-        <Field id="a-window" label="Missing clock-out: window after the end of the working day (minutes)" hint="After this, a clock-in without clock-out becomes Incomplete." error={s.errors.clockOutWindowMinutes}>
+        <Field id="a-window" label="Clock-out window after the end of the working day (minutes)" hint="Check-out stays open this long after the official clock-out time, so late work is recorded as overtime. It never stays open past midnight. After it closes, a clock-in without clock-out becomes Incomplete." error={s.errors.clockOutWindowMinutes}>
           <input id="a-window" type="number" min={15} max={360} className="sh-form-input" value={f.clockOutWindowMinutes} disabled={readOnly} onChange={(e) => s.set('clockOutWindowMinutes', e.target.value)} />
         </Field>
         <Field id="a-missing" label="Missing clock-in handling" applied={f.missingClockIn === 'absent-after-shift-end'} hint="Nobody is ever absent before the working day has ended. A review-first workflow is not built yet." error={s.errors.missingClockIn}>
@@ -569,6 +569,9 @@ export function SecuritySection({ user }) {
   return (
     <SectionCard title="Security Settings" description="Access and account policy for the private HR portal." readOnly={readOnly} readOnlyReason={readOnly ? SYSTEM_RO : null} dirty={s.dirty} flash={s.flash} error={s.errors.form} onSave={() => s.setConfirming(true)} onCancel={s.reset}>
       <div className="st-status-list">
+        {faceRecognitionActive()
+          ? <StatusRow label="Face check" value="AWS Rekognition" tone="ok" detail="Compares each scan with the enrolled face. It does not detect a printed photo." />
+          : <StatusRow label="Face check" value="Photo comparison only" tone="warn" detail="Cannot reliably tell two people apart. Do not rely on it until AWS Rekognition is connected." />}
         <StatusRow label="HR portal access" value="Email, password and authenticator app" tone="ok" detail="Separate from the employee portal." />
         <StatusRow label="Public HR registration" value="Disabled" tone="ok" detail="Locked. There is one HR account (HR Manager); no others can be created." />
         <StatusRow label="MFA policy" value="Required" tone="ok" detail="Every HR account signs in with an authenticator app." />

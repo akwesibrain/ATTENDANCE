@@ -156,3 +156,15 @@ export function validateEmployeeDetails(values, todayKey = accraTodayKey()) {
   if (name && name.length < 2) errors.emergencyContactName = 'Enter the full name.'
   return errors
 }
+
+/**
+ * The last day a leaving employee worked. Days after it are no longer
+ * attendance days, so they never count as absences.
+ */
+export function validateLeavingDate(leftOn, employmentStart, todayKey = accraTodayKey()) {
+  if (!leftOn) return { leftOn: 'Enter the last day the employee worked.' }
+  if (!isDateKey(leftOn)) return { leftOn: 'Enter a valid date.' }
+  if (leftOn > todayKey) return { leftOn: 'The last working day cannot be in the future. Deactivate the employee once they have left.' }
+  if (employmentStart && leftOn < employmentStart) return { leftOn: 'The last working day cannot be before the employee started.' }
+  return {}
+}

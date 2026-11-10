@@ -100,7 +100,7 @@ function attendanceToday(kind, ids) {
   const recs = todayRecords(ids)
   if (!recs.length) return reply(`There are no employees tracked for ${scopeLabel(ids)} today.`)
   const pick = {
-    absent: { filter: (r) => r.status === 'absent', none: 'Nobody is absent so far today.', title: 'absent', detail: (r) => r.explicitAbsentReason ?? `no clock-in; working day ended ${formatAccraTime(r.expectedEnd)}` },
+    absent: { filter: (r) => r.status === 'absent', none: 'Nobody is absent so far today.', title: 'absent', detail: (r) => `no clock-in; working day ended ${formatAccraTime(r.expectedEnd)}` },
     late: { filter: (r) => r.isLate, none: 'Nobody has clocked in late today.', title: 'late', detail: (r) => `clocked in ${formatAccraTime(r.clockIn)} (${r.lateMinutes} min after start)` },
     atWork: { filter: (r) => r.atWork, none: 'Nobody is currently clocked in.', title: 'currently at work', detail: (r) => `since ${formatAccraTime(r.clockIn)}` },
     leave: { filter: (r) => r.status === 'on-leave', none: 'Nobody is on approved leave today.', title: 'on approved leave', detail: (r) => r.leave?.leaveType ?? 'leave recorded' },

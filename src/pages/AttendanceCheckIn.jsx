@@ -23,7 +23,7 @@ export default function AttendanceCheckIn({ onBack }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [mismatch, setMismatch] = useState(false)
-  const [markedAbsent, setMarkedAbsent] = useState(false)
+  const [lockedOut, setLockedOut] = useState(false)
   const [attemptsLeft, setAttemptsLeft] = useState(null)
   const [capturedPhoto, setCapturedPhoto] = useState(null)
 
@@ -132,7 +132,7 @@ export default function AttendanceCheckIn({ onBack }) {
       setError(message)
       // Surface an identity mismatch prominently so it cannot be missed.
       setMismatch(err?.data?.code === 'face-mismatch')
-      if (err?.data?.markedAbsent) setMarkedAbsent(true)
+      if (err?.data?.lockedOut) setLockedOut(true)
       if (err?.data?.attemptsLeft != null) setAttemptsLeft(err.data.attemptsLeft)
     } finally {
       setLoading(false)
@@ -208,7 +208,7 @@ export default function AttendanceCheckIn({ onBack }) {
           </section>
         )}
 
-        {step === STEP.scan && employee && markedAbsent && (
+        {step === STEP.scan && employee && lockedOut && (
           <section className="card">
             <div className="face-mismatch" role="alert" style={{ marginTop: 0 }}>
               <span className="face-mismatch-icon" aria-hidden="true">
@@ -218,12 +218,13 @@ export default function AttendanceCheckIn({ onBack }) {
                 </svg>
               </span>
               <div>
-                <h3>Marked ABSENT for today</h3>
+                <h3>Locked until tomorrow</h3>
                 <p>
-                  <strong>{employee.fullName}</strong> ({employee.staffId}) has
-                  been marked <strong>ABSENT</strong> after too many failed
-                  face-verification attempts. This looks like an attempt to
-                  cheat the system. Please contact HR.
+                  Face verification failed {MAX_FACE_ATTEMPTS} times for{' '}
+                  <strong>{employee.fullName}</strong> ({employee.staffId}), so
+                  this Staff ID cannot check in or out again today. HR has been
+                  alerted. If you are {employee.fullName}, ask HR to record your
+                  attendance.
                 </p>
               </div>
             </div>
@@ -235,7 +236,7 @@ export default function AttendanceCheckIn({ onBack }) {
           </section>
         )}
 
-        {step === STEP.scan && employee && !markedAbsent && (
+        {step === STEP.scan && employee && !lockedOut && (
           <section className="card">
             <p className="step-eyebrow">Attendance — {actionLabel}</p>
             <h2 className="step-title">Scan your face</h2>
@@ -252,8 +253,8 @@ export default function AttendanceCheckIn({ onBack }) {
                 </svg>
                 <span>
                   <strong>{attemptsLeft}</strong> verification attempt
-                  {attemptsLeft === 1 ? '' : 's'} left. After {MAX_FACE_ATTEMPTS} failed attempts
-                  this Staff ID is marked <strong>ABSENT</strong>.
+                  {attemptsLeft === 1 ? '' : 's'} left today. After {MAX_FACE_ATTEMPTS} failed attempts
+                  this Staff ID is locked until tomorrow and HR is alerted.
                 </span>
               </div>
             )}

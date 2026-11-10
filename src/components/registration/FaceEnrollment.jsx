@@ -267,8 +267,8 @@ export default function FaceEnrollment({ faceImage, onCapture }) {
         </svg>
         <span>
           <strong>Privacy notice:</strong> your face photo is used only for
-          attendance identity verification. It is stored securely and never
-          shared outside your company&apos;s workforce system.
+          attendance identity verification. It is stored privately and checked
+          by our face recognition provider, Amazon Web Services, outside Ghana.
         </span>
       </div>
     </section>

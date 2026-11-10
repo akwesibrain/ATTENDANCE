@@ -116,7 +116,7 @@ export function createRecordContext(facts) {
     const entry = eventIndex.get(key) ?? {}
     if (e.type === 'check-in' && !entry.checkIn) entry.checkIn = e
     if (e.type === 'check-out' && !entry.checkOut) entry.checkOut = e
-    if (e.type === 'absent' && !entry.absent) entry.absent = e
+    if (e.type === 'face-lockout' && !entry.lockout) entry.lockout = e
     eventIndex.set(key, entry)
   })
   const scheduleCache = new Map()
@@ -154,7 +154,7 @@ function emptyCapture() {
     clockInUnknown: false,
     clockOutUnknown: false,
     presentMarked: false,
-    explicitAbsentReason: null,
+    faceLockoutReason: null,
     missingEntry: false,
     smsEvents: [],
     scanEvents: [],
@@ -180,10 +180,9 @@ function captureDigital(emp, dateKey, ctx) {
     c.scanEvents.push({ at: entry.checkIn.time, label: 'Clock-in face scan', outcome: 'Face matched' })
     if (entry.checkOut) c.scanEvents.push({ at: entry.checkOut.time, label: 'Clock-out face scan', outcome: 'Face matched' })
   }
-  if (entry.absent) {
-    c.source = c.source ?? 'digital'
-    c.explicitAbsentReason = entry.absent.reason
-    c.scanEvents.push({ at: entry.absent.time, label: 'Face verification attempts', outcome: 'Failed — attempt limit reached' })
+  if (entry.lockout) {
+    c.faceLockoutReason = entry.lockout.reason
+    c.scanEvents.push({ at: entry.lockout.time, label: 'Face verification attempts', outcome: 'Failed — kiosk locked for the day' })
   }
   return c
 }
@@ -330,8 +329,6 @@ export function buildRecord(emp, dateKey, ctx) {
     status = holidayName ? 'holiday' : 'rest-day'
   } else if (leave) {
     status = 'on-leave'
-  } else if (captured.explicitAbsentReason) {
-    status = 'absent'
   } else if (captured.missingEntry) {
     status = 'unknown'
   } else if (shiftEnded) {
@@ -339,7 +336,7 @@ export function buildRecord(emp, dateKey, ctx) {
   } else {
     status = shiftStarted ? 'awaiting' : 'scheduled'
   }
-  if (captured.explicitAbsentReason && hasAttendance) notes.push(captured.explicitAbsentReason)
+  if (captured.faceLockoutReason) notes.push(captured.faceLockoutReason)
   if (pendingLeave) {
     notes.push(`A ${pendingLeave.leaveType.toLowerCase()} request for this date is still pending, so it is not counted as leave.`)
   }
@@ -384,6 +381,7 @@ export function buildRecord(emp, dateKey, ctx) {
     paymentMethod: emp.paymentMethod,
     photo: emp.photo,
     employmentStart: emp.employmentStart,
+    employmentEnd: emp.employmentEnd ?? null,
     joinedOn: emp.joinedOn ?? null,
     isFieldRole: emp.isFieldRole,
     shopId: emp.shopId,
@@ -429,22 +427,28 @@ export function buildRecord(emp, dateKey, ctx) {
     gpsAccuracy: captured.gpsAccuracy,
     leave,
     pendingLeave,
-    explicitAbsentReason: captured.explicitAbsentReason,
+    faceLockoutReason: captured.faceLockoutReason,
     historical: null,
     notes,
   }
 }
 
+/** Whether a date falls outside an employee's employment. */
+export function outsideEmployment(emp, dateKey) {
+  return Boolean((emp.employmentStart && dateKey < emp.employmentStart) || (emp.employmentEnd && dateKey > emp.employmentEnd))
+}
+
 /**
  * Records for a roster over a list of dates. Future dates are skipped, and days
- * before an employee started are not listed unless HR entered a record.
+ * before an employee started or after they left are not listed unless HR
+ * entered a record.
  */
 export function buildRecords(roster, dates, ctx) {
   const records = []
   dates.forEach((dateKey) => {
     if (dateKey > ctx.today) return
     roster.forEach((emp) => {
-      if (emp.employmentStart && dateKey < emp.employmentStart && !ctx.corrections[recordKey(emp.employeeId, dateKey)]) return
+      if (outsideEmployment(emp, dateKey) && !ctx.corrections[recordKey(emp.employeeId, dateKey)]) return
       records.push(buildRecord(emp, dateKey, ctx))
     })
   })
@@ -485,6 +489,9 @@ export function validateCorrection(input, record, { minRemarks, today = accraTod
   }
   if (record?.employmentStart && input.date < record.employmentStart && !record.historical) {
     errors.date = 'This date is before the employee was registered.'
+  }
+  if (record?.employmentEnd && input.date > record.employmentEnd) {
+    errors.date = 'This date is after the employee left the company.'
   }
   if (record?.status === 'on-leave') {
     errors.date = 'The employee is on approved leave on this date. Change the leave record instead.'

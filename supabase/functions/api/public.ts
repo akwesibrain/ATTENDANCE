@@ -1,15 +1,16 @@
 /** Employee routes. There is no login here, so every route is rate limited. */
 
 import { Hono } from 'npm:hono@4.6.14'
-import { compareFaces, enrollFace, UnusableFaceImage } from '../_shared/faceMatcher.ts'
+import { compareFaces, EnrollmentOutdated, enrollFace, FaceServiceUnavailable, UnusableFaceImage } from '../_shared/faceMatcher.ts'
 import { accraDateKey } from '../_shared/rules/accraTime.js'
-import { attendanceGate, MAX_FACE_ATTEMPTS, normalizeStaffId } from '../_shared/rules/checkin.js'
+import { attendanceGate, lockoutMessage, MAX_FACE_ATTEMPTS, normalizeStaffId } from '../_shared/rules/checkin.js'
 import { shopFromRow } from '../_shared/rules/facts.js'
 import { parseJpegDataUrl } from '../_shared/rules/faceTemplate.js'
 import { holidayNameFor } from '../_shared/rules/holidays.js'
 import { checkGeofence, verificationResult } from '../_shared/rules/monitoring.js'
-import { isWeekend, overtimeHours } from '../_shared/rules/policy.js'
+import { isWorkingDay, overtimeHours } from '../_shared/rules/policy.js'
 import { parseRegistration } from '../_shared/rules/registration.js'
+import { attendanceRulesInForce, hoursInForce } from '../_shared/rules/settings.js'
 import { loadSettings, syncNotifications } from './facts.ts'
 import { ApiError, applyChange, clientIp, db, discardPhoto, found, invalid, later, must, rateLimit, readJson, rpc, sha256Hex, storePhoto } from './lib.ts'
 
@@ -35,13 +36,28 @@ function faceBytes(value: unknown): Uint8Array {
   return bytes
 }
 
-function readable<T>(action: () => T): T {
+async function readable<T>(action: () => Promise<T>): Promise<T> {
   try {
-    return action()
+    return await action()
   } catch (error) {
     if (error instanceof UnusableFaceImage) throw new ApiError(422, error.message, { code: 'unusable-photo' })
+    if (error instanceof FaceServiceUnavailable) {
+      throw new ApiError(503, 'The face check is unavailable right now. Please try again in a moment.', { code: 'face-service' })
+    }
+    if (error instanceof EnrollmentOutdated) {
+      throw new ApiError(409, 'Your face photo needs to be registered again. Please contact HR.', { code: 'enrollment-outdated' })
+    }
     throw error
   }
+}
+
+async function loadEnrolledPhoto(path: string) {
+  const { data, error } = await db.storage.from(ENROLLMENT_BUCKET).download(path)
+  if (error || !data) {
+    console.error('enrolled photo unavailable', error?.message)
+    throw new FaceServiceUnavailable()
+  }
+  return new Uint8Array(await data.arrayBuffer())
 }
 
 function slug(value: string) {
@@ -82,9 +98,9 @@ publicRoutes.post('/employees/register', async (c) => {
   const form = parsed.value
 
   const image = faceBytes(body.faceImage)
-  const template = readable(() => enrollFace(image))
-
   const photoPath = `${form.companyId}/${crypto.randomUUID()}.jpg`
+  const template = await readable(() => enrollFace(image, photoPath))
+
   await storePhoto(ENROLLMENT_BUCKET, photoPath, image)
 
   let employee
@@ -158,26 +174,35 @@ async function failedAttemptsToday(staffId: string, date: string) {
   return row?.failed ?? 0
 }
 
-/** Only what the kiosk needs before a face scan: no photo and no contact details. */
-publicRoutes.get('/attendance/lookup/:staffId', async (c) => {
-  await rateLimit(`lookup:ip:${clientIp(c)}`, ...LIMITS.lookup)
-  const employee = await findEmployee(normalizeStaffId(c.req.param('staffId')))
-  if (!employee) throw new ApiError(404, NOT_FOUND)
-
-  const now = new Date()
+/** Where an employee stands at the kiosk today, under the hours and rules in Settings. */
+async function kioskDay(employee: { staff_id: string; full_name: string; status: string; company_id: string }, now: Date) {
   const date = accraDateKey(now)
-  const [events, failed, holiday] = await Promise.all([
+  const [events, failed, holiday, settings] = await Promise.all([
     eventsToday(employee.staff_id, date),
     failedAttemptsToday(employee.staff_id, date),
     isHoliday(date),
+    loadSettings(),
   ])
+  const hours = hoursInForce(settings, employee.company_id, date)
   const gate = attendanceGate({
     fullName: employee.full_name,
     status: employee.status,
     eventTypes: events.map((e) => e.type),
     now,
     holiday,
+    hours,
+    rules: attendanceRulesInForce(settings, date),
   })
+  return { date, events, failed, gate, dayOff: !isWorkingDay(now, { holiday, hours }) }
+}
+
+/** Only what the kiosk needs before a face scan: no photo and no contact details. */
+publicRoutes.get('/attendance/lookup/:staffId', async (c) => {
+  await rateLimit(`lookup:ip:${clientIp(c)}`, ...LIMITS.lookup)
+  const employee = await findEmployee(normalizeStaffId(c.req.param('staffId')))
+  if (!employee) throw new ApiError(404, NOT_FOUND)
+
+  const { failed, gate } = await kioskDay(employee, new Date())
   return c.json({
     staffId: employee.staff_id,
     fullName: employee.full_name,
@@ -235,7 +260,7 @@ publicRoutes.post('/verify/:token', async (c) => {
     const enrolled = await must(
       db.from('face_templates').select('algorithm, template').eq('employee_id', check.event.employee_id).maybeSingle(),
     )
-    facePassed = enrolled ? readable(() => compareFaces(enrolled, image)).match : false
+    facePassed = enrolled ? (await readable(() => compareFaces(enrolled, image, loadEnrolledPhoto))).match : false
   }
 
   // A photo that could not be read leaves the link open; from here it is spent.
@@ -284,15 +309,7 @@ publicRoutes.post('/attendance/events', async (c) => {
   if (!employee) throw new ApiError(404, 'Staff ID not found. Please register first.')
 
   const now = new Date()
-  const date = accraDateKey(now)
-  const [events, holiday] = await Promise.all([eventsToday(employee.staff_id, date), isHoliday(date)])
-  const gate = attendanceGate({
-    fullName: employee.full_name,
-    status: employee.status,
-    eventTypes: events.map((e) => e.type),
-    now,
-    holiday,
-  })
+  const { date, events, gate, dayOff } = await kioskDay(employee, now)
   if (gate.blockedReason) throw new ApiError(409, gate.blockedReason, { code: 'blocked' })
 
   const image = faceBytes(body.faceImage)
@@ -301,24 +318,23 @@ publicRoutes.post('/attendance/events', async (c) => {
   )
   if (!enrolled) throw new ApiError(409, 'No registered face photo on file for this Staff ID. Please contact HR.')
 
-  const { score, match } = readable(() => compareFaces(enrolled, image))
+  const { score, match } = await readable(() => compareFaces(enrolled, image, loadEnrolledPhoto))
   if (!match) {
     const failed = await rpc<number>('record_face_failure', {
       p_staff_id: employee.staff_id,
       p_max: MAX_FACE_ATTEMPTS,
     })
     const attemptsLeft = Math.max(MAX_FACE_ATTEMPTS - failed, 0)
-    const markedAbsent = attemptsLeft === 0
-    const message = markedAbsent
-      ? `Face does not match this Staff ID. ${employee.full_name} has been marked ABSENT for today after ${MAX_FACE_ATTEMPTS} failed verification attempts.`
-      : `Face does not match this Staff ID. You can only check in or out with your own registered face. ${attemptsLeft} attempt${attemptsLeft === 1 ? '' : 's'} remaining before this Staff ID is marked absent.`
-    throw new ApiError(403, message, { code: 'face-mismatch', attemptsLeft, markedAbsent })
+    const lockedOut = attemptsLeft === 0
+    const message = lockedOut
+      ? `Face does not match this Staff ID. ${lockoutMessage(employee.full_name)}`
+      : `Face does not match this Staff ID. You can only check in or out with your own registered face. ${attemptsLeft} attempt${attemptsLeft === 1 ? '' : 's'} left today.`
+    throw new ApiError(403, message, { code: 'face-mismatch', attemptsLeft, lockedOut })
   }
 
-  const weekend = isWeekend(now)
   const checkIn = events.find((e) => e.type === 'check-in')
-  const overtime = gate.nextAction === 'check-out' && weekend
-    ? overtimeHours(checkIn?.occurred_at, now.toISOString(), now)
+  const overtime = gate.nextAction === 'check-out' && dayOff
+    ? overtimeHours(checkIn?.occurred_at, now.toISOString(), true)
     : null
 
   const photoPath = `${employee.company_id}/${date}/${employee.staff_id}-${gate.nextAction}-${crypto.randomUUID()}.jpg`
@@ -332,7 +348,7 @@ publicRoutes.post('/attendance/events', async (c) => {
       p_status: gate.windowStatus,
       p_score: score,
       p_photo_path: photoPath,
-      p_weekend: weekend,
+      p_weekend: dayOff,
       p_overtime_hours: overtime,
     })
   } catch (error) {

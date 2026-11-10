@@ -4,7 +4,7 @@ import { Hono } from 'npm:hono@4.6.14'
 import { sendSms, smsConfigured } from '../_shared/smsSender.ts'
 import { accraDateKey, accraIso } from '../_shared/rules/accraTime.js'
 import { scheduleCheckMinutes } from '../_shared/rules/monitoring.js'
-import { buildRecord, shiftWindowMinutes } from '../_shared/rules/records.js'
+import { buildRecord, outsideEmployment, shiftWindowMinutes } from '../_shared/rules/records.js'
 import { hoursInForce } from '../_shared/rules/settings.js'
 import { loadFacts, loadSettings, syncNotifications } from './facts.ts'
 import { ApiError, applyChange, db, found, must, sha256Hex } from './lib.ts'
@@ -40,7 +40,7 @@ jobRoutes.post('/generate-schedule', async (c) => {
   if (!settings.monitoring.smsEnabled) return c.json({ skipped: 'SMS checks are turned off' })
 
   const rows = roster
-    .filter((emp) => emp.isFieldRole && shopsById.get(emp.shopId)?.latitude != null)
+    .filter((emp) => emp.isFieldRole && shopsById.get(emp.shopId)?.latitude != null && !outsideEmployment(emp, date))
     .filter((emp) => !SKIPPED_DAYS.includes(buildRecord(emp, date, ctx).status))
     .flatMap((emp) => {
       const { start, end } = shiftWindowMinutes(hoursInForce(settings, emp.companyId, date))

@@ -41,16 +41,22 @@ hosted copy needs HTTPS.
   allocated shop for Sales Representatives and Merchandisers) → review with
   biometric consent → Staff ID (`BFL-0001`, `DAA-0001`).
 - **Attendance**: Staff ID → live face scan → check-in or check-out.
-  One check-in and one check-out per day. Check-in 06:00–09:00 (later is
-  **late**), check-out 17:00–19:00 (after 19:00 nothing is recorded). Weekend
-  work is allowed and is overtime.
+  One check-in and one check-out per day. The windows follow Settings: check-in
+  from 06:00 (after the late-coming time, 09:00 by default, it is **late**);
+  check-out from the official clock-out time (17:00) for the clock-out window
+  (6 hours by default, never past midnight), so late work is recorded as
+  overtime. Days off and holidays are allowed and are overtime.
+- **Failed face scans**: after 5 in a day the Staff ID is locked at the kiosk
+  until tomorrow and HR gets a critical alert. Nobody is marked absent by it,
+  because anyone can type a Staff ID. HR adds a manual entry if the employee
+  was really at work.
 
 ### HR portal (`/hr`)
 
 | Area | What it does |
 |---|---|
 | Dashboard | Today's figures per company and combined; today's register |
-| Employees | Directory cards with emergency contact; HR sets the **date joined** and the time with the company is calculated (years, months, days); shop assignment for field staff |
+| Employees | Directory cards with emergency contact; HR sets the **date joined** and the time with the company is calculated (years, months, days); shop assignment for field staff; **deactivate** a leaver from their last working day so later days are not absences |
 | Attendance | One record per employee per day (from check-ins, SMS verification, or HR manual entry); corrections with full history; manual entry for paper records |
 | Sales Reps | Rep monitoring, 3 random SMS verification checks per working day, 150 m shop geofence, alerts, shop directory with map locations, live field board |
 | Reports | Monthly report (26th–25th) with working days, hours, overtime and pay; daily records; **Overtime** tab |
@@ -170,9 +176,29 @@ pg_cron + pg_net ─────────> `api` /jobs/* (secret header)
 
    Until then the jobs do nothing. Notifications are still raised after each HR
    change and when the Notifications page opens.
-4. **Empty the test photos.** Dashboard → Storage: clear the `face-enrollment`
+4. **Connect AWS Rekognition, before registering real staff.** Anyone enrolled
+   before this has to enrol again. In AWS IAM, create a user with only this
+   permission and make an access key:
+
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [{ "Effect": "Allow", "Action": ["rekognition:CompareFaces", "rekognition:DetectFaces"], "Resource": "*" }]
+   }
+   ```
+
+   Also turn on an AI services opt-out policy for Rekognition in AWS
+   Organizations, so AWS does not keep staff photos to improve its service.
+
+   ```bash
+   npx supabase secrets set FACE_PROVIDER=rekognition REKOGNITION_REGION=eu-west-1 \
+     REKOGNITION_ACCESS_KEY_ID=<id> REKOGNITION_SECRET_ACCESS_KEY=<secret> \
+     --project-ref aiiglvsvrbtahihttwge
+   ```
+
+5. **Empty the test photos.** Dashboard → Storage: clear the `face-enrollment`
    and `attendance-photos` buckets. They hold generated test patterns only.
-5. **When the app is hosted**, set `ALLOWED_ORIGINS` (comma-separated) and
+6. **When the app is hosted**, set `ALLOWED_ORIGINS` (comma-separated) and
    `APP_URL` as function secrets, then redeploy.
 
 ### Function secrets
@@ -180,6 +206,10 @@ pg_cron + pg_net ─────────> `api` /jobs/* (secret header)
 | Name | Purpose |
 |---|---|
 | `JOBS_SECRET` | Lets the scheduler call `/jobs/*`. Must match Vault's `jobs_secret` |
+| `FACE_PROVIDER` | `rekognition` uses AWS. Unset falls back to photo comparison |
+| `REKOGNITION_REGION` | AWS region, e.g. `eu-west-1` |
+| `REKOGNITION_ACCESS_KEY_ID` | Key for the AWS user described in setup |
+| `REKOGNITION_SECRET_ACCESS_KEY` | Secret for that user |
 | `SMS_PROVIDER` | `none` (default) sends no checks; `log` prints them for testing |
 | `APP_URL` | Base address used in SMS links, e.g. `https://attendance.example.com` |
 | `ALLOWED_ORIGINS` | Sites allowed to call the API. Defaults to localhost |
@@ -197,7 +227,8 @@ function verifies HR sessions itself.
 
 These run against the hosted project and create test rows. Do not run them once
 real employees are registered: they reset the Staff ID counters only when no
-employees remain, and `smoke-employee` leaves its rows behind.
+employees remain, and `smoke-employee` leaves its rows behind. They use generated
+images, so they only work while `FACE_PROVIDER` is unset.
 
 ```bash
 node scripts/smoke-employee.mjs
@@ -206,15 +237,18 @@ SUPABASE_ACCESS_TOKEN=<token> node scripts/smoke-hr.mjs   # removes what it crea
 
 ### Swapping in real services
 
-- **Face matching:** replace `supabase/functions/_shared/faceMatcher.ts`.
+- **Face matching:** all of it is in `supabase/functions/_shared/faceMatcher.ts`.
 - **SMS:** add a provider in `supabase/functions/_shared/smsSender.ts` and set
   `SMS_PROVIDER`. Checks start the next day.
 
 ### Limits to accept before go-live
 
-- **Face matching is not face recognition.** It compares two photos as small
-  grayscale images, so a printed photo can pass and poor lighting can fail. There
-  is no liveness check. Replace it first.
+- **Until AWS Rekognition is connected, the face check cannot reliably tell two
+  people apart.** Settings → Security shows which check is active.
+- **There is no liveness check**, so a printed photo of an employee can pass even
+  with AWS Rekognition.
+- **Face photos are processed by AWS outside Ghana.** The registration consent
+  says so. Have a lawyer confirm this meets Act 843.
 - **SMS checks are off** until a provider is chosen.
 - **Device GPS can be spoofed.**
 - **Face photos are stored** privately for HR display, which needs covering under

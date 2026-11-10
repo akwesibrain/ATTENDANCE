@@ -30,6 +30,7 @@ const ROLE_LABELS = { 'hr-manager': 'HR Manager' }
 
 let currentUser = null
 let smsProviderName = 'none'
+let faceProviderName = 'pixel'
 
 function userFromRow(row) {
   const name = row.name
@@ -73,6 +74,7 @@ export async function sessionStatus() {
   await hydrate()
   const me = await api('/hr/me')
   smsProviderName = me.smsProvider
+  faceProviderName = me.faceProvider
   currentUser = userFromRow(row)
   return 'ready'
 }
@@ -139,6 +141,10 @@ export async function signOut() {
 
 export function getSessionUser() {
   return currentUser
+}
+
+export function faceRecognitionActive() {
+  return faceProviderName === 'rekognition'
 }
 
 export function smsConfigured() {

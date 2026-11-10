@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { evaluateAction, isWeekend } from '../supabase/functions/_shared/rules/policy.js'
+import { evaluateAction, isWorkingDay, overtimeHours } from '../supabase/functions/_shared/rules/policy.js'
 import { accraDateKey, addDaysToKey, dayOfWeekForKey } from '../supabase/functions/_shared/rules/accraTime.js'
 import { calculateRecordOvertime, overtimeKindFor, overtimePay } from '../supabase/functions/_shared/rules/overtime.js'
 import { holidayNameFor, holidaysInYear, validateHoliday } from '../supabase/functions/_shared/rules/holidays.js'
@@ -64,22 +64,32 @@ describe('check-out window', () => {
     expect(evaluateAction('check-out', at(MON, '16:59')).allowed).toBe(false)
   })
 
-  it('allows 17:00 to 18:59', () => {
+  it('stays open six hours by default, so overtime is recorded', () => {
     expect(evaluateAction('check-out', at(MON, '17:00')).allowed).toBe(true)
-    expect(evaluateAction('check-out', at(MON, '18:59')).allowed).toBe(true)
+    expect(evaluateAction('check-out', at(MON, '19:30')).allowed).toBe(true)
+    expect(evaluateAction('check-out', at(MON, '22:59')).allowed).toBe(true)
   })
 
-  it('records nothing from 19:00', () => {
-    expect(evaluateAction('check-out', at(MON, '19:00')).allowed).toBe(false)
+  it('closes when the clock-out window ends', () => {
+    expect(evaluateAction('check-out', at(MON, '23:00')).allowed).toBe(false)
+    expect(evaluateAction('check-out', at(MON, '19:00'), { rules: { clockOutWindowMinutes: 120 } }).allowed).toBe(false)
   })
 })
 
 describe('weekends', () => {
   it('are not bound by the check-in or check-out windows', () => {
-    expect(isWeekend(at(SAT, '03:00'))).toBe(true)
-    expect(isWeekend(at(SUN, '03:00'))).toBe(true)
+    expect(isWorkingDay(at(SAT, '03:00'))).toBe(false)
+    expect(isWorkingDay(at(SUN, '03:00'))).toBe(false)
+    expect(isWorkingDay(at(MON, '03:00'))).toBe(true)
     expect(evaluateAction('check-in', at(SAT, '03:00')).allowed).toBe(true)
     expect(evaluateAction('check-out', at(SUN, '22:00')).allowed).toBe(true)
+  })
+})
+
+describe('day-off hours', () => {
+  it('counts the whole time worked on a day off, and nothing on a working day', () => {
+    expect(overtimeHours(`${SAT}T08:00:00Z`, `${SAT}T12:30:00Z`, true)).toBe(4.5)
+    expect(overtimeHours(`${MON}T08:00:00Z`, `${MON}T20:00:00Z`, false)).toBe(0)
   })
 })
 

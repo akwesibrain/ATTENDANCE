@@ -74,7 +74,7 @@ export function detectFromRecord(r, push, env) {
     })
   }
 
-  if (r.status === 'absent' && !r.explicitAbsentReason) {
+  if (r.status === 'absent' && !r.faceLockoutReason) {
     push({
       ...base,
       sourceKey: `no-clock-in:${r.employeeId}:${r.date}`,
@@ -104,14 +104,14 @@ export function detectFromRecord(r, push, env) {
     })
   }
 
-  if (r.explicitAbsentReason) {
+  if (r.faceLockoutReason) {
     push({
       ...base,
       sourceKey: `unusual:face-attempts:${r.employeeId}:${r.date}`,
       type: 'unusual-activity',
       severity: 'critical',
       title: 'Repeated failed face scans at check-in',
-      description: `${r.explicitAbsentReason} Someone may have tried to clock in with another person's Staff ID. Review before any action.`,
+      description: `${r.faceLockoutReason} Either someone tried to use ${r.fullName}'s Staff ID, or the camera could not recognise them. If ${r.fullName} was at work, add a manual entry for the day.`,
       occurredAt: r.scanEvents.find((e) => e.label.startsWith('Face verification'))?.at ?? r.expectedStart,
     })
   }
@@ -190,6 +190,8 @@ export function detectFromRecord(r, push, env) {
 }
 
 export function detectFromRoster(emp, push, shopsById) {
+  // Someone who has left needs no shop and no further setup.
+  if (emp.employmentEnd) return
   const who = { ...whoFrom(emp), relatedDate: null }
   const since = emp.employmentStart ? `${emp.employmentStart}T08:00:00.000Z` : null
 

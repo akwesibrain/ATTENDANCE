@@ -1,4 +1,4 @@
-const MAX_SIDE = 480
+const MAX_SIDE = 640
 const JPEG_QUALITY = 0.8
 
 /**

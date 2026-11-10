@@ -71,6 +71,7 @@ export function employeeFromRow(row) {
     assignedShopId: row.assigned_shop_id,
     facePhotoPath: row.face_photo_path,
     joinedOn: row.joined_on,
+    leftOn: row.left_on ?? null,
     registeredAt: row.registered_at,
     detailsUpdatedAt: row.details_updated_at,
     detailsUpdatedBy: row.details_updated_by,
@@ -92,6 +93,8 @@ export function rosterEntry(employee, shopsById) {
     shopId: isFieldRole && shopsById.has(employee.assignedShopId) ? employee.assignedShopId : null,
     photoPath: employee.facePhotoPath ?? null,
     employmentStart: employmentStartFor(employee.joinedOn, employee.registeredAt),
+    // The last day worked. Only a deactivated employee has one.
+    employmentEnd: employee.status === 'INACTIVE' ? employee.leftOn : null,
     joinedOn: employee.joinedOn ?? (employee.registeredAt ? accraDateKey(new Date(employee.registeredAt)) : null),
     kind: 'registered',
   }

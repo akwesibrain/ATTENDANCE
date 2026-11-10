@@ -162,8 +162,6 @@ export function validateCompany(v) {
 
 export function validateAttendanceRules(v, effectiveFrom, today = accraTodayKey()) {
   const e = {}
-  const grace = Number(v.graceMinutes)
-  if (!Number.isInteger(grace) || grace < 0 || grace > 120) e.graceMinutes = 'Grace period must be 0–120 minutes.'
   const win = Number(v.clockOutWindowMinutes)
   if (!Number.isInteger(win) || win < 15 || win > 360) e.clockOutWindowMinutes = 'Clock-out window must be 15–360 minutes.'
   const rem = Number(v.minCorrectionRemarks)

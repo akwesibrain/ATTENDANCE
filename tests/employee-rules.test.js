@@ -36,8 +36,8 @@ describe('next action', () => {
     expect(nextAttendanceAction(['check-in', 'check-out'])).toBeNull()
   })
 
-  it('stops once the employee is marked absent', () => {
-    expect(nextAttendanceAction(['check-in', 'absent'])).toBeNull()
+  it('stops once the kiosk has locked the Staff ID for the day', () => {
+    expect(nextAttendanceAction(['check-in', 'face-lockout'])).toBeNull()
   })
 })
 
@@ -54,11 +54,29 @@ describe('attendance gate', () => {
     expect(gate([], at('05:59')).blockedReason).toMatch(/opens at 6:00/)
   })
 
-  it('allows check-out only from 17:00 to before 19:00', () => {
-    expect(gate(['check-in'], at('16:59')).blockedReason).toMatch(/opens at 5:00/)
+  it('keeps check-out open for the clock-out window, so late work is recorded', () => {
+    expect(gate(['check-in'], at('16:59')).blockedReason).toMatch(/opens at 5:00 PM/)
     expect(gate(['check-in'], at('17:00')).blockedReason).toBeNull()
-    expect(gate(['check-in'], at('18:59')).blockedReason).toBeNull()
-    expect(gate(['check-in'], at('19:00')).blockedReason).toMatch(/closed at 7:00/)
+    expect(gate(['check-in'], at('21:30')).blockedReason).toBeNull()
+    expect(gate(['check-in'], at('23:00')).blockedReason).toMatch(/closed at 11:00 PM/)
+  })
+
+  it('follows the hours and rules in Settings', () => {
+    const hours = { workingDays: [1, 2, 3, 4, 5, 6], startTime: '07:00', lateAfter: '07:15', endTime: '16:00' }
+    const rules = { clockOutWindowMinutes: 60 }
+    const custom = (eventTypes, now) => attendanceGate({ fullName: 'Ama Mensah', status: 'ACTIVE', eventTypes, now, hours, rules })
+    expect(custom([], at('07:15')).windowStatus).toBe('on-time')
+    expect(custom([], at('07:16')).windowStatus).toBe('late')
+    expect(custom(['check-in'], at('16:00')).blockedReason).toBeNull()
+    expect(custom(['check-in'], at('17:00')).blockedReason).toMatch(/closed at 5:00 PM/)
+    // Saturday is a working day here, so the windows apply.
+    expect(custom(['check-in'], at('12:00', '2026-11-07')).blockedReason).toMatch(/opens at 4:00 PM/)
+  })
+
+  it('never keeps check-out open past midnight', () => {
+    const hours = { workingDays: [2], startTime: '14:00', lateAfter: '14:30', endTime: '22:00' }
+    const late = attendanceGate({ fullName: 'Ama Mensah', status: 'ACTIVE', eventTypes: ['check-in'], now: at('23:59'), hours, rules: { clockOutWindowMinutes: 360 } })
+    expect(late.blockedReason).toBeNull()
   })
 
   it('leaves weekends outside the windows', () => {
@@ -77,9 +95,10 @@ describe('attendance gate', () => {
     expect(gate(['check-in'], at('13:00')).blockedReason).toMatch(/opens at 5:00/)
   })
 
-  it('blocks a completed day, an absent mark and an inactive employee', () => {
+  it('blocks a completed day, a locked Staff ID and an inactive employee', () => {
     expect(gate(['check-in', 'check-out'], at('18:00')).blockedReason).toMatch(/already completed/)
-    expect(gate(['absent'], at('10:00')).blockedReason).toMatch(/ABSENT/)
+    expect(gate(['face-lockout'], at('10:00')).blockedReason).toMatch(/HR has been alerted/)
+    expect(gate(['face-lockout'], at('10:00')).blockedReason).not.toMatch(/absent/i)
     expect(gate([], at('08:00'), 'INACTIVE').blockedReason).toMatch(/not active/)
   })
 })

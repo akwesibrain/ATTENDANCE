@@ -107,10 +107,12 @@ describe('absence', () => {
     expect(record('2026-09-14').status).toBe('unknown')
   })
 
-  it('is marked after 5 failed face scans, with the reason', () => {
-    const r = record(MON, { events: [{ ...event(MON, 'absent', '08:30'), reason: 'Failed scans' }] })
-    expect(r.status).toBe('absent')
-    expect(r.explicitAbsentReason).toBe('Failed scans')
+  it('is not caused by a kiosk lockout, which only adds a note for HR', () => {
+    const lockout = { ...event(MON, 'face-lockout', '08:30'), reason: 'Locked after failed scans.' }
+    const checkedIn = record(MON, { events: [event(MON, 'check-in', '08:00'), event(MON, 'check-out', '17:00'), lockout] })
+    expect(checkedIn.status).toBe('present')
+    expect(checkedIn.faceLockoutReason).toBe('Locked after failed scans.')
+    expect(checkedIn.notes).toContain('Locked after failed scans.')
   })
 })
 
@@ -168,6 +170,21 @@ describe('employment start', () => {
 
   it('never lists future dates', () => {
     expect(buildRecords([emp], ['2026-11-11'], context())).toHaveLength(0)
+  })
+})
+
+describe('employees who have left', () => {
+  const leaver = { ...emp, employmentEnd: MON }
+
+  it('are listed up to their last working day and not after it', () => {
+    expect(buildRecords([leaver], [MON], context())).toHaveLength(1)
+    expect(buildRecords([leaver], [TUE], context())).toHaveLength(0)
+  })
+
+  it('cannot be corrected after they left', () => {
+    const r = record(MON)
+    const errors = validateCorrection({ employeeId: emp.employeeId, date: TUE, clockInTime: '08:00', reason: 'Other', remarks: 'Long enough remarks here' }, { ...r, employmentEnd: MON }, { minRemarks: 10, today: TUE })
+    expect(errors.date).toMatch(/after the employee left/)
   })
 })
 

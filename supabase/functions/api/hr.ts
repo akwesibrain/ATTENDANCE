@@ -5,14 +5,15 @@
 
 import { Hono } from 'npm:hono@4.6.14'
 import type { Context } from 'npm:hono@4.6.14'
+import { faceProvider } from '../_shared/faceMatcher.ts'
 import { smsProvider } from '../_shared/smsSender.ts'
 import { accraDateKey, formatAccraDate } from '../_shared/rules/accraTime.js'
 import { normalizeStaffId } from '../_shared/rules/checkin.js'
 import { formatShopCoordinates, shopFromRow } from '../_shared/rules/facts.js'
 import { validateHoliday } from '../_shared/rules/holidays.js'
 import { OPEN_STATUSES, RESOLUTION_ACTIONS } from '../_shared/rules/notificationTypes.js'
-import { buildRecord, correctionTimes, previewManualEntries, recordKey, validateCorrection } from '../_shared/rules/records.js'
-import { validateCoordinates, validateEmployeeDetails } from '../_shared/rules/registration.js'
+import { buildRecord, correctionTimes, employmentStartFor, previewManualEntries, recordKey, validateCorrection } from '../_shared/rules/records.js'
+import { validateCoordinates, validateEmployeeDetails, validateLeavingDate } from '../_shared/rules/registration.js'
 import {
   attendanceRulesInForce,
   diffValues,
@@ -54,7 +55,7 @@ function audit(hr: HrUser, fields: Record<string, unknown>) {
  * Session
  * ------------------------------------------------------------------------ */
 
-hrRoutes.get('/me', (c) => c.json({ user: c.get('hr'), smsProvider: smsProvider() }))
+hrRoutes.get('/me', (c) => c.json({ user: c.get('hr'), smsProvider: smsProvider(), faceProvider: faceProvider() }))
 
 hrRoutes.post('/signed-in', async (c) => {
   const hr = c.get('hr')
@@ -129,6 +130,54 @@ hrRoutes.patch('/employees/:staffId', async (c) => {
     description: `Updated: ${changed.map((key) => labels[key]).join(', ')}.`,
     previous: show(previous),
     next: show(values),
+  }))
+  later(syncNotifications())
+  return c.json({ ok: true })
+})
+
+/**
+ * Deactivate a leaver from their last working day, or undo that. A deactivated
+ * Staff ID cannot use the kiosk, and later days are not attendance days.
+ */
+hrRoutes.post('/employees/:staffId/status', async (c) => {
+  const hr = c.get('hr')
+  const emp = await employeeFor(c, c.req.param('staffId'))
+  const body = await readJson(c)
+  const active = body.active === true
+  if (active === (emp.status === 'ACTIVE')) {
+    throw invalid({ form: active ? 'This employee is already active.' : 'This employee is already deactivated.' })
+  }
+  const leftOn = active ? null : text(body.leftOn, 10)
+  if (!active) {
+    const errors = validateLeavingDate(leftOn, employmentStartFor(emp.joined_on, emp.registered_at), accraDateKey())
+    if (hasErrors(errors)) throw invalid(errors)
+  }
+
+  const show = (status: string, day: string | null) => ({
+    Status: status === 'ACTIVE' ? 'Active' : 'Deactivated',
+    'Last working day': day ? formatAccraDate(day) : 'Not set',
+  })
+  await applyChange([{
+    table: 'employees',
+    op: 'update',
+    match: { staff_id: emp.staff_id },
+    row: {
+      status: active ? 'ACTIVE' : 'INACTIVE',
+      left_on: leftOn,
+      details_updated_at: new Date().toISOString(),
+      details_updated_by: hr.name,
+    },
+  }], audit(hr, {
+    source: 'Employees',
+    action: active ? 'Employee reactivated' : 'Employee deactivated',
+    category: 'Employee Management',
+    companyIds: [emp.company_id],
+    affected: `${emp.full_name} (${emp.staff_id})`,
+    description: active
+      ? 'The Staff ID can use the kiosk again. Days since the last working day count as attendance days again.'
+      : `Last working day ${formatAccraDate(leftOn)}. The Staff ID can no longer use the kiosk.`,
+    previous: show(emp.status, emp.left_on),
+    next: show(active ? 'ACTIVE' : 'INACTIVE', leftOn),
   }))
   later(syncNotifications())
   return c.json({ ok: true })
@@ -520,9 +569,11 @@ hrRoutes.put('/settings/attendance', async (c) => {
   if (hasErrors(errors)) throw invalid(errors)
   const settings = await loadSettings()
   const previous = versionFor(settings.attendanceVersions, effectiveFrom).values
+  // Lateness comes from the late-coming time in Working Hours, so there is no
+  // separate grace period here.
+  const { graceMinutes: _unused, ...kept } = previous
   const next = {
-    ...previous,
-    graceMinutes: Number(v.graceMinutes),
+    ...kept,
     clockOutWindowMinutes: Number(v.clockOutWindowMinutes),
     minCorrectionRemarks: Number(v.minCorrectionRemarks),
     missingClockIn: v.missingClockIn,

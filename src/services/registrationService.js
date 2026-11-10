@@ -72,6 +72,17 @@ export function employeeJoinedOn(employee) {
   return employee?.registeredAt ? accraDateKey(new Date(employee.registeredAt)) : null
 }
 
+/**
+ * Deactivate a leaver from their last working day, or reactivate them.
+ * @returns {Promise<{ employee: object } | { errors: object }>}
+ */
+export async function setEmployeeActive(staffId, active, leftOn = null) {
+  const result = await submit(`/hr/employees/${encodeURIComponent(staffId)}/status`, { method: 'POST', body: { active, leftOn } })
+  if (result.errors) return result
+  await refresh('employees', 'audit_events', 'notifications', 'notification_history')
+  return { employee: listEmployees().find((e) => e.staffId === staffId) }
+}
+
 /** @returns {Promise<{ employee: object } | { errors: object }>} */
 export async function updateEmployeeDetails(staffId, values) {
   const result = await submit(`/hr/employees/${encodeURIComponent(staffId)}`, { method: 'PATCH', body: values })
