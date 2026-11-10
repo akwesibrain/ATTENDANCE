@@ -37,6 +37,10 @@ const INITIAL_FORM_DATA = {
   emergencyContactPhone: '',
   faceImage: null,
   position: '',
+  assignedShopId: null,
+  // Field positions: choose an existing shop, or enter a new allocated shop.
+  shopMode: 'existing',
+  newShop: { shopName: '', town: '', area: '', address: '', latitude: '', longitude: '', locationSource: null, locationLabel: null },
   paymentMethod: '',
   confirmed: false,
 }

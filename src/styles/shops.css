@@ -1,0 +1,34 @@
+/* Shop location picker + map (registration and Shop Directory). */
+
+.slp { display: flex; flex-direction: column; gap: 10px; padding: 12px; border: 1px solid var(--rule); border-radius: var(--radius-md); background: var(--surface); }
+.slp-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; }
+.slp-title { font-weight: 700; font-size: 14px; color: var(--ink); }
+.slp-value { font-size: 13px; color: var(--ok); font-weight: 600; font-variant-numeric: tabular-nums; }
+.slp-none { font-size: 13px; color: var(--ink-2); }
+.slp-inline { margin: 0 0 0 8px; padding: 0; font-size: 13px; }
+.slp-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; }
+.slp-hint { font-size: 12.5px; color: var(--ink-2); font-weight: 400; }
+.slp-off { margin: 0; padding: 10px 12px; border-radius: var(--radius-sm); background: var(--warn-soft); color: var(--ink); font-size: 13px; line-height: 1.5; }
+.slp-msg { margin: 0; font-size: 13px; color: var(--ink-2); }
+.slp-err { color: var(--crit); }
+.slp-results { border: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
+.slp-result { display: flex; gap: 8px; align-items: flex-start; padding: 8px 10px; border: 1px solid var(--rule); border-radius: var(--radius-sm); font-size: 13px; cursor: pointer; }
+.slp-result.is-picked { border-color: var(--accent); background: var(--accent-soft); }
+.slp-result input { margin-top: 2px; accent-color: var(--accent); }
+.slp-confirm { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-radius: var(--radius-sm); background: var(--accent-soft); color: var(--brand); font-size: 13.5px; }
+.slp-manual { display: flex; flex-direction: column; gap: 6px; }
+.slp-field { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; font-weight: 600; color: var(--ink); }
+.slp-field .form-input { min-height: 38px; max-width: 170px; }
+
+.smap { display: flex; flex-direction: column; gap: 6px; }
+.smap-view { position: relative; overflow: hidden; border: 1px solid var(--rule); border-radius: var(--radius-sm); background: #e9eef5; user-select: none; }
+.smap-view.is-pickable { cursor: crosshair; }
+.smap-view.is-blank { background-color: var(--ground); background-image: linear-gradient(var(--rule) 1px, transparent 1px), linear-gradient(90deg, var(--rule) 1px, transparent 1px); background-size: 40px 40px; }
+.smap-tile { position: absolute; width: 256px; height: 256px; pointer-events: none; }
+.smap-blank { position: absolute; inset: auto 12px 12px 12px; margin: 0; padding: 6px 10px; border-radius: var(--radius-sm); background: rgba(255, 255, 255, 0.9); font-size: 12.5px; color: var(--ink-2); }
+.smap-pin { position: absolute; transform: translate(-50%, -100%); color: var(--crit); filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.3)); pointer-events: none; }
+.smap-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.smap-controls .sm-actions-btn { min-height: 32px; padding: 4px 10px; }
+.smap-nudge { display: inline-flex; gap: 4px; }
+.smap-hint { font-size: 12px; color: var(--ink-2); }
+.smap-attr { margin-left: auto; font-size: 12px; color: var(--ink-2); }

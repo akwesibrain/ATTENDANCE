@@ -1,0 +1,319 @@
+/* ------------------------------------------------------------------
+   Historical Attendance Import — builds on sm-*, sh-*, at-*, nt-*.
+------------------------------------------------------------------- */
+
+.hi-steps {
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+.hi-unsaved {
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.hi-review-banner {
+  background: var(--accent-soft);
+  color: var(--brand);
+  border-color: color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+.hi-unknown {
+  color: var(--warn);
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.hi-unmatched {
+  margin: 0;
+  font-size: 14px;
+  color: var(--crit);
+}
+
+/* Entry form */
+.hi-record-form {
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.hi-form-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px 14px;
+}
+
+.hi-span-2 { grid-column: span 2; }
+.hi-span-3 { grid-column: span 3; }
+
+.hi-form-grid .sh-form-input:disabled,
+.hi-form-grid .sh-form-select:disabled {
+  background: var(--ground);
+  color: var(--ink-2);
+}
+
+.hi-small-check {
+  font-size: 12.5px;
+}
+
+.hi-form-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.hi-file {
+  font-family: inherit;
+  font-size: 14px;
+}
+
+.hi-periods {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--accent-soft);
+  color: var(--brand);
+  font-size: 13.5px;
+}
+
+/* Attachment preview */
+.hi-attachment {
+  margin: 8px 0 0;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--ground);
+}
+
+.hi-attachment img {
+  display: block;
+  width: 100%;
+  object-fit: contain;
+  background: #fff;
+}
+
+.hi-attachment object {
+  display: block;
+  width: 100%;
+  border: none;
+}
+
+.hi-attachment-missing {
+  padding: 24px 16px;
+  text-align: center;
+  color: var(--ink-2);
+  font-size: 13.5px;
+}
+
+.hi-attachment figcaption {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--rule);
+  background: var(--surface);
+  font-size: 13px;
+  word-break: break-word;
+}
+
+.hi-details-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: 18px;
+  padding: 18px;
+}
+
+.hi-detail-list {
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  align-self: start;
+}
+
+.hi-attachment-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Flags */
+.hi-flags {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.hi-flags.is-compact {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-width: 240px;
+}
+
+.hi-flag {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 3px 9px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 700;
+  width: fit-content;
+}
+
+.hi-flags:not(.is-compact) .hi-flag {
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
+.hi-flag-error { background: var(--crit-soft); color: var(--crit); border-left: 3px solid var(--crit); }
+.hi-flag-warn { background: var(--warn-soft); color: var(--warn); border-left: 3px solid var(--warn); }
+
+.hi-flag-detail {
+  font-weight: 400;
+  color: var(--ink);
+}
+
+/* Candidates */
+.hi-candidates {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.hi-candidate {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.hi-candidate-main {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.hi-candidate-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.hi-score {
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  white-space: nowrap;
+}
+
+.hi-score-high { background: var(--ok-soft); color: var(--ok); }
+.hi-score-medium { background: var(--warn-soft); color: var(--warn); }
+.hi-score-low { background: var(--ground); color: var(--ink-2); border: 1px solid var(--rule); }
+
+.hi-actions .sm-actions-btn {
+  margin: 2px 4px 2px 0;
+}
+
+/* Responsive */
+@media (max-width: 1100px) {
+  .hi-form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .hi-span-3 { grid-column: 1 / -1; }
+  .hi-details-grid { grid-template-columns: 1fr; }
+
+  .hi-table thead,
+  .hi-batch-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+
+  .hi-table,
+  .hi-table tbody,
+  .hi-table tr,
+  .hi-table td,
+  .hi-batch-table,
+  .hi-batch-table tbody,
+  .hi-batch-table tr,
+  .hi-batch-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .hi-table tbody tr,
+  .hi-batch-table tbody tr {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px 14px;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .hi-table tbody td,
+  .hi-batch-table tbody td {
+    padding: 0;
+    border: none;
+  }
+
+  .hi-table tbody td::before,
+  .hi-batch-table tbody td::before {
+    content: attr(data-label);
+    display: block;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--ink-2);
+    margin-bottom: 3px;
+  }
+
+  .hi-table tbody td[data-label='Notebook name'],
+  .hi-table tbody td[data-label='Actions'],
+  .hi-table tbody td[data-label='Flags'],
+  .hi-batch-table tbody td[data-label='Import batch'],
+  .hi-batch-table tbody td[data-label='Actions'] {
+    grid-column: 1 / -1;
+  }
+
+  .hi-table tbody td[data-label='Actions']::before,
+  .hi-batch-table tbody td[data-label='Actions']::before {
+    display: none;
+  }
+
+  .hi-flags.is-compact { max-width: none; }
+}
+
+@media (max-width: 720px) {
+  .hi-form-grid { grid-template-columns: 1fr; }
+  .hi-span-2,
+  .hi-span-3 { grid-column: auto; }
+  .hi-table tbody tr,
+  .hi-batch-table tbody tr { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .hi-candidate { flex-direction: column; }
+  .hi-candidate-side { align-items: flex-start; flex-direction: row; flex-wrap: wrap; }
+}

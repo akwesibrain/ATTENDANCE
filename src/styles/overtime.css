@@ -1,0 +1,38 @@
+/* Overtime — builds on sm-*, at-*, nt-*, hu-*. Chart tokens for the shared chart kit. */
+
+.ot-page {
+  --viz-1: #2a78d6;
+}
+
+.ot-rates-table th[scope='row'] { text-align: left; font-weight: 700; color: var(--brand); padding: 10px 14px; }
+.ot-source { display: block; }
+
+.ot-mini-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.ot-mini-stats div { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border: 1px solid var(--rule); border-radius: var(--radius-md); }
+.ot-mini-stats span { font-size: 12px; color: var(--ink-2); font-weight: 600; }
+.ot-mini-stats strong { font-size: 18px; color: var(--ink); }
+
+.ot-excluded { list-style: none; margin: 0; padding: 0 18px 16px; display: flex; flex-direction: column; gap: 6px; font-size: 13.5px; }
+.ot-excluded li { display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; padding: 6px 0; border-bottom: 1px solid var(--rule); }
+
+@media (max-width: 1100px) {
+  .ot-emp-table thead, .ot-rates-table thead, .ot-day-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .ot-emp-table, .ot-emp-table tbody, .ot-emp-table tr, .ot-emp-table td,
+  .ot-rates-table, .ot-rates-table tbody, .ot-rates-table tr, .ot-rates-table td, .ot-rates-table th,
+  .ot-day-table, .ot-day-table tbody, .ot-day-table tr, .ot-day-table td { display: block; width: 100%; }
+  .ot-emp-table tbody tr, .ot-rates-table tbody tr, .ot-day-table tbody tr { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 14px; padding: 12px 16px; border-bottom: 1px solid var(--rule); }
+  .ot-emp-table tbody td, .ot-rates-table tbody td, .ot-rates-table tbody th, .ot-day-table tbody td { padding: 0; border: none; }
+  .ot-emp-table tbody td::before, .ot-rates-table tbody td::before, .ot-day-table tbody td::before { content: attr(data-label); display: block; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-2); margin-bottom: 2px; }
+  .ot-emp-table tbody td[data-label='Employee'], .ot-emp-table tbody td[data-label='Details'], .ot-rates-table tbody th { grid-column: 1 / -1; }
+  .ot-emp-table tbody td[data-label='Details']::before { display: none; }
+}
+
+@media (max-width: 720px) {
+  .ot-emp-table tbody tr, .ot-rates-table tbody tr, .ot-day-table tbody tr { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ot-mini-stats { grid-template-columns: 1fr; }
+}
+
+.ot-kind { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.ot-kind-weekend { background: #dbeafe; color: #1e40af; }
+.ot-kind-after-hours { background: #f1f5f9; color: #334155; }
+.ot-kind-holiday { background: #fef3c7; color: #92400e; }

@@ -2,6 +2,7 @@
  * Step-level validation for the registration flow (business logic,
  * kept separate from the UI components).
  */
+import { findDuplicateShop, validateNewShop } from '../services/shopsService'
 import {
   validateOptionalEmail,
   validateOptionalPhone,
@@ -63,6 +64,30 @@ export function validateJobPosition(data) {
   return ''
 }
 
+/** Whether a position needs an allocated shop (Sales Representative, Merchandiser). */
+export function isFieldPosition(position) {
+  const p = position?.trim().toLowerCase() ?? ''
+  return p === 'sales representative' || p === 'merchandiser'
+}
+
+/**
+ * Allocated-shop validation for field positions: either an existing shop is
+ * selected, or a valid new shop (name + town) that does not already exist.
+ * @returns {string} '' when valid.
+ */
+export function validateAllocatedShop(data) {
+  if (!isFieldPosition(data.position)) return ''
+  if (data.shopMode === 'new') {
+    const errors = validateNewShop(data.newShop ?? {})
+    if (Object.keys(errors).length) return Object.values(errors)[0]
+    const dup = findDuplicateShop(data.companyId, data.newShop.shopName, data.newShop.town, data.newShop.area)
+    if (dup) return `${dup.shopName} already exists. Select it from the list instead.`
+    return ''
+  }
+  return data.assignedShopId ? '' : 'An allocated shop is required for this position. Select one, or add a new shop.'
+}
+
 export function isJobPositionValid(data) {
-  return validateJobPosition(data) === ''
+  if (validateJobPosition(data) !== '') return false
+  return validateAllocatedShop(data) === ''
 }

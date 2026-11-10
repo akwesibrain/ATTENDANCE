@@ -1,0 +1,142 @@
+/* HR Users & Permissions — builds on sm-*, sh-*, at-*, nt-*. */
+
+.hu-warning {
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  background: var(--warn-soft);
+  color: var(--ink);
+  border-left: 3px solid var(--warn);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+.hu-role {
+  display: inline-flex;
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.hu-role-super-admin { background: var(--brand); color: #fff; }
+.hu-role-hr-manager { background: var(--accent-soft); color: var(--brand); border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); }
+.hu-role-hr-officer { background: var(--ground); color: var(--ink-2); border: 1px solid var(--rule); }
+
+.hu-scope-all {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  border-radius: var(--radius-md);
+  background: var(--ground);
+  color: var(--brand);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.hu-matrix-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.hu-problems {
+  margin: 0;
+  padding-left: 28px;
+}
+
+.hu-change-list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* Permission matrix */
+.pm-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
+}
+
+.pm-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.pm-table th,
+.pm-table td {
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--rule);
+  text-align: center;
+}
+
+.pm-table thead th {
+  background: var(--ground);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-2);
+}
+
+.pm-table tbody th {
+  text-align: left;
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.pm-table tbody tr:last-child th,
+.pm-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.pm-on { color: var(--ok); font-weight: 800; }
+.pm-na { color: var(--rule); }
+.pm-locked { color: var(--ink-2); font-size: 12px; opacity: 0.7; }
+.pm-edit input { width: 17px; height: 17px; accent-color: var(--accent); }
+
+.hu-roles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  padding: 16px 18px;
+}
+
+.hu-role-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.hu-role-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+@media (max-width: 1200px) {
+  .hu-roles { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 1100px) {
+  .hu-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .hu-table, .hu-table tbody, .hu-table tr, .hu-table td { display: block; width: 100%; }
+  .hu-table tbody tr { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 14px; padding: 14px 18px; border-bottom: 1px solid var(--rule); }
+  .hu-table tbody td { padding: 0; border: none; }
+  .hu-table tbody td::before { content: attr(data-label); display: block; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-2); margin-bottom: 3px; }
+  .hu-table tbody td[data-label='User'], .hu-table tbody td[data-label='Actions'] { grid-column: 1 / -1; }
+  .hu-table tbody td[data-label='Actions']::before { display: none; }
+}
+
+@media (max-width: 720px) {
+  .hu-table tbody tr { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+.hu-company-checks { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; min-height: 42px; }
+.hu-company-checks .at-sub { flex-basis: 100%; }

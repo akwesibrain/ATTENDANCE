@@ -7,24 +7,26 @@
   --ink: #0e1f3d;
   --ink-2: #51637f;
   --rule: #e2eaf4;
+  /* Form-field and control borders: 3:1 against white (WCAG 1.4.11). */
+  --rule-strong: #7d8ea8;
 
   /* ---- Brand structure (not accents) ---- */
   --brand: #0b3d91;
   --brand-dark: #082c6b;
 
   /* ---- The ONE accent, one job: primary action / "now" ---- */
-  --accent: #1c6fe0;
-  --accent-hover: #1559b8;
+  --accent: #1864cc;
+  --accent-hover: #1452a8;
   --accent-soft: #e8f1fd;
   --accent-ink: #ffffff;
-  --focus: #1c6fe0;
+  --focus: #1864cc;
 
   /* ---- Status: hue + word + shape, never hue alone ---- */
-  --ok: #1a8a4a;
+  --ok: #16733f;
   --ok-soft: #e5f4ec;
-  --warn: #b8770e;
+  --warn: #8a5a06;
   --warn-soft: #fbf0da;
-  --crit: #c43d3d;
+  --crit: #b33434;
   --crit-soft: #fae9e9;
 
   /* ---- Legacy aliases (so existing components keep compiling) ---- */
@@ -130,5 +132,59 @@ video {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+}
+
+/* ------------------------------------------------------------------
+ * UI/UX quality rules (applied across the HR portal)
+ * ------------------------------------------------------------------ */
+
+/* Clickable things look clickable; disabled things look disabled. */
+button:not(:disabled),
+[role='button'],
+select:not(:disabled),
+summary,
+label[for],
+input[type='checkbox']:not(:disabled),
+input[type='radio']:not(:disabled) {
+  cursor: pointer;
+}
+button:disabled,
+select:disabled,
+input:disabled {
+  cursor: not-allowed;
+}
+
+/* Form fields have a visible boundary (3:1) so they can be found at a glance. */
+.form-input,
+.sh-form-input,
+.sh-form-select,
+.sm-select,
+.hr-company-select,
+.as-input {
+  border-color: var(--rule-strong);
+}
+
+/* Touch screens and small screens: every control is at least 44×44px. */
+@media (pointer: coarse), (max-width: 760px) {
+  .btn,
+  .sm-actions-btn,
+  .sm-tab,
+  .hr-subtab,
+  .emp-page-btn,
+  .st-nav-item,
+  .sh-day,
+  .sm-select,
+  .sh-form-input,
+  .sh-form-select,
+  .form-input,
+  .hr-nav-item {
+    min-height: 44px;
+  }
+  .sm-modal-close,
+  .hr-icon-btn,
+  .emp-page-btn {
+    min-width: 44px;
+    min-height: 44px;
   }
 }

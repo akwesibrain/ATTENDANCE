@@ -1,0 +1,376 @@
+/* ------------------------------------------------------------------
+   Employee directory — card grid (white & blue HR identity)
+------------------------------------------------------------------- */
+
+.emp-directory {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.emp-directory-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.emp-directory-head h2 {
+  font-size: var(--t-h1);
+  font-weight: 800;
+  color: var(--brand);
+  margin: 0;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+.emp-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.emp-group-title {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-2);
+  margin: 0;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.emp-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+/* Card */
+.emp-card {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition:
+    box-shadow 0.16s var(--ease-out),
+    transform 0.16s var(--ease-out);
+}
+
+.emp-card:hover {
+  box-shadow: var(--shadow-raised);
+  transform: translateY(-2px);
+}
+
+.emp-card-banner {
+  height: 56px;
+  background: linear-gradient(135deg, var(--brand) 0%, var(--accent) 100%);
+}
+
+.emp-card-body {
+  padding: 0 16px 16px;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.emp-card-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-top: -28px;
+  margin-bottom: 10px;
+}
+
+.emp-card-photo {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid var(--surface);
+  box-shadow: var(--shadow-card);
+  background: var(--accent-soft);
+}
+
+.emp-card-photo-fallback {
+  display: grid;
+  place-items: center;
+  color: var(--brand);
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.emp-card-status {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  border: 1px solid currentColor;
+  text-transform: uppercase;
+}
+
+.emp-card-status-active {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.emp-card-status-inactive {
+  background: var(--ground);
+  color: var(--ink-2);
+}
+
+.emp-card-name {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--brand);
+  margin: 0;
+  line-height: 1.2;
+}
+
+.emp-card-position {
+  font-size: 13px;
+  color: var(--ink-2);
+  margin: 2px 0 12px;
+}
+
+.emp-card-details {
+  list-style: none;
+  margin: 0;
+  padding: 12px 0 0;
+  border-top: 1px solid var(--rule);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+}
+
+.emp-card-details li {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 13px;
+  color: var(--ink);
+  min-width: 0;
+}
+
+.emp-card-icon {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  display: grid;
+  place-items: center;
+}
+
+.emp-card-mono {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.emp-card-ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+/* Assigned shop block on the card */
+.emp-card-shop {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  background: var(--accent-soft);
+  border: 1px solid #c9ddf8;
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  margin-bottom: 12px;
+}
+
+.emp-card-shop.is-required {
+  background: var(--warn-soft);
+  border-color: #f0dfc0;
+}
+
+.emp-card-shop-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+
+.emp-card-shop-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--brand);
+}
+
+.emp-card-shop-address {
+  font-size: 12px;
+  color: var(--ink-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.emp-card-icon-warn {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.emp-card-shop-required {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--warn);
+}
+
+.emp-card-assign-link {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 0;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--accent);
+  cursor: pointer;
+  text-align: left;
+  width: fit-content;
+}
+
+.emp-card-assign-link:hover {
+  text-decoration: underline;
+}
+
+/* Pagination */
+.emp-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding-top: 4px;
+}
+
+.emp-page-btn {
+  min-width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--rule);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  padding: 0 8px;
+  transition:
+    background 0.14s var(--ease-out),
+    border-color 0.14s var(--ease-out),
+    color 0.14s var(--ease-out);
+}
+
+.emp-page-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.emp-page-btn.is-active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.emp-page-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Responsive */
+@media (max-width: 1200px) {
+  .emp-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 900px) {
+  .emp-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 560px) {
+  .emp-grid {
+    grid-template-columns: 1fr;
+  }
+  .emp-directory-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .emp-directory-head .hr-search {
+    max-width: none;
+  }
+}
+
+.emp-card-history {
+  margin-top: 12px;
+  align-self: flex-start;
+}
+
+/* Long values wrap instead of being cut off */
+.emp-card-wrap { min-width: 0; overflow-wrap: anywhere; }
+.emp-card-note { color: var(--ink-2); font-size: 12px; }
+.emp-card-details li { align-items: flex-start; }
+.emp-card-details li .emp-card-icon { margin-top: 1px; }
+.emp-card-ellipsis { white-space: normal; overflow-wrap: anywhere; text-overflow: clip; }
+.emp-card-shop-address { white-space: normal; overflow-wrap: anywhere; text-overflow: clip; }
+.emp-card-name { overflow-wrap: anywhere; }
+
+/* Emergency contact */
+.emp-card-emergency {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
+  background: var(--ground);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+  min-width: 0;
+}
+.emp-card-emergency-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-2);
+  margin-bottom: 2px;
+}
+.emp-card-emergency-name { font-weight: 600; color: var(--ink); }
+.emp-card-emergency-phone { color: var(--accent); font-weight: 600; text-decoration: none; overflow-wrap: anywhere; }
+.emp-card-emergency-phone:hover { text-decoration: underline; }
+.emp-card-edit { margin-top: 10px; align-self: flex-start; }
+.emp-saved { margin: 0 0 12px; padding: 10px 14px; border-radius: var(--radius-md); background: var(--ok-soft); color: var(--ok); font-weight: 600; font-size: 13.5px; }
+
+/* Employee details form */
+.ed-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; padding: 14px; }
+.ed-tenure { display: flex; flex-direction: column; gap: 3px; padding: 10px 12px; border-radius: var(--radius-md); background: var(--accent-soft); color: var(--brand); align-self: start; min-width: 0; }
+.ed-tenure strong { font-size: 15px; overflow-wrap: anywhere; }
+.ed-hint { font-size: 12px; color: var(--ink-2); }
+.ed-error { font-size: 12.5px; color: var(--crit); font-weight: 600; }
+@media (max-width: 560px) {
+  .ed-fields { grid-template-columns: minmax(0, 1fr); }
+}

@@ -1,0 +1,418 @@
+/* ------------------------------------------------------------------
+   Shifts & Working Hours — extends the HR dashboard identity
+------------------------------------------------------------------- */
+
+.sh-page {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.sh-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.sh-head h2 {
+  font-size: var(--t-h1);
+  font-weight: 800;
+  color: var(--brand);
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.sh-head p {
+  color: var(--ink-2);
+  font-size: 14px;
+  margin: 4px 0 0;
+}
+
+.sh-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.sh-stat {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sh-stat-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.sh-stat-value {
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--ink);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.sh-stat-ok { color: var(--ok); }
+.sh-stat-warn { color: var(--warn); }
+.sh-stat-accent { color: var(--accent); }
+
+.sh-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.sh-controls .form-input,
+.sh-controls .sh-select {
+  min-height: 42px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 14px;
+  padding: 9px 12px;
+}
+
+.sh-controls .form-input:focus,
+.sh-controls .sh-select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.sh-search {
+  flex: 1;
+  min-width: 200px;
+  max-width: 320px;
+}
+
+/* Shift cards */
+.sh-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+
+.sh-card {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.sh-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.sh-card-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sh-card-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  background: var(--accent-soft);
+  color: var(--accent);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.sh-card-name {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--brand);
+  margin: 0;
+}
+
+.sh-card-code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-2);
+  margin: 2px 0 0;
+}
+
+.sh-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 3px 11px;
+  border-radius: var(--radius-pill);
+  border: 1px solid currentColor;
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+
+.sh-status::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.sh-status-active { background: var(--ok-soft); color: var(--ok); }
+.sh-status-inactive { background: var(--ground); color: var(--ink-2); }
+
+.sh-times {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--ground);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+}
+
+.sh-time-block {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.sh-time-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.sh-time-value {
+  font-family: var(--font-mono);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.sh-time-arrow {
+  color: var(--ink-2);
+  font-size: 18px;
+}
+
+.sh-overnight {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent);
+  background: var(--accent-soft);
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+}
+
+.sh-meta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 14px;
+}
+
+.sh-meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.sh-meta-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.sh-meta-value {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.sh-card-desc {
+  font-size: 13px;
+  color: var(--ink-2);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.sh-card-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Form modal */
+.sh-form-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px;
+}
+
+.sh-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.sh-form-field.is-full {
+  grid-column: 1 / -1;
+}
+
+.sh-form-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.sh-form-input,
+.sh-form-select {
+  min-height: 42px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 14px;
+  padding: 9px 12px;
+}
+
+.sh-form-input:focus,
+.sh-form-select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.sh-form-input.has-error,
+.sh-form-select.has-error {
+  border-color: var(--crit);
+}
+
+.sh-form-error {
+  font-size: 12.5px;
+  color: var(--crit);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.sh-days {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.sh-day {
+  min-width: 44px;
+  height: 38px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--rule);
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    background 0.14s var(--ease-out),
+    border-color 0.14s var(--ease-out),
+    color 0.14s var(--ease-out);
+}
+
+.sh-day:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.sh-day.is-selected {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.sh-form-note {
+  font-size: 12.5px;
+  color: var(--ink-2);
+  background: var(--accent-soft);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  line-height: 1.5;
+}
+
+/* Assignment */
+.sh-assign-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 280px;
+  overflow-y: auto;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
+  padding: 8px;
+}
+
+.sh-assign-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 14px;
+  transition: background 0.12s var(--ease-out);
+}
+
+.sh-assign-item:hover {
+  background: var(--ground);
+}
+
+.sh-assign-item input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+}
+
+.sh-assign-item .sh-assign-name {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.sh-assign-item .sh-assign-meta {
+  color: var(--ink-2);
+  font-size: 12.5px;
+  margin-left: auto;
+}
+
+.sh-empty {
+  text-align: center;
+  color: var(--ink-2);
+  padding: 32px 16px;
+  font-size: 14px;
+}
+
+/* Responsive */
+@media (max-width: 1200px) {
+  .sh-stats { grid-template-columns: repeat(2, 1fr); }
+  .sh-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 720px) {
+  .sh-stats { grid-template-columns: repeat(2, 1fr); }
+  .sh-form-grid { grid-template-columns: 1fr; }
+}

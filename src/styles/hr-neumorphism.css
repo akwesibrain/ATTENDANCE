@@ -1,0 +1,379 @@
+/* ==========================================================================
+ * HR portal — Neumorphism (Soft UI) theme
+ * Guided by the UI/UX Pro Max "neumorphism" style: one monochromatic soft
+ * blue base, surfaces the same colour as the page, depth from paired light
+ * (top-left) and dark (bottom-right) shadows, 12–16px radii, raised controls
+ * that press in (150ms), inset fields and active states.
+ *
+ * The style is rated high accessibility risk, so its required safeguards are
+ * kept: text ≥ 4.5:1 on the base, visible keyboard focus, a faint 3:1 edge
+ * on fields (shadow alone is not a boundary), colour never the only signal,
+ * and no motion under prefers-reduced-motion.
+ *
+ * Scoped to the HR portal (.hr-layout, .ac-shell) — the employee portal is
+ * unchanged.
+ * ========================================================================== */
+
+.hr-layout,
+.ac-shell {
+  /* Base and surfaces share one colour (the core of the style). */
+  --neu-base: #e6edf6;
+  --neu-light: rgba(255, 255, 255, 0.9);
+  --neu-dark: rgba(149, 166, 192, 0.55);
+  --neu-dark-soft: rgba(149, 166, 192, 0.35);
+
+  --neu-raised: -6px -6px 14px var(--neu-light), 6px 6px 14px var(--neu-dark);
+  --neu-raised-sm: -3px -3px 8px var(--neu-light), 3px 3px 8px var(--neu-dark);
+  --neu-raised-lg: -10px -10px 24px var(--neu-light), 10px 10px 24px var(--neu-dark);
+  --neu-inset: inset 3px 3px 7px var(--neu-dark), inset -3px -3px 7px var(--neu-light);
+  --neu-inset-sm: inset 2px 2px 4px var(--neu-dark-soft), inset -2px -2px 4px var(--neu-light);
+
+  --ground: var(--neu-base);
+  --surface: var(--neu-base);
+  --rule: rgba(149, 166, 192, 0.32);
+  --rule-strong: #6f819c;
+  --ink-2: #475872;
+  --shadow-card: var(--neu-raised);
+  --shadow-raised: var(--neu-raised-lg);
+  --radius-sm: 12px;
+  --radius-md: 14px;
+  --radius-lg: 18px;
+
+  --color-bg: var(--ground);
+  --color-card: var(--surface);
+  --color-border: var(--rule);
+  --color-text-secondary: var(--ink-2);
+
+  background: var(--neu-base);
+  color: var(--ink);
+}
+
+/* ---------- Sidebar: soft, same base, inset active item ---------- */
+.hr-layout .hr-sidebar {
+  background: var(--neu-base);
+  color: var(--ink);
+  box-shadow: 8px 0 20px -8px var(--neu-dark), -1px 0 0 var(--neu-light) inset;
+  z-index: 2;
+}
+.hr-layout .hr-brand,
+.hr-layout .hr-sidebar-footer {
+  border-color: var(--rule);
+}
+.hr-layout .hr-brand-mark {
+  background: var(--neu-base);
+  color: var(--brand);
+  box-shadow: var(--neu-raised-sm);
+}
+.hr-layout .hr-brand-text { color: var(--brand); }
+.hr-layout .hr-brand-text span,
+.hr-layout .hr-footer-sub { color: var(--ink-2); }
+.hr-layout .hr-sidebar-footer { color: var(--ink); }
+
+.hr-layout .hr-nav { gap: 8px; }
+.hr-layout .hr-nav-item {
+  color: var(--ink-2);
+  border: 0;
+  border-radius: var(--radius-md);
+  transition: box-shadow 0.15s var(--ease-out), color 0.15s var(--ease-out);
+}
+.hr-layout .hr-nav-item:hover {
+  background: var(--neu-base);
+  color: var(--brand);
+  box-shadow: var(--neu-raised-sm);
+}
+.hr-layout .hr-nav-item.is-active {
+  background: var(--neu-base);
+  color: var(--accent);
+  font-weight: 700;
+  box-shadow: var(--neu-inset);
+}
+
+/* ---------- Top bar ---------- */
+.hr-layout .hr-topbar {
+  background: var(--neu-base);
+  border-bottom: 0;
+  box-shadow: 0 8px 16px -10px var(--neu-dark);
+}
+.hr-layout .hr-icon-btn,
+.hr-layout .hr-avatar-lg {
+  background: var(--neu-base);
+  border: 0;
+  box-shadow: var(--neu-raised-sm);
+}
+.hr-layout .hr-icon-btn:hover { color: var(--accent); }
+.hr-layout .hr-icon-btn:active { box-shadow: var(--neu-inset-sm); }
+.hr-layout .hr-avatar-lg { color: var(--brand); }
+
+/* ---------- Raised surfaces ---------- */
+.hr-layout .hr-panel,
+.hr-layout .sm-panel,
+.hr-layout .st-card,
+.hr-layout .emp-card,
+.hr-layout .hr-chooser-card,
+.hr-layout .sm-event,
+.hr-layout .ac-denied,
+.ac-shell .ac-card {
+  background: var(--neu-base);
+  border: 0;
+  box-shadow: var(--neu-raised);
+}
+.hr-layout .emp-card:hover,
+.hr-layout .hr-chooser-card:hover {
+  box-shadow: var(--neu-raised-lg);
+  transform: none;
+}
+
+/* Stat tiles: raised, value in brand blue */
+.hr-layout .hr-stat,
+.hr-layout .sm-stat {
+  background: var(--neu-base);
+  border: 0;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--neu-raised);
+}
+
+/* Sections inside panels and modals: gently inset wells */
+.hr-layout .sm-section,
+.hr-layout .emp-card-emergency,
+.hr-layout .hol-list,
+.hr-layout .at-history {
+  background: var(--neu-base);
+  border: 0;
+  box-shadow: var(--neu-inset-sm);
+}
+.hr-layout .sm-section-title {
+  background: transparent;
+  border-bottom: 1px solid var(--rule);
+}
+
+/* Tables: no hard grid; soft row dividers */
+.hr-layout .hr-table th,
+.hr-layout .sm-table th {
+  background: transparent;
+  color: var(--ink-2);
+}
+.hr-layout .hr-table tbody tr:hover,
+.hr-layout .sm-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.45);
+}
+
+/* ---------- Controls ---------- */
+/* Fields are pressed in, with a faint 3:1 edge so they stay findable. */
+.hr-layout .form-input,
+.hr-layout .sh-form-input,
+.hr-layout .sh-form-select,
+.hr-layout .sm-select,
+.hr-layout .hr-company-select,
+.hr-layout .as-input,
+.hr-layout .hr-search {
+  background: var(--neu-base);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--neu-inset-sm);
+}
+.hr-layout .form-input:focus,
+.hr-layout .sh-form-input:focus,
+.hr-layout .sh-form-select:focus,
+.hr-layout .sm-select:focus,
+.hr-layout .hr-company-select:focus,
+.hr-layout .hr-search:focus {
+  border-color: var(--accent);
+  box-shadow: var(--neu-inset-sm), 0 0 0 3px color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+/* Buttons are raised and press in. Primary keeps the solid blue for clear hierarchy. */
+.hr-layout .btn,
+.hr-layout .sm-actions-btn,
+.hr-layout .emp-page-btn,
+.hr-layout .sm-modal-close,
+.ac-shell .btn,
+.ac-shell .ac-user {
+  border: 0;
+  border-radius: var(--radius-md);
+  box-shadow: var(--neu-raised-sm);
+  transition: box-shadow 0.15s var(--ease-out), transform 0.15s var(--ease-out), background 0.15s var(--ease-out), color 0.15s var(--ease-out);
+}
+.hr-layout .btn-secondary,
+.hr-layout .btn-outline,
+.hr-layout .sm-actions-btn,
+.hr-layout .emp-page-btn,
+.hr-layout .sm-modal-close,
+.ac-shell .btn-secondary,
+.ac-shell .ac-user {
+  background: var(--neu-base);
+  color: var(--brand);
+}
+.hr-layout .btn-secondary:hover:not(:disabled),
+.hr-layout .btn-outline:hover:not(:disabled),
+.hr-layout .sm-actions-btn:hover:not(:disabled),
+.hr-layout .emp-page-btn:hover:not(:disabled),
+.ac-shell .ac-user:hover:not(:disabled) {
+  background: var(--neu-base);
+  color: var(--accent);
+  box-shadow: var(--neu-raised);
+}
+.hr-layout .btn-primary,
+.ac-shell .btn-primary {
+  background: linear-gradient(145deg, #1d6fdd, #1559b8);
+  color: #fff;
+  box-shadow: -4px -4px 10px var(--neu-light), 4px 4px 12px rgba(21, 89, 184, 0.45);
+}
+.hr-layout .btn-primary:hover:not(:disabled),
+.ac-shell .btn-primary:hover:not(:disabled) {
+  background: linear-gradient(145deg, #1864cc, #124c9e);
+}
+/* Press: shadows flip inward. */
+.hr-layout .btn:active:not(:disabled),
+.hr-layout .sm-actions-btn:active:not(:disabled),
+.hr-layout .emp-page-btn:active:not(:disabled),
+.hr-layout .sm-modal-close:active,
+.ac-shell .ac-user:active:not(:disabled) {
+  box-shadow: var(--neu-inset);
+  transform: scale(0.98);
+}
+.hr-layout .btn-primary:active:not(:disabled) {
+  box-shadow: inset 3px 3px 8px rgba(8, 44, 107, 0.55), inset -2px -2px 6px rgba(255, 255, 255, 0.25);
+}
+.hr-layout .btn:disabled,
+.hr-layout .sm-actions-btn:disabled,
+.hr-layout .emp-page-btn:disabled {
+  box-shadow: var(--neu-inset-sm);
+  opacity: 0.6;
+}
+.hr-layout .emp-page-btn.is-active {
+  background: var(--neu-base);
+  color: var(--accent);
+  font-weight: 700;
+  box-shadow: var(--neu-inset);
+}
+
+/* Tabs: the selected one is pressed in (also bold + blue, so not shadow-only). */
+.hr-layout .sm-tab,
+.hr-layout .hr-subtab {
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  margin-bottom: 0;
+  transition: box-shadow 0.15s var(--ease-out), color 0.15s var(--ease-out);
+}
+.hr-layout .sm-tab:hover,
+.hr-layout .hr-subtab:hover { box-shadow: var(--neu-raised-sm); }
+.hr-layout .sm-tab.is-active,
+.hr-layout .hr-subtab.is-active {
+  background: var(--neu-base);
+  color: var(--accent);
+  font-weight: 700;
+  box-shadow: var(--neu-inset);
+}
+.hr-layout .hr-subtabs {
+  border-bottom: 0;
+  gap: 10px;
+  padding: 6px;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--neu-raised-sm);
+  width: fit-content;
+  max-width: 100%;
+}
+
+/* Settings section list */
+.hr-layout .st-nav-item {
+  border: 0;
+  border-radius: var(--radius-md);
+}
+.hr-layout .st-nav-item:hover { background: var(--neu-base); box-shadow: var(--neu-raised-sm); }
+.hr-layout .st-nav-item.is-active {
+  background: var(--neu-base);
+  color: var(--accent);
+  box-shadow: var(--neu-inset);
+}
+.hr-layout .sh-day {
+  border: 0;
+  background: var(--neu-base);
+  box-shadow: var(--neu-raised-sm);
+}
+.hr-layout .sh-day.is-selected {
+  background: var(--neu-base);
+  color: var(--accent);
+  font-weight: 700;
+  box-shadow: var(--neu-inset);
+}
+
+/* ---------- Modals, drawer, assistant ---------- */
+.hr-layout .sm-modal,
+.hr-layout .nt-drawer,
+.hr-layout .nt-confirm,
+.hr-layout .as-panel {
+  background: var(--neu-base);
+  border: 0;
+  box-shadow: var(--neu-raised-lg);
+}
+.hr-layout .sm-modal-head,
+.hr-layout .sm-modal-foot,
+.hr-layout .nt-drawer-head {
+  background: var(--neu-base);
+  border-color: var(--rule);
+}
+.hr-layout .sm-modal-body > .sm-alert-actions:last-child,
+.hr-layout .sm-modal-body > form > .sm-alert-actions:last-child {
+  background: var(--neu-base);
+}
+.hr-layout .sm-modal-overlay,
+.hr-layout .nt-drawer-overlay {
+  background: rgba(46, 63, 92, 0.38);
+}
+
+/* Badges and status pills stay flat and readable (text + colour + label). */
+.hr-layout .at-badge,
+.hr-layout .status-badge,
+.hr-layout .report-tier {
+  box-shadow: var(--neu-raised-sm);
+}
+
+/* ---------- Access screens ---------- */
+.ac-shell { min-height: 100vh; min-height: 100dvh; }
+.ac-shell .ac-card { border-radius: 22px; }
+
+/* ---------- Focus stays obvious on soft surfaces ---------- */
+.hr-layout :focus-visible,
+.ac-shell :focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+
+/* ---------- Reduced motion: no press scaling ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .hr-layout .btn:active:not(:disabled),
+  .hr-layout .sm-actions-btn:active:not(:disabled),
+  .hr-layout .emp-page-btn:active:not(:disabled),
+  .ac-shell .ac-user:active:not(:disabled) {
+    transform: none;
+  }
+}
+
+/* ---------- Small screens: lighter shadows so edges stay crisp ---------- */
+@media (max-width: 760px) {
+  .hr-layout,
+  .ac-shell {
+    --neu-raised: -4px -4px 10px var(--neu-light), 4px 4px 10px var(--neu-dark);
+    --neu-raised-lg: -6px -6px 16px var(--neu-light), 6px 6px 16px var(--neu-dark);
+  }
+}
+
+/* Phone layout: the menu scrolls sideways, so give the soft shadows room. */
+@media (max-width: 720px) {
+  .hr-layout .hr-sidebar {
+    box-shadow: 0 8px 16px -10px var(--neu-dark);
+  }
+  .hr-layout .hr-nav {
+    padding: 8px 6px;
+    gap: 10px;
+  }
+}
+
+/* Never wider than the screen: let the main column and the phone menu shrink. */
+.hr-layout .hr-main { min-width: 0; }
+@media (max-width: 720px) {
+  .hr-layout .hr-sidebar { min-width: 0; max-width: 100%; }
+  .hr-layout .hr-nav { min-width: 0; flex: 1 1 auto; }
+  .hr-layout .hr-topbar { flex-wrap: wrap; }
+}

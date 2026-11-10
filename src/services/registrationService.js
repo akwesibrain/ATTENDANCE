@@ -18,6 +18,16 @@
  */
 
 import { getCompanyById } from '../constants/companies'
+import {
+  mockAssignShop,
+  requiresShop,
+} from './shopAssignmentService'
+import { mockCreateShop, mockGetShop } from './shopsService'
+import { can, canAccessCompany } from './permissionsService'
+import { recordAuditEvent } from './auditStore'
+import { validateOptionalPhone } from '../utils/validation'
+import { isDateKey } from '../utils/tenure'
+import { accraDateKey, accraTodayKey, formatAccraDate } from '../utils/accraTime'
 
 /** Company-specific Staff ID prefixes (mirrors the agreed ID format). */
 const STAFF_ID_PREFIXES = {
@@ -172,6 +182,36 @@ export function submitRegistration(registration) {
           .map((part) => part.trim())
           .join(' ')
 
+        // Field positions (Sales Representative, Merchandiser) require an
+        // assigned shop. Validate it belongs to the employee's company.
+        let assignedShopId = null
+        if (requiresShop(position)) {
+          let shop = null
+          if (registration.shopMode === 'new') {
+            // A new allocated shop, saved to this company and linked below.
+            const created = mockCreateShop(
+              { ...registration.newShop, companyId: company.id },
+              { createdBy: fullName || 'Employee registration', source: 'registration' },
+            )
+            shop = created.shop ?? created.existing ?? null
+            if (!shop) {
+              reject(new Error(Object.values(created.errors ?? {})[0] ?? 'Please check the new shop details.'))
+              return
+            }
+          } else {
+            shop = mockGetShop(registration.assignedShopId)
+          }
+          if (!shop || shop.companyId !== company.id) {
+            reject(
+              new Error(
+                'Please choose an allocated shop for this position to continue.',
+              ),
+            )
+            return
+          }
+          assignedShopId = shop.shopId
+        }
+
         const record = {
           staffId: mockGenerateStaffId(registration.companyId),
           status: 'ACTIVE',
@@ -180,14 +220,100 @@ export function submitRegistration(registration) {
           fullName,
           position,
           paymentMethod: registration.paymentMethod ?? '',
+          phone: registration.phone?.trim() ?? '',
+          email: registration.email?.trim() ?? '',
+          address: registration.address?.trim() ?? '',
+          emergencyContactName: registration.emergencyContactName?.trim() ?? '',
+          emergencyContactPhone: registration.emergencyContactPhone?.trim() ?? '',
+          assignedShopId,
           faceImage: registration.faceImage ?? null,
           registeredAt: new Date().toISOString(),
         }
         mockSaveEmployee(record)
+
+        // Record the shop assignment (active + history) for field positions.
+        if (assignedShopId) {
+          mockAssignShop(record.staffId, assignedShopId, {
+            effectiveDate: record.registeredAt,
+          })
+        }
+
         resolve(record)
       } catch (error) {
         reject(error instanceof Error ? error : new Error('Registration failed.'))
       }
     }, MOCK_LATENCY_MS)
   })
+}
+
+/* --------------------------------------------------------------------------
+ * HR-maintained employee details
+ * ------------------------------------------------------------------------ */
+
+/** The date the employee joined the company: set by HR, else the registration date. */
+export function employeeJoinedOn(emp) {
+  if (emp?.joinedOn) return emp.joinedOn
+  return emp?.registeredAt ? accraDateKey(new Date(emp.registeredAt)) : null
+}
+
+export function validateEmployeeDetails(values, todayKey = accraTodayKey()) {
+  const errors = {}
+  if (!values.joinedOn) errors.joinedOn = 'Enter the date the employee joined the company.'
+  else if (!isDateKey(values.joinedOn)) errors.joinedOn = 'Enter a valid date.'
+  else if (values.joinedOn > todayKey) errors.joinedOn = 'The joining date cannot be in the future.'
+  else if (values.joinedOn < '1950-01-01') errors.joinedOn = 'Check the year.'
+  const name = (values.emergencyContactName ?? '').trim()
+  const phone = (values.emergencyContactPhone ?? '').trim()
+  const phoneError = validateOptionalPhone(phone, 'Emergency contact phone')
+  if (phoneError) errors.emergencyContactPhone = phoneError
+  if (phone && !name) errors.emergencyContactName = 'Enter the emergency contact’s name.'
+  if (name && name.length < 2) errors.emergencyContactName = 'Enter the full name.'
+  return errors
+}
+
+/**
+ * HR updates the joining date and emergency contact. Checked here (not only
+ * in the UI): needs Employees → Edit for the employee's company. Each change
+ * is written to the audit log with the previous and new values.
+ */
+export function mockUpdateEmployeeDetails(staffId, values, actor) {
+  const employees = readEmployees()
+  const emp = employees.find((e) => e.staffId === staffId)
+  if (!emp) return { errors: { form: 'Employee not found.' } }
+  if (!can(actor, 'employees', 'edit') || !canAccessCompany(actor, emp.companyId)) {
+    return { errors: { form: 'You are not authorised to change this employee’s details.' } }
+  }
+  const errors = validateEmployeeDetails(values)
+  if (Object.keys(errors).length) return { errors }
+  const next = {
+    joinedOn: values.joinedOn,
+    emergencyContactName: (values.emergencyContactName ?? '').trim(),
+    emergencyContactPhone: (values.emergencyContactPhone ?? '').trim(),
+  }
+  const previous = {
+    joinedOn: employeeJoinedOn(emp),
+    emergencyContactName: emp.emergencyContactName ?? '',
+    emergencyContactPhone: emp.emergencyContactPhone ?? '',
+  }
+  const changed = Object.keys(next).filter((k) => next[k] !== previous[k] || (k === 'joinedOn' && !emp.joinedOn))
+  if (!changed.length) return { errors: { form: 'Nothing has changed.' } }
+  Object.assign(emp, next, { detailsUpdatedAt: new Date().toISOString(), detailsUpdatedBy: actor.name })
+  writeEmployees(employees)
+  const show = (v) => ({
+    'Date joined': v.joinedOn ? formatAccraDate(v.joinedOn) : 'Not set',
+    'Emergency contact name': v.emergencyContactName || 'Not given',
+    'Emergency contact phone': v.emergencyContactPhone || 'Not given',
+  })
+  recordAuditEvent({
+    source: 'Employees',
+    action: 'Employee details updated',
+    category: 'Employee Management',
+    actor: { name: actor.name, role: actor.role },
+    companyIds: [emp.companyId],
+    affected: `${emp.fullName} (${emp.staffId})`,
+    description: `Updated: ${changed.map((k) => ({ joinedOn: 'date joined', emergencyContactName: 'emergency contact name', emergencyContactPhone: 'emergency contact phone' })[k]).join(', ')}.`,
+    previous: show(previous),
+    next: show(next),
+  })
+  return { employee: { ...emp } }
 }

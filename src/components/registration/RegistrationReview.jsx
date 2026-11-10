@@ -1,5 +1,6 @@
 import { getCompanyById } from '../../constants/companies'
 import { getPaymentMethodLabel } from '../../constants/paymentMethods'
+import { mockGetShop } from '../../services/shopsService'
 
 function ReviewSection({ title, onEdit, children }) {
   return (
@@ -41,6 +42,9 @@ export default function RegistrationReview({
     .map((part) => part.trim())
     .join(' ')
   const position = data.position.trim()
+  const assignedShop = data.assignedShopId
+    ? mockGetShop(data.assignedShopId)
+    : null
 
   const hasEmergencyContact =
     data.emergencyContactName.trim() || data.emergencyContactPhone.trim()
@@ -102,6 +106,12 @@ export default function RegistrationReview({
       >
         <div className="review-rows">
           <ReviewRow label="Position" value={position} />
+          {assignedShop && data.shopMode !== 'new' && (
+            <ReviewRow label="Allocated shop" value={assignedShop.shopName} />
+          )}
+          {data.shopMode === 'new' && data.newShop?.shopName && (
+            <ReviewRow label="Allocated shop (new)" value={[data.newShop.shopName, data.newShop.area, data.newShop.town].map((v) => (v ?? '').trim()).filter(Boolean).join(', ')} />
+          )}
         </div>
       </ReviewSection>
 
