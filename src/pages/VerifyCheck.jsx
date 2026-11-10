@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '../services/backend/client'
+import { describeFace, preloadFaceModels } from '../services/faceRecognition'
 import { captureFrame } from '../utils/captureFrame'
 import '../styles/registration.css'
 
@@ -50,6 +51,7 @@ export default function VerifyCheck({ token }) {
   const faceRequired = check?.faceRequired
   useEffect(() => {
     if (!faceRequired || result) return undefined
+    preloadFaceModels()
     let active = true
     navigator.mediaDevices?.getUserMedia({ video: { facingMode: 'user' }, audio: false })
       .then(async (stream) => {
@@ -77,8 +79,9 @@ export default function VerifyCheck({ token }) {
     setError('')
     try {
       const faceImage = faceRequired ? captureFrame(videoRef.current) : undefined
+      const faceDescriptor = faceImage ? await describeFace(faceImage) : undefined
       const position = check.gpsRequired ? await currentPosition() : {}
-      const response = await api(`/verify/${encodeURIComponent(token)}`, { method: 'POST', body: { faceImage, ...position } })
+      const response = await api(`/verify/${encodeURIComponent(token)}`, { method: 'POST', body: { faceImage, faceDescriptor, ...position } })
       stopCamera()
       setResult(response.result)
     } catch (failure) {

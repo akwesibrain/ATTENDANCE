@@ -176,9 +176,13 @@ pg_cron + pg_net ─────────> `api` /jobs/* (secret header)
 
    Until then the jobs do nothing. Notifications are still raised after each HR
    change and when the Notifications page opens.
-4. **Connect AWS Rekognition, before registering real staff.** Anyone enrolled
-   before this has to enrol again. In AWS IAM, create a user with only this
-   permission and make an access key:
+4. **Face recognition works with no setup.** It uses face-api, an open-source
+   model that runs on the phone (see Limits). `npm run dev` and `npm run build`
+   copy its model files into `public/face-models`; the phone downloads them
+   (about 7 MB) once. To use AWS Rekognition instead, which checks the photos on
+   AWS servers, create an AWS IAM user with only this permission and an access
+   key. Anyone enrolled under one provider has to enrol again after switching.
+   AWS accounts on the Free plan block Rekognition; upgrade the plan first.
 
    ```json
    {
@@ -206,7 +210,7 @@ pg_cron + pg_net ─────────> `api` /jobs/* (secret header)
 | Name | Purpose |
 |---|---|
 | `JOBS_SECRET` | Lets the scheduler call `/jobs/*`. Must match Vault's `jobs_secret` |
-| `FACE_PROVIDER` | `rekognition` uses AWS. Unset falls back to photo comparison |
+| `FACE_PROVIDER` | Unset (or `faceapi`) uses face-api on the phone. `rekognition` uses AWS |
 | `REKOGNITION_REGION` | AWS region, e.g. `eu-west-1` |
 | `REKOGNITION_ACCESS_KEY_ID` | Key for the AWS user described in setup |
 | `REKOGNITION_SECRET_ACCESS_KEY` | Secret for that user |
@@ -227,8 +231,8 @@ function verifies HR sessions itself.
 
 These run against the hosted project and create test rows. Do not run them once
 real employees are registered: they reset the Staff ID counters only when no
-employees remain, and `smoke-employee` leaves its rows behind. They use generated
-images, so they only work while `FACE_PROVIDER` is unset.
+employees remain, and `smoke-employee` leaves its rows behind. They send made-up
+face readings, so they only work while `FACE_PROVIDER` is unset or `faceapi`.
 
 ```bash
 node scripts/smoke-employee.mjs
@@ -243,12 +247,14 @@ SUPABASE_ACCESS_TOKEN=<token> node scripts/smoke-hr.mjs   # removes what it crea
 
 ### Limits to accept before go-live
 
-- **Until AWS Rekognition is connected, the face check cannot reliably tell two
-  people apart.** Settings → Security shows which check is active.
-- **There is no liveness check**, so a printed photo of an employee can pass even
-  with AWS Rekognition.
-- **Face photos are processed by AWS outside Ghana.** The registration consent
-  says so. Have a lawyer confirm this meets Act 843.
+- **With face-api the phone reads the face, so the server trusts the phone.**
+  Someone who rewrites the app could send a made-up face reading, but they would
+  need a photo of the person to make one that matches. AWS Rekognition checks the
+  photos on the server instead. Settings → Security shows which check is active.
+- **There is no liveness check**, so a printed photo of an employee can pass with
+  either provider.
+- **Face photos are stored, and with AWS processed, outside Ghana.** The
+  registration consent says so. Have a lawyer confirm this meets Act 843.
 - **SMS checks are off** until a provider is chosen.
 - **Device GPS can be spoofed.**
 - **Face photos are stored** privately for HR display, which needs covering under

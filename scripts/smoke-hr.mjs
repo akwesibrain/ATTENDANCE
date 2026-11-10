@@ -82,7 +82,17 @@ function picture(seed) {
   return `data:image/jpeg;base64,${jpeg.encode({ data, width, height }, 80).data.toString('base64')}`
 }
 
+/** A repeatable stand-in for the face descriptor the phone sends; each seed is a different person. */
+function descriptor(seed) {
+  let state = seed
+  return Array.from({ length: 128 }, () => {
+    state = (state * 1664525 + 1013904223) >>> 0
+    return (state / 2 ** 32 - 0.5) * 0.4
+  })
+}
+
 const face = picture(7)
+const faceReading = descriptor(7)
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 const client = () => createClient(URL_BASE, KEY, { auth: { persistSession: false, autoRefreshToken: false } })
 
@@ -157,6 +167,7 @@ const person = (suffix, extra) => ({
   position: 'Warehouse Worker',
   biometricConsent: true,
   faceImage: face,
+  faceDescriptor: faceReading,
   ...extra,
 })
 
@@ -273,10 +284,10 @@ try {
   check('the SMS link page opens', info.status === 200 && info.json.verificationNumber === 1 && !('expected' in info.json), info)
   check('an expired link is refused', (await call('GET', `/verify/${tokens.old}`)).status === 410)
   check('a made-up link is refused', (await call('GET', '/verify/not-a-real-token-at-all-really')).status === 410)
-  const atShop = await call('POST', `/verify/${tokens.good}`, { faceImage: face, latitude: 5.68486, longitude: -0.02419, accuracy: 12 })
+  const atShop = await call('POST', `/verify/${tokens.good}`, { faceImage: face, faceDescriptor: faceReading, latitude: 5.68486, longitude: -0.02419, accuracy: 12 })
   check('right face at the shop is verified', atShop.json.result === 'verified', atShop)
-  check('a link works only once', (await call('POST', `/verify/${tokens.good}`, { faceImage: face, latitude: 5.68486, longitude: -0.02419 })).status === 410)
-  const away = await call('POST', `/verify/${tokens.far}`, { faceImage: face, latitude: 5.7, longitude: -0.02419 })
+  check('a link works only once', (await call('POST', `/verify/${tokens.good}`, { faceImage: face, faceDescriptor: faceReading, latitude: 5.68486, longitude: -0.02419 })).status === 410)
+  const away = await call('POST', `/verify/${tokens.far}`, { faceImage: face, faceDescriptor: faceReading, latitude: 5.7, longitude: -0.02419 })
   check('right face away from the shop is flagged', away.json.result === 'outside-shop', away)
   const { data: smsRows } = await all.auth.from('verification_events').select('event_id, result, distance_from_shop').like('event_id', 'smoke-%').order('event_id')
   check('results and distance are stored', smsRows?.[1]?.distance_from_shop > 1500, smsRows)

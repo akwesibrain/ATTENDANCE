@@ -1,11 +1,12 @@
 /** Employee routes. There is no login here, so every route is rate limited. */
 
 import { Hono } from 'npm:hono@4.6.14'
-import { compareFaces, EnrollmentOutdated, enrollFace, FaceServiceUnavailable, UnusableFaceImage } from '../_shared/faceMatcher.ts'
+import { compareFaces, EnrollmentOutdated, enrollFace, FaceServiceUnavailable, type FaceSample, UnusableFaceImage } from '../_shared/faceMatcher.ts'
 import { accraDateKey } from '../_shared/rules/accraTime.js'
 import { attendanceGate, lockoutMessage, MAX_FACE_ATTEMPTS, normalizeStaffId } from '../_shared/rules/checkin.js'
 import { shopFromRow } from '../_shared/rules/facts.js'
-import { parseJpegDataUrl } from '../_shared/rules/faceTemplate.js'
+import { parseDescriptor } from '../_shared/rules/faceDescriptor.js'
+import { parseJpegDataUrl } from '../_shared/rules/facePhoto.js'
 import { holidayNameFor } from '../_shared/rules/holidays.js'
 import { checkGeofence, verificationResult } from '../_shared/rules/monitoring.js'
 import { isWorkingDay, overtimeHours } from '../_shared/rules/policy.js'
@@ -30,10 +31,11 @@ const LIMITS = {
 
 export const publicRoutes = new Hono()
 
-function faceBytes(value: unknown): Uint8Array {
-  const bytes = parseJpegDataUrl(value)
-  if (!bytes) throw new ApiError(400, 'Face verification is required. Please capture your photo to continue.')
-  return bytes
+/** The photo, and the descriptor the phone worked out from it. */
+function faceSample(body: Record<string, unknown>): FaceSample {
+  const image = parseJpegDataUrl(body.faceImage)
+  if (!image) throw new ApiError(400, 'Face verification is required. Please capture your photo to continue.')
+  return { image, descriptor: parseDescriptor(body.faceDescriptor) }
 }
 
 async function readable<T>(action: () => Promise<T>): Promise<T> {
@@ -97,11 +99,11 @@ publicRoutes.post('/employees/register', async (c) => {
   if (parsed.errors) throw invalid(parsed.errors)
   const form = parsed.value
 
-  const image = faceBytes(body.faceImage)
+  const face = faceSample(body)
   const photoPath = `${form.companyId}/${crypto.randomUUID()}.jpg`
-  const template = await readable(() => enrollFace(image, photoPath))
+  const template = await readable(() => enrollFace(face, photoPath))
 
-  await storePhoto(ENROLLMENT_BUCKET, photoPath, image)
+  await storePhoto(ENROLLMENT_BUCKET, photoPath, face.image)
 
   let employee
   try {
@@ -256,11 +258,11 @@ publicRoutes.post('/verify/:token', async (c) => {
 
   let facePassed = true
   if (settings.monitoring.faceRequired) {
-    const image = faceBytes(body.faceImage)
+    const face = faceSample(body)
     const enrolled = await must(
       db.from('face_templates').select('algorithm, template').eq('employee_id', check.event.employee_id).maybeSingle(),
     )
-    facePassed = enrolled ? (await readable(() => compareFaces(enrolled, image, loadEnrolledPhoto))).match : false
+    facePassed = enrolled ? (await readable(() => compareFaces(enrolled, face, loadEnrolledPhoto))).match : false
   }
 
   // A photo that could not be read leaves the link open; from here it is spent.
@@ -312,13 +314,13 @@ publicRoutes.post('/attendance/events', async (c) => {
   const { date, events, gate, dayOff } = await kioskDay(employee, now)
   if (gate.blockedReason) throw new ApiError(409, gate.blockedReason, { code: 'blocked' })
 
-  const image = faceBytes(body.faceImage)
+  const face = faceSample(body)
   const enrolled = await must(
     db.from('face_templates').select('algorithm, template').eq('employee_id', employee.staff_id).maybeSingle(),
   )
   if (!enrolled) throw new ApiError(409, 'No registered face photo on file for this Staff ID. Please contact HR.')
 
-  const { score, match } = await readable(() => compareFaces(enrolled, image, loadEnrolledPhoto))
+  const { score, match } = await readable(() => compareFaces(enrolled, face, loadEnrolledPhoto))
   if (!match) {
     const failed = await rpc<number>('record_face_failure', {
       p_staff_id: employee.staff_id,
@@ -338,7 +340,7 @@ publicRoutes.post('/attendance/events', async (c) => {
     : null
 
   const photoPath = `${employee.company_id}/${date}/${employee.staff_id}-${gate.nextAction}-${crypto.randomUUID()}.jpg`
-  await storePhoto(ATTENDANCE_BUCKET, photoPath, image)
+  await storePhoto(ATTENDANCE_BUCKET, photoPath, face.image)
 
   let event
   try {

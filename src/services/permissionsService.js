@@ -30,7 +30,7 @@ const ROLE_LABELS = { 'hr-manager': 'HR Manager' }
 
 let currentUser = null
 let smsProviderName = 'none'
-let faceProviderName = 'pixel'
+let faceProviderName = 'faceapi'
 
 function userFromRow(row) {
   const name = row.name
@@ -143,8 +143,9 @@ export function getSessionUser() {
   return currentUser
 }
 
-export function faceRecognitionActive() {
-  return faceProviderName === 'rekognition'
+/** @returns {'faceapi'|'rekognition'} which face recognition the server uses */
+export function faceProvider() {
+  return faceProviderName
 }
 
 export function smsConfigured() {

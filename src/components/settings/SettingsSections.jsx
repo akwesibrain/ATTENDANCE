@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { COMPANIES } from '../../constants/companies'
-import { authorisedCompanies, can, smsConfigured, faceRecognitionActive } from '../../services/permissionsService'
+import { authorisedCompanies, can, smsConfigured, faceProvider } from '../../services/permissionsService'
 import {
   CHECKS_PER_SHIFT,
   CYCLE_END_DAY,
@@ -569,9 +569,9 @@ export function SecuritySection({ user }) {
   return (
     <SectionCard title="Security Settings" description="Access and account policy for the private HR portal." readOnly={readOnly} readOnlyReason={readOnly ? SYSTEM_RO : null} dirty={s.dirty} flash={s.flash} error={s.errors.form} onSave={() => s.setConfirming(true)} onCancel={s.reset}>
       <div className="st-status-list">
-        {faceRecognitionActive()
-          ? <StatusRow label="Face check" value="AWS Rekognition" tone="ok" detail="Compares each scan with the enrolled face. It does not detect a printed photo." />
-          : <StatusRow label="Face check" value="Photo comparison only" tone="warn" detail="Cannot reliably tell two people apart. Do not rely on it until AWS Rekognition is connected." />}
+        {faceProvider() === 'rekognition'
+          ? <StatusRow label="Face check" value="AWS Rekognition" tone="ok" detail="Compares each scan with the enrolled face on AWS servers. It does not detect a printed photo." />
+          : <StatusRow label="Face check" value="face-api (open source)" tone="ok" detail="The phone reads the face and the server compares it with the enrolled one. It does not detect a printed photo." />}
         <StatusRow label="HR portal access" value="Email, password and authenticator app" tone="ok" detail="Separate from the employee portal." />
         <StatusRow label="Public HR registration" value="Disabled" tone="ok" detail="Locked. There is one HR account (HR Manager); no others can be created." />
         <StatusRow label="MFA policy" value="Required" tone="ok" detail="Every HR account signs in with an authenticator app." />

@@ -59,6 +59,7 @@ export async function submitRegistration(registration) {
       assignedShopId: registration.assignedShopId,
       newShop: registration.newShop,
       faceImage: registration.faceImage,
+      faceDescriptor: registration.faceDescriptor,
       biometricConsent: registration.confirmed === true,
     },
   })

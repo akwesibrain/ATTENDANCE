@@ -124,8 +124,8 @@ export default function RegistrationReview({
         <span>
           I have reviewed my information and confirm it is correct. I accept
           the biometric privacy notice and consent to my face photo being used
-          for attendance identity verification, including processing outside
-          Ghana by our face recognition provider, Amazon Web Services.
+          for attendance identity verification, including storage and
+          processing on our servers, which may be outside Ghana.
         </span>
       </label>
 

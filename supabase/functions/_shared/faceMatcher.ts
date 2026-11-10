@@ -1,29 +1,23 @@
 /**
  * The server's one face-matching interface.
  *
- * FACE_PROVIDER=rekognition compares faces with AWS Rekognition. Without it the
- * server falls back to comparing photos as small grayscale images, which cannot
- * reliably tell two people apart. HR sees which one is active in Settings.
+ * By default faces are matched with face-api, the open-source model that runs
+ * on the phone: the phone sends a face descriptor with each photo and the server
+ * compares it with the enrolled one. FACE_PROVIDER=rekognition uses AWS
+ * Rekognition on the photos instead. HR sees which one is active in Settings.
  *
  * A failed call is never counted against the employee: only a clear answer that
  * the faces differ uses up a scan attempt.
  */
 
 import { AwsClient } from 'npm:aws4fetch@1.0.20'
-import jpeg from 'npm:jpeg-js@0.4.4'
 import { enrollmentProblem, NO_FACE_MESSAGE, readComparison } from './rules/faceDecision.js'
-import {
-  compareTemplates,
-  decodeTemplate,
-  encodeTemplate,
-  FACE_MATCH_THRESHOLD,
-  FACE_TEMPLATE_ALGORITHM,
-  hasEnoughContrast,
-  templateFromRgba,
-} from './rules/faceTemplate.js'
+import { compareDescriptors, decodeDescriptor, DESCRIPTOR_ALGORITHM, encodeDescriptor } from './rules/faceDescriptor.js'
 
 export type FaceTemplate = { algorithm: string; template: string }
 export type FaceResult = { score: number; match: boolean }
+/** What a registration or scan sends: the photo, and the phone's descriptor of it. */
+export type FaceSample = { image: Uint8Array; descriptor: number[] | null }
 
 /** The photo could not be used, as opposed to not matching. */
 export class UnusableFaceImage extends Error {}
@@ -36,9 +30,11 @@ const REKOGNITION_ALGORITHM = 'rekognition-compare-v1'
 const REQUEST_TIMEOUT_MS = 8000
 const IMAGE_ERRORS = ['InvalidParameterException', 'InvalidImageFormatException', 'ImageTooLargeException']
 
-export function faceProvider(): 'rekognition' | 'pixel' {
-  return Deno.env.get('FACE_PROVIDER')?.trim() === 'rekognition' ? 'rekognition' : 'pixel'
+export function faceProvider(): 'rekognition' | 'faceapi' {
+  return Deno.env.get('FACE_PROVIDER')?.trim() === 'rekognition' ? 'rekognition' : 'faceapi'
 }
+
+const NO_DESCRIPTOR = 'The face in the photo could not be read. Please retake it, facing the camera in good light.'
 
 /* --------------------------------------------------------------------------
  * AWS Rekognition
@@ -87,31 +83,14 @@ async function rekognition(action: string, payload: unknown) {
 }
 
 /* --------------------------------------------------------------------------
- * Photo comparison fallback
- * ------------------------------------------------------------------------ */
-
-function templateFromJpeg(image: Uint8Array): Uint8Array {
-  let template: Uint8Array
-  try {
-    const decoded = jpeg.decode(image, { useTArray: true, formatAsRGBA: true, maxResolutionInMP: 3, maxMemoryUsageInMB: 64 })
-    template = templateFromRgba(decoded)
-  } catch {
-    throw new UnusableFaceImage('Could not read the photo. Please try again.')
-  }
-  if (!hasEnoughContrast(template)) {
-    throw new UnusableFaceImage('The photo is too dark or blank. Face the camera in good light and try again.')
-  }
-  return template
-}
-
-/* --------------------------------------------------------------------------
  * Interface
  * ------------------------------------------------------------------------ */
 
 /** Check a photo can be used, and describe how it will be matched later. */
-export async function enrollFace(image: Uint8Array, photoPath: string): Promise<FaceTemplate> {
-  if (faceProvider() === 'pixel') {
-    return { algorithm: FACE_TEMPLATE_ALGORITHM, template: encodeTemplate(templateFromJpeg(image)) }
+export async function enrollFace({ image, descriptor }: FaceSample, photoPath: string): Promise<FaceTemplate> {
+  if (faceProvider() === 'faceapi') {
+    if (!descriptor) throw new UnusableFaceImage(NO_DESCRIPTOR)
+    return { algorithm: DESCRIPTOR_ALGORITHM, template: encodeDescriptor(descriptor) }
   }
   const { FaceDetails } = await rekognition('DetectFaces', { Image: { Bytes: base64(image) }, Attributes: ['DEFAULT'] })
   const problem = enrollmentProblem(FaceDetails)
@@ -122,15 +101,17 @@ export async function enrollFace(image: Uint8Array, photoPath: string): Promise<
 
 export async function compareFaces(
   enrolled: FaceTemplate,
-  image: Uint8Array,
+  { image, descriptor }: FaceSample,
   loadPhoto: (path: string) => Promise<Uint8Array>,
 ): Promise<FaceResult> {
-  const expected = faceProvider() === 'rekognition' ? REKOGNITION_ALGORITHM : FACE_TEMPLATE_ALGORITHM
+  const expected = faceProvider() === 'rekognition' ? REKOGNITION_ALGORITHM : DESCRIPTOR_ALGORITHM
   if (enrolled.algorithm !== expected) throw new EnrollmentOutdated()
 
-  if (faceProvider() === 'pixel') {
-    const score = compareTemplates(decodeTemplate(enrolled.template), templateFromJpeg(image))
-    return { score, match: score >= FACE_MATCH_THRESHOLD }
+  if (faceProvider() === 'faceapi') {
+    if (!descriptor) throw new UnusableFaceImage(NO_DESCRIPTOR)
+    const stored = decodeDescriptor(enrolled.template)
+    if (!stored) throw new EnrollmentOutdated()
+    return compareDescriptors(stored, descriptor)
   }
 
   const source = await loadPhoto(enrolled.template)

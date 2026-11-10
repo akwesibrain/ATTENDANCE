@@ -18,8 +18,8 @@ export function lookupEmployee(staffId) {
  * Record the next action after a face scan. Throws on refusal; a face mismatch
  * carries `data.code`, `data.attemptsLeft` and `data.lockedOut`.
  */
-export function recordAttendance({ staffId, faceImage }) {
-  return api('/attendance/events', { method: 'POST', body: { staffId, faceImage } })
+export function recordAttendance({ staffId, faceImage, faceDescriptor }) {
+  return api('/attendance/events', { method: 'POST', body: { staffId, faceImage, faceDescriptor } })
 }
 
 export function getAllEvents() {

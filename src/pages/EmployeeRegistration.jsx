@@ -36,6 +36,7 @@ const INITIAL_FORM_DATA = {
   emergencyContactName: '',
   emergencyContactPhone: '',
   faceImage: null,
+  faceDescriptor: null,
   position: '',
   assignedShopId: null,
   // Field positions: choose an existing shop, or enter a new allocated shop.
@@ -67,7 +68,7 @@ export default function EmployeeRegistration({ onBack }) {
       case STEP.personal:
         return isPersonalInformationValid(formData)
       case STEP.face:
-        return Boolean(formData.faceImage)
+        return Boolean(formData.faceImage && formData.faceDescriptor)
       case STEP.position:
         return isJobPositionValid(formData)
       case STEP.review:
@@ -182,7 +183,10 @@ export default function EmployeeRegistration({ onBack }) {
         {step === STEP.face && (
           <FaceEnrollment
             faceImage={formData.faceImage}
-            onCapture={(image) => updateField('faceImage', image)}
+            onCapture={(image, descriptor = null) => {
+              updateField('faceImage', image)
+              updateField('faceDescriptor', descriptor)
+            }}
           />
         )}
 

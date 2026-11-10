@@ -52,8 +52,20 @@ function picture(seed) {
   return `data:image/jpeg;base64,${jpeg.encode({ data, width, height }, 80).data.toString('base64')}`
 }
 
+
+/** A repeatable stand-in for the face descriptor the phone sends; each seed is a different person. */
+function descriptor(seed) {
+  let state = seed
+  return Array.from({ length: 128 }, () => {
+    state = (state * 1664525 + 1013904223) >>> 0
+    return (state / 2 ** 32 - 0.5) * 0.4
+  })
+}
+
 const face = picture(1)
 const otherFace = picture(99)
+const faceReading = descriptor(1)
+const otherReading = descriptor(99)
 const form = (suffix, extra = {}) => ({
   companyId: 'double-a',
   firstName: 'Smoke',
@@ -63,6 +75,7 @@ const form = (suffix, extra = {}) => ({
   position: 'Warehouse Worker',
   biometricConsent: true,
   faceImage: face,
+  faceDescriptor: faceReading,
   ...extra,
 })
 
@@ -107,7 +120,7 @@ check('unknown Staff ID is not found', unknown.status === 404, unknown)
 const malformed = await call('GET', '/attendance/lookup/not-a-staff-id')
 check('malformed Staff ID is not found', malformed.status === 404, malformed)
 
-const mismatch = await call('POST', '/attendance/events', { staffId, faceImage: otherFace })
+const mismatch = await call('POST', '/attendance/events', { staffId, faceImage: otherFace, faceDescriptor: otherReading })
 if (lookup.json.blockedReason) {
   console.log(`note  check-in is outside its window now: ${lookup.json.blockedReason}`)
   check('a blocked scan is refused before the face check', mismatch.status === 409, mismatch)
@@ -116,7 +129,7 @@ if (lookup.json.blockedReason) {
   check('the failed attempt is counted', mismatch.json.attemptsLeft === 4, mismatch)
 
   const faked = '2020-01-01T08:00:00.000Z'
-  const checkIn = await call('POST', '/attendance/events', { staffId, faceImage: face, time: faked, date: '2020-01-01', status: 'on-time' })
+  const checkIn = await call('POST', '/attendance/events', { staffId, faceImage: face, faceDescriptor: faceReading, time: faked, date: '2020-01-01', status: 'on-time' })
   check('the registered face checks in', checkIn.status === 200 && checkIn.json.type === 'check-in', checkIn)
   check('a time sent by the client is ignored', checkIn.json.time?.slice(0, 4) !== '2020' && checkIn.json.date !== '2020-01-01', checkIn)
 
@@ -125,23 +138,20 @@ if (lookup.json.blockedReason) {
 
   const secondId = second.json.staffId
   const scans = await Promise.all(
-    [1, 2, 3, 4, 5].map(() => call('POST', '/attendance/events', { staffId: secondId, faceImage: otherFace })),
+    [1, 2, 3, 4, 5].map(() => call('POST', '/attendance/events', { staffId: secondId, faceImage: otherFace, faceDescriptor: otherReading })),
   )
   check('5 wrong faces are all refused', scans.every((scan) => scan.status === 403), scans)
-  check('the 5th marks the employee absent', scans.some((scan) => scan.json.markedAbsent === true), scans.map((s) => s.json))
+  check('the 5th locks the Staff ID for the day', scans.some((scan) => scan.json.lockedOut === true), scans.map((s) => s.json))
   const blocked = await call('GET', `/attendance/lookup/${secondId}`)
-  check('an absent employee is blocked', /ABSENT/.test(blocked.json.blockedReason ?? ''), blocked)
-  const correctAfter = await call('POST', '/attendance/events', { staffId: secondId, faceImage: face })
+  check('a locked Staff ID is blocked, without an absence', /until tomorrow/.test(blocked.json.blockedReason ?? '') && !/absent/i.test(blocked.json.blockedReason), blocked)
+  const correctAfter = await call('POST', '/attendance/events', { staffId: secondId, faceImage: face, faceDescriptor: faceReading })
   check('even the right face is refused after that', correctAfter.status === 409, correctAfter)
 }
 
-const blank = await call('POST', '/employees/register', form('Blank', {
-  faceImage: (() => {
-    const data = Buffer.alloc(100 * 100 * 4, 0)
-    return `data:image/jpeg;base64,${jpeg.encode({ data, width: 100, height: 100 }, 80).data.toString('base64')}`
-  })(),
-}))
-check('a blank photo is refused', blank.status === 422, blank)
+const unread = await call('POST', '/employees/register', form('Unread', { faceDescriptor: undefined }))
+check('a photo without a face reading is refused', unread.status === 422, unread)
+const forged = await call('POST', '/employees/register', form('Forged', { faceDescriptor: new Array(128).fill(0) }))
+check('a flat, made-up face reading is refused', forged.status === 422, forged)
 
 const route404 = await call('GET', '/no-such-route')
 check('unknown routes answer as JSON', route404.status === 404 && route404.json.error === 'Not found.', route404)

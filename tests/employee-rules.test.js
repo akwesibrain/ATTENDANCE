@@ -4,15 +4,7 @@ import {
   nextAttendanceAction,
   normalizeStaffId,
 } from '../supabase/functions/_shared/rules/checkin.js'
-import {
-  compareTemplates,
-  decodeTemplate,
-  encodeTemplate,
-  FACE_MATCH_THRESHOLD,
-  hasEnoughContrast,
-  parseJpegDataUrl,
-  templateFromRgba,
-} from '../supabase/functions/_shared/rules/faceTemplate.js'
+import { parseJpegDataUrl } from '../supabase/functions/_shared/rules/facePhoto.js'
 import { parseRegistration, requiresShop } from '../supabase/functions/_shared/rules/registration.js'
 
 /** 2026-11-10 is a Tuesday. */
@@ -150,49 +142,7 @@ describe('registration', () => {
   })
 })
 
-describe('face template', () => {
-  function image(width, height, shade) {
-    const data = new Uint8Array(width * height * 4)
-    for (let y = 0; y < height; y += 1) {
-      for (let x = 0; x < width; x += 1) {
-        const value = shade(x / width, y / height)
-        data.set([value, value, value, 255], (y * width + x) * 4)
-      }
-    }
-    return { width, height, data }
-  }
-  const stripes = (x) => (Math.floor(x * 8) % 2 ? 230 : 25)
-  const inverted = (x) => (Math.floor(x * 8) % 2 ? 25 : 230)
-
-  it('scores the same picture as identical, at any size', () => {
-    const score = compareTemplates(templateFromRgba(image(64, 64, stripes)), templateFromRgba(image(640, 640, stripes)))
-    expect(score).toBeGreaterThan(0.99)
-  })
-
-  it('crops to the center, so a wider frame of the same picture still matches', () => {
-    const wide = (x) => stripes(Math.min(Math.max((x * 2 - 0.5), 0), 0.999))
-    expect(compareTemplates(templateFromRgba(image(64, 64, stripes)), templateFromRgba(image(128, 64, wide)))).toBeGreaterThan(0.99)
-  })
-
-  it('rejects a different picture', () => {
-    const score = compareTemplates(templateFromRgba(image(64, 64, stripes)), templateFromRgba(image(64, 64, inverted)))
-    expect(score).toBeLessThan(FACE_MATCH_THRESHOLD)
-  })
-
-  it('treats a blank frame as unusable', () => {
-    expect(hasEnoughContrast(templateFromRgba(image(64, 64, () => 3)))).toBe(false)
-    expect(hasEnoughContrast(templateFromRgba(image(64, 64, stripes)))).toBe(true)
-  })
-
-  it('refuses an image smaller than the grid', () => {
-    expect(() => templateFromRgba(image(16, 16, stripes))).toThrow()
-  })
-
-  it('stores and restores a template exactly', () => {
-    const template = templateFromRgba(image(64, 64, stripes))
-    expect(decodeTemplate(encodeTemplate(template))).toEqual(template)
-  })
-
+describe('face photo', () => {
   it('accepts only JPEG data URLs within the size limit', () => {
     const jpegUrl = `data:image/jpeg;base64,${btoa('\xff\xd8\xff\xe0data')}`
     expect(parseJpegDataUrl(jpegUrl)).toBeInstanceOf(Uint8Array)

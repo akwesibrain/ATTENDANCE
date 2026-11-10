@@ -4,7 +4,9 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "predev": "node scripts/copy-face-models.mjs",
     "dev": "vite",
+    "prebuild": "node scripts/copy-face-models.mjs",
     "build": "vite build",
     "lint": "oxlint",
     "test": "vitest run",
@@ -12,6 +14,7 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.119.0",
+    "@vladmandic/face-api": "1.7.15",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
   },

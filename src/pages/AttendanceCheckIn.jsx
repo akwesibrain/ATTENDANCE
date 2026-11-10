@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { lookupEmployee, MAX_FACE_ATTEMPTS, recordAttendance } from '../services/attendanceService'
+import { describeFace, preloadFaceModels } from '../services/faceRecognition'
 import { captureFrame } from '../utils/captureFrame'
 import '../styles/registration.css'
 
@@ -93,10 +94,11 @@ export default function AttendanceCheckIn({ onBack }) {
         setError(found.blockedReason)
         return
       }
+      preloadFaceModels()
       setEmployee(found)
       setNextAction(found.nextAction)
       setAttemptsLeft(found.attemptsLeft)
-      setMarkedAbsent(false)
+      setLockedOut(false)
       setMismatch(false)
       setStep(STEP.scan)
     } catch (err) {
@@ -118,9 +120,12 @@ export default function AttendanceCheckIn({ onBack }) {
     setMismatch(false)
     setLoading(true)
     try {
+      // A photo without one clear face is turned away here and costs no attempt.
+      const faceDescriptor = await describeFace(captured)
       const event = await recordAttendance({
         staffId: employee.staffId,
         faceImage: captured,
+        faceDescriptor,
       })
       stopStream()
       setCapturedPhoto(captured)
