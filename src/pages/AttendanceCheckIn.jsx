@@ -8,6 +8,7 @@ import {
 } from '../services/attendanceService'
 import { evaluateAction } from '../constants/attendancePolicy'
 import '../styles/registration.css'
+import { captureVideoFrame } from '../utils/imageCompression'
 
 const STEP = {
   staffId: 0,
@@ -144,11 +145,7 @@ export default function AttendanceCheckIn({ onBack }) {
     const video = videoRef.current
     if (!video || !video.videoWidth || loading) return
 
-    const canvas = document.createElement('canvas')
-    canvas.width = video.videoWidth
-    canvas.height = video.videoHeight
-    canvas.getContext('2d').drawImage(video, 0, 0)
-    const captured = canvas.toDataURL('image/jpeg', 0.9)
+    const captured = captureVideoFrame(video)
 
     setCameraState('scanning')
     setError(null)

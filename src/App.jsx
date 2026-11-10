@@ -1,8 +1,13 @@
-import { useEffect, useState } from 'react'
+import { Suspense, lazy, useEffect, useState } from 'react'
 import Home from './pages/Home'
-import EmployeeRegistration from './pages/EmployeeRegistration'
-import AttendanceCheckIn from './pages/AttendanceCheckIn'
-import HrDashboard from './pages/HrDashboard'
+import { PageSkeleton } from './components/common/Skeletons'
+
+// Each part of the app is downloaded only when it is opened, so the home
+// screen and the check-in flow load fast and employees never download the HR
+// portal.
+const EmployeeRegistration = lazy(() => import('./pages/EmployeeRegistration'))
+const AttendanceCheckIn = lazy(() => import('./pages/AttendanceCheckIn'))
+const HrDashboard = lazy(() => import('./pages/HrDashboard'))
 
 const VIEW = {
   home: 'home',
@@ -48,13 +53,13 @@ function App() {
   }, [])
 
   if (view === VIEW.register) {
-    return <EmployeeRegistration onBack={() => setView(VIEW.home)} />
+    return <Suspense fallback={<PageSkeleton label="Loading registration" />}><EmployeeRegistration onBack={() => setView(VIEW.home)} /></Suspense>
   }
   if (view === VIEW.attendance) {
-    return <AttendanceCheckIn onBack={() => setView(VIEW.home)} />
+    return <Suspense fallback={<PageSkeleton label="Loading attendance" />}><AttendanceCheckIn onBack={() => setView(VIEW.home)} /></Suspense>
   }
   if (view === VIEW.hr) {
-    return <HrDashboard onBack={() => setView(VIEW.home)} />
+    return <Suspense fallback={<PageSkeleton variant="hr" label="Loading the HR portal" />}><HrDashboard onBack={() => setView(VIEW.home)} /></Suspense>
   }
   return (
     <Home

@@ -964,3 +964,27 @@
   .lf-table tbody tr { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .lf-bar-actions { margin-left: 0; }
 }
+
+/* ---------- Live field board: map of Ghana ---------- */
+.lf-ghana { max-height: 640px; max-width: 560px; width: 100%; align-self: center; background: color-mix(in srgb, var(--accent) 5%, var(--surface)); }
+.lf-land { fill: color-mix(in srgb, #2e8b57 14%, var(--surface)); stroke: var(--brand); stroke-width: 2; stroke-linejoin: round; }
+.lf-sea { fill: color-mix(in srgb, var(--accent) 10%, var(--surface)); }
+.lf-sea-wave { fill: none; stroke: color-mix(in srgb, var(--accent) 35%, transparent); stroke-width: 1; }
+.lf-region-label { font-size: 12px; font-weight: 700; letter-spacing: 0.14em; fill: var(--ink-2); opacity: 0.75; }
+.lf-sea-label { letter-spacing: 0.04em; font-style: italic; font-weight: 600; fill: var(--accent); }
+.lf-city-dot { fill: var(--ink-2); }
+.lf-city-label { font-size: 12px; fill: var(--ink-2); paint-order: stroke; stroke: color-mix(in srgb, #2e8b57 14%, var(--surface)); stroke-width: 3px; }
+.lf-city-label.is-capital { font-weight: 700; fill: var(--ink); }
+.lf-cluster { cursor: pointer; outline: none; }
+.lf-cluster-halo { fill: color-mix(in srgb, var(--accent) 16%, transparent); stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 4 3; }
+.lf-cluster-dot { stroke: #fff; stroke-width: 3; }
+.lf-cluster-count { font-size: 14px; font-weight: 800; fill: #fff; pointer-events: none; }
+.lf-cluster-town { font-size: 12px; font-weight: 600; fill: var(--ink-2); paint-order: stroke; stroke: #fff; stroke-width: 4px; pointer-events: none; }
+.lf-cluster-label { font-size: 13px; font-weight: 800; fill: var(--brand); paint-order: stroke; stroke: #fff; stroke-width: 4px; pointer-events: none; }
+.lf-cluster:hover .lf-cluster-halo,
+.lf-cluster:focus-visible .lf-cluster-halo { stroke-width: 3; fill: color-mix(in srgb, var(--accent) 26%, transparent); }
+.lf-key-count { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--brand); color: #fff; font-size: 12px; font-weight: 800; }
+.lf-map-note { padding: 0; }
+@media (prefers-reduced-motion: no-preference) {
+  .lf-cluster-halo { transition: stroke-width 0.15s, fill 0.15s; }
+}
