@@ -8,6 +8,7 @@ import { PageSkeleton } from './components/common/Skeletons'
 const EmployeeRegistration = lazy(() => import('./pages/EmployeeRegistration'))
 const AttendanceCheckIn = lazy(() => import('./pages/AttendanceCheckIn'))
 const HrDashboard = lazy(() => import('./pages/HrDashboard'))
+const VerifyCheck = lazy(() => import('./pages/VerifyCheck'))
 
 const VIEW = {
   home: 'home',
@@ -34,7 +35,15 @@ function viewFromLocation() {
   return PATH_TO_VIEW[window.location.pathname] ?? VIEW.home
 }
 
+const VERIFY_PATH = /^\/verify\/([^/]+)$/
+
 function App() {
+  const verifyToken = window.location.pathname.match(VERIFY_PATH)?.[1]
+  if (!verifyToken) return <Portal />
+  return <Suspense fallback={<PageSkeleton label="Loading verification" />}><VerifyCheck token={verifyToken} /></Suspense>
+}
+
+function Portal() {
   const [view, setView] = useState(viewFromLocation)
 
   // Keep the URL in sync so each page has a shareable link.

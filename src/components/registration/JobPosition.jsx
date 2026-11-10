@@ -1,8 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { validateAllocatedShop, validateJobPosition } from '../../utils/registrationValidation'
 import { requiresShop } from '../../services/shopAssignmentService'
-import { findDuplicateShop, searchShops } from '../../services/shopsService'
-import ShopLocationPicker from '../shops/ShopLocationPicker'
+import { findDuplicateShop, loadPublicShops, searchShops } from '../../services/shopsService'
 
 const ErrorIcon = () => (
   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -28,9 +27,21 @@ export default function JobPosition({ data, onChange, showErrors, onSubmit }) {
 
   const needsShop = requiresShop(data.position)
   const [shopSearch, setShopSearch] = useState('')
+  const [shopsLoaded, setShopsLoaded] = useState(0)
+  const [shopsError, setShopsError] = useState('')
+  useEffect(() => {
+    if (!needsShop) return undefined
+    let active = true
+    setShopsError('')
+    loadPublicShops(data.companyId)
+      .then(() => { if (active) setShopsLoaded((n) => n + 1) })
+      .catch((failure) => { if (active) setShopsError(failure.message) })
+    return () => { active = false }
+  }, [needsShop, data.companyId])
   const filteredShops = useMemo(
     () => (needsShop ? searchShops(data.companyId, shopSearch) : []),
-    [needsShop, data.companyId, shopSearch],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [needsShop, data.companyId, shopSearch, shopsLoaded],
   )
   const newShop = data.newShop ?? { shopName: '', town: '', area: '', address: '', latitude: '', longitude: '', locationSource: null, locationLabel: null }
   const isNew = data.shopMode === 'new'
@@ -102,6 +113,7 @@ export default function JobPosition({ data, onChange, showErrors, onSubmit }) {
             Allocated shop <span className="required-tag">Required</span>
           </legend>
           <p className="shop-help">Sales Representatives and Merchandisers must be linked to the shop they work from.</p>
+          {shopsError && <p className="field-error" role="alert">{shopsError}</p>}
 
           {!isNew ? (
             <>
@@ -169,17 +181,6 @@ export default function JobPosition({ data, onChange, showErrors, onSubmit }) {
                   <input id="new-shop-address" className="form-input" value={newShop.address} placeholder="e.g. Opposite the Ashaiman main station" autoComplete="off" onChange={(e) => setNewShop('address', e.target.value)} />
                 </div>
               </div>
-              <ShopLocationPicker
-                shop={{ shopName: newShop.shopName, town: newShop.town, area: newShop.area, address: newShop.address }}
-                value={newShop.latitude !== '' && newShop.latitude != null ? { latitude: Number(newShop.latitude), longitude: Number(newShop.longitude), locationSource: newShop.locationSource, locationLabel: newShop.locationLabel } : null}
-                onChange={(loc) => onChange('newShop', {
-                  ...newShop,
-                  latitude: loc ? loc.latitude : '',
-                  longitude: loc ? loc.longitude : '',
-                  locationSource: loc ? loc.locationSource : null,
-                  locationLabel: loc ? loc.locationLabel : null,
-                })}
-              />
               <p className="shop-help">
                 The shop is saved to this company&apos;s Shop Directory and linked to the employee profile. Its location is used for
                 GPS checks against the 150-metre geofence; if it is not set now, HR can set it later in Sales Rep Monitoring →

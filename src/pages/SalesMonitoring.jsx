@@ -8,15 +8,16 @@ import LiveFieldBoard from '../components/sales-monitoring/LiveFieldBoard'
 import '../styles/attendance.css'
 import { REP_STATUS } from '../components/sales-monitoring/labels'
 import {
-  mockGetAlerts,
-  mockGetMonitoringOverview,
-  mockGetRepresentativeDetail,
-  mockListFieldStaff,
+  getAlerts,
+  getMonitoringOverview,
+  getRepresentativeDetail,
+  listFieldStaff,
 } from '../services/salesMonitoringService'
-import { mockListShops } from '../services/shopsService'
+import { listShops } from '../services/shopsService'
 import { DIGITAL_GO_LIVE_DATE } from '../utils/attendanceRules'
 import '../styles/sales-monitoring.css'
 import { can } from '../constants/hrUser'
+import { smsConfigured } from '../services/permissionsService'
 
 function todayKey(date = new Date()) {
   const y = date.getFullYear()
@@ -27,7 +28,7 @@ function todayKey(date = new Date()) {
 
 /**
  * Sales Representative Monitoring — field attendance, assigned shops and
- * attendance verification activity. Mock-backed; shows only historical
+ * attendance verification activity. Shows only historical
  * verification events, never future schedules.
  */
 export default function SalesMonitoring({ company, user }) {
@@ -47,25 +48,25 @@ export default function SalesMonitoring({ company, user }) {
   const refresh = () => setRefreshKey((k) => k + 1)
 
   const overview = useMemo(
-    () => mockGetMonitoringOverview({ companyId: company.id, date }),
+    () => getMonitoringOverview({ companyId: company.id, date }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [company.id, date, refreshKey],
   )
 
   const alerts = useMemo(
-    () => mockGetAlerts({ companyId: company.id, date }),
+    () => getAlerts({ companyId: company.id, date }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [company.id, date, refreshKey],
   )
 
   const shops = useMemo(
-    () => mockListShops(company.id),
+    () => listShops(company.id),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [company.id, refreshKey],
   )
 
   const reps = useMemo(
-    () => mockListFieldStaff(company.id),
+    () => listFieldStaff(company.id),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [company.id, refreshKey],
   )
@@ -108,7 +109,7 @@ export default function SalesMonitoring({ company, user }) {
   const openAlerts = alerts.filter((a) => a.status !== 'resolved').length
 
   const openProfile = (rep, section = 'details') => {
-    setProfile({ detail: mockGetRepresentativeDetail(rep.employeeId, date), section })
+    setProfile({ detail: getRepresentativeDetail(rep.employeeId, date), section })
   }
 
   const openShopForRep = (rep) => {
@@ -126,6 +127,12 @@ export default function SalesMonitoring({ company, user }) {
           </p>
         </div>
       </div>
+
+      {!smsConfigured() && (
+        <p className="hu-warning" role="note">
+          SMS not configured. No verification checks are being sent, so nobody here is marked as having missed one.
+        </p>
+      )}
 
       <div className="sm-tabs" role="tablist" aria-label="Monitoring sections">
         <button
@@ -170,7 +177,7 @@ export default function SalesMonitoring({ company, user }) {
       {tab === 'live' && (
         <LiveFieldBoard
           company={company}
-          onViewRep={(r) => setProfile({ detail: mockGetRepresentativeDetail(r.employeeId, todayKey()), section: 'history' })}
+          onViewRep={(r) => setProfile({ detail: getRepresentativeDetail(r.employeeId, todayKey()), section: 'history' })}
         />
       )}
 

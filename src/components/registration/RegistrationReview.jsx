@@ -1,6 +1,6 @@
 import { getCompanyById } from '../../constants/companies'
 import { getPaymentMethodLabel } from '../../constants/paymentMethods'
-import { mockGetShop } from '../../services/shopsService'
+import { getShop } from '../../services/shopsService'
 
 function ReviewSection({ title, onEdit, children }) {
   return (
@@ -43,7 +43,7 @@ export default function RegistrationReview({
     .join(' ')
   const position = data.position.trim()
   const assignedShop = data.assignedShopId
-    ? mockGetShop(data.assignedShopId)
+    ? getShop(data.assignedShopId)
     : null
 
   const hasEmergencyContact =
@@ -124,7 +124,8 @@ export default function RegistrationReview({
         <span>
           I have reviewed my information and confirm it is correct. I accept
           the biometric privacy notice and consent to my face photo being used
-          for attendance identity verification.
+          for attendance identity verification, including storage and
+          processing on our servers, which may be outside Ghana.
         </span>
       </label>
 

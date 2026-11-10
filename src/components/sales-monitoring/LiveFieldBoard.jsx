@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { FIELD_STATE, mockGetLiveFieldBoard } from '../../services/salesMonitoringService'
+import { FIELD_STATE, getLiveFieldBoard } from '../../services/salesMonitoringService'
 import { RESULT_LABELS, initials } from './labels'
 import { formatAccraTime } from '../../utils/accraTime'
 import GhanaFieldMap from './GhanaFieldMap'
@@ -62,7 +62,7 @@ export default function LiveFieldBoard({ company, onViewRep }) {
   }, [paused])
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const board = useMemo(() => mockGetLiveFieldBoard(company.id), [company.id, tick])
+  const board = useMemo(() => getLiveFieldBoard(company.id), [company.id, tick])
   const allLocated = board.shops.filter((s) => s.latitude != null && s.longitude != null)
   const closeUpShops = focus ? board.shops.filter((s) => focus.includes(s.shopId)) : board.shops
   const { located, project } = useProjection(closeUpShops)
@@ -230,7 +230,6 @@ export default function LiveFieldBoard({ company, onViewRep }) {
           </div>
         )}
       </section>
-      <p className="mock-banner" style={{ textAlign: 'center', margin: 0 }}>Demo data — verification results are simulated, not genuine GPS evidence.</p>
     </div>
   )
 }

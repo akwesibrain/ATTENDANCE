@@ -1,4 +1,4 @@
-import { mockHasRegistered } from '../services/registrationService'
+import { hasRegisteredOnThisDevice } from '../services/registrationService'
 
 /**
  * Entry screen — choose between employee registration and attendance.
@@ -8,7 +8,7 @@ import { mockHasRegistered } from '../services/registrationService'
  * see Attendance (and HR). Registration is for first-time setup only.
  */
 export default function Home({ onRegister, onAttendance, onHr }) {
-  const hasRegistered = mockHasRegistered()
+  const hasRegistered = hasRegisteredOnThisDevice()
   return (
     <main className="registration-page">
       <div className="registration-shell">

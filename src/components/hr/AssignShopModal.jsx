@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
-import { mockListShops } from '../../services/shopsService'
+import { listShops } from '../../services/shopsService'
 import {
-  mockAssignShop,
-  mockGetAssignmentHistory,
-  mockGetAssignmentWithShop,
+  assignShop,
+  getAssignmentHistory,
+  getAssignmentWithShop,
 } from '../../services/shopAssignmentService'
 
 function formatDateTime(iso) {
@@ -24,9 +24,11 @@ function formatDateTime(iso) {
  */
 export default function AssignShopModal({ employee, onClose, onAssigned }) {
   const [selected, setSelected] = useState('')
-  const shops = mockListShops(employee.companyId)
-  const current = mockGetAssignmentWithShop(employee.staffId)
-  const history = mockGetAssignmentHistory(employee.staffId)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const shops = listShops(employee.companyId)
+  const current = getAssignmentWithShop(employee.staffId)
+  const history = getAssignmentHistory(employee.staffId)
 
   useEffect(() => {
     const onEscape = (e) => {
@@ -36,9 +38,15 @@ export default function AssignShopModal({ employee, onClose, onAssigned }) {
     return () => document.removeEventListener('keydown', onEscape)
   }, [onClose])
 
-  const handleAssign = () => {
-    if (!selected) return
-    mockAssignShop(employee.staffId, selected)
+  const handleAssign = async () => {
+    if (!selected || saving) return
+    setSaving(true)
+    const result = await assignShop(employee.staffId, selected)
+    setSaving(false)
+    if (result.error) {
+      setError(result.error)
+      return
+    }
     onAssigned()
     onClose()
   }
@@ -78,6 +86,7 @@ export default function AssignShopModal({ employee, onClose, onAssigned }) {
         </div>
 
         <div className="sm-modal-body">
+            {error && <p className="at-form-alert" role="alert">{error}</p>}
           {current && (
             <p className="sm-muted" style={{ margin: 0 }}>
               Currently assigned to <strong>{current.shopName}</strong> (effective{' '}
@@ -111,7 +120,7 @@ export default function AssignShopModal({ employee, onClose, onAssigned }) {
               <h4 className="sm-section-title">Assignment history</h4>
               <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {history.map((entry, i) => {
-                  const shop = mockListShops(employee.companyId).find(
+                  const shop = listShops(employee.companyId).find(
                     (s) => s.shopId === entry.shopId,
                   )
                   return (

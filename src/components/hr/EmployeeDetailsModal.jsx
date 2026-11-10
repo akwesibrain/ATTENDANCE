@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
-import { getSessionUser } from '../../services/permissionsService'
-import { employeeJoinedOn, mockUpdateEmployeeDetails, validateEmployeeDetails } from '../../services/registrationService'
-import { accraTodayKey } from '../../utils/accraTime'
+import { employeeJoinedOn, setEmployeeActive, updateEmployeeDetails, validateEmployeeDetails } from '../../services/registrationService'
+import { accraTodayKey, formatAccraDate } from '../../utils/accraTime'
 import { formatTenure, tenureBetween } from '../../utils/tenure'
 
 /**
  * HR edits the date an employee joined the company and their emergency
- * contact. Time with the company is calculated from the joining date.
+ * contact, and deactivates leavers. Time with the company is calculated from
+ * the joining date.
  */
 export default function EmployeeDetailsModal({ employee, onClose, onSaved }) {
   const today = accraTodayKey()
@@ -30,11 +30,27 @@ export default function EmployeeDetailsModal({ employee, onClose, onSaved }) {
     if (touched) setErrors(validateEmployeeDetails(next, today))
   }
   const preview = tenureBetween(form.joinedOn, today)
+  const active = employee.status === 'ACTIVE'
+  const [leftOn, setLeftOn] = useState(today)
+  const [statusError, setStatusError] = useState(null)
+  const [statusBusy, setStatusBusy] = useState(false)
 
-  const save = (e) => {
+  const changeStatus = async () => {
+    setStatusBusy(true)
+    setStatusError(null)
+    try {
+      const result = await setEmployeeActive(employee.staffId, !active, active ? leftOn : null)
+      if (result.errors) { setStatusError(result.errors.leftOn ?? result.errors.form ?? 'Could not change the status.'); return }
+      onSaved(result.employee)
+    } finally {
+      setStatusBusy(false)
+    }
+  }
+
+  const save = async (e) => {
     e.preventDefault()
     setTouched(true)
-    const result = mockUpdateEmployeeDetails(employee.staffId, form, getSessionUser())
+    const result = await updateEmployeeDetails(employee.staffId, form)
     if (result.errors) { setErrors(result.errors); return }
     onSaved(result.employee)
   }
@@ -84,6 +100,36 @@ export default function EmployeeDetailsModal({ employee, onClose, onSaved }) {
                 {errors.emergencyContactPhone && <span className="ed-error" role="alert">{errors.emergencyContactPhone}</span>}
               </div>
             </div>
+          </section>
+          <section className="sm-section">
+            <h4 className="sm-section-title">Employment status</h4>
+            {active ? (
+              <div className="ed-fields">
+                <div className="sh-form-field">
+                  <label className="sh-form-label" htmlFor="ed-left">Last working day</label>
+                  <input id="ed-left" type="date" className="sh-form-input" max={today} value={leftOn} onChange={(e) => setLeftOn(e.target.value)} aria-invalid={Boolean(statusError)} aria-describedby="ed-left-hint" />
+                  {statusError
+                    ? <span className="ed-error" role="alert">{statusError}</span>
+                    : <span id="ed-left-hint" className="ed-hint">For someone who has left. Their Staff ID stops working at the kiosk, and later days no longer count as absences.</span>}
+                </div>
+                <div className="sh-form-field">
+                  <span className="sh-form-label" aria-hidden="true">&nbsp;</span>
+                  <button type="button" className="btn btn-secondary" onClick={changeStatus} disabled={statusBusy}>Deactivate employee</button>
+                </div>
+              </div>
+            ) : (
+              <div className="ed-fields">
+                <div className="sh-form-field">
+                  <span className="sh-form-label">Deactivated</span>
+                  <span className="ed-hint">Last working day {employee.leftOn ? formatAccraDate(employee.leftOn) : 'not recorded'}. Reactivate only to undo a mistake: every day since then counts as an attendance day again.</span>
+                  {statusError && <span className="ed-error" role="alert">{statusError}</span>}
+                </div>
+                <div className="sh-form-field">
+                  <span className="sh-form-label" aria-hidden="true">&nbsp;</span>
+                  <button type="button" className="btn btn-secondary" onClick={changeStatus} disabled={statusBusy}>Reactivate employee</button>
+                </div>
+              </div>
+            )}
           </section>
           <div className="sm-alert-actions">
             <button type="submit" className="btn btn-primary">Save details</button>

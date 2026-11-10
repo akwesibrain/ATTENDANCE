@@ -30,15 +30,7 @@ export const ATTENDANCE_SOURCE = {
   'hr-correction': { label: 'HR manual correction', short: 'HR correction' },
 }
 
-export const CORRECTION_REASONS = [
-  'Forgot to clock in',
-  'Forgot to clock out',
-  'Device or system failure',
-  'Incorrect time recorded',
-  'Authorised off-site work',
-  'Historical notebook entry',
-  'Other',
-]
+export { CORRECTION_REASONS } from '../../supabase/functions/_shared/rules/records.js'
 
 export function sourceLabel(source) {
   return ATTENDANCE_SOURCE[source]?.label ?? 'No record'

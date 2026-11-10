@@ -68,7 +68,7 @@ function ChangeValue({ value }) {
 /**
  * Full attendance record: employee, assignment, timings, verification
  * evidence, SMS verification events (past events only) and the correction
- * history. Verification results are simulated demo data.
+ * history.
  */
 export default function AttendanceDetailModal({ record, canCorrect, onCorrect, onClose }) {
   useEffect(() => {
@@ -257,7 +257,7 @@ export default function AttendanceDetailModal({ record, canCorrect, onCorrect, o
             <p className="at-section-note">
               {historical
                 ? 'Historical manually recorded entries carry no face, GPS or QR evidence and were not digitally clocked, so they are never shown as verified.'
-                : 'Verification results in this demo are simulated. They are not genuine biometric or GPS evidence.'}
+                : 'The face check compares photos and the location comes from the device. Treat both as supporting evidence.'}
             </p>
           </section>
 

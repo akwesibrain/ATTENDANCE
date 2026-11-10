@@ -9,11 +9,11 @@ import { canManageNotifications, canViewCompany } from '../constants/hrUser'
 import {
   getLastSyncedAt,
   isOpen,
-  mockGetNotification,
-  mockListNotifications,
-  mockMarkAllRead,
-  mockSetRead,
-  mockSyncNotifications,
+  getNotification,
+  listNotifications,
+  markAllNotificationsRead,
+  setNotificationRead,
+  syncNotifications,
   notificationDateKey,
   requiresHrAttention,
   summariseNotifications,
@@ -28,7 +28,6 @@ import '../styles/attendance.css'
 import '../styles/notifications.css'
 
 const PAGE_SIZE = 12
-const LOADING_MS = 300
 
 const EMPTY_FILTERS = {
   search: '',
@@ -57,8 +56,8 @@ function Stat({ label, value, tone, active, onClick, hint }) {
 }
 
 /**
- * Notifications & Exceptions — in-app alerts raised from the shared mock data.
- * Company-scoped to the signed-in (mock) HR user. Nothing is sent externally.
+ * Notifications & Exceptions — in-app alerts raised by the server.
+ * Company-scoped to the signed-in HR user. Nothing is sent externally.
  */
 export default function NotificationsCenter({ company, user, onNavigate, onChanged }) {
   const canAct = canManageNotifications(user)
@@ -78,27 +77,31 @@ export default function NotificationsCenter({ company, user, onNavigate, onChang
   }, [onChanged])
 
   const refresh = useCallback(
-    (announce) => {
+    async (announce) => {
       setLoading(true)
-      setTimeout(() => {
-        const { added } = mockSyncNotifications()
-        setLoading(false)
+      try {
+        const { added } = await syncNotifications()
         bump()
         if (announce) {
           setFlash(added ? `${added} new notification${added === 1 ? '' : 's'} found.` : 'No new notifications. Everything is up to date.')
         }
-      }, LOADING_MS)
+      } catch (failure) {
+        if (announce) setFlash(failure.message)
+      } finally {
+        setLoading(false)
+      }
     },
     [bump],
   )
 
-  // Generate on open; the sync never creates duplicates.
+  // Check for new notifications once when the page opens.
   useEffect(() => {
     refresh(false)
-  }, [refresh])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const all = useMemo(
-    () => mockListNotifications(user),
+    () => listNotifications(user),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [user, version],
   )
@@ -151,7 +154,7 @@ export default function NotificationsCenter({ company, user, onNavigate, onChang
   const pageItems = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
 
   const selected = useMemo(
-    () => (selectedId ? mockGetNotification(selectedId, user) : null),
+    () => (selectedId ? getNotification(selectedId, user) : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [selectedId, user, version],
   )
@@ -159,14 +162,13 @@ export default function NotificationsCenter({ company, user, onNavigate, onChang
   const openNotification = (n) => {
     setSelectedId(n.id)
     if (!n.read && canAct) {
-      mockSetRead(n.id, true, user)
-      bump()
+      setNotificationRead(n.id, true).then(bump)
     }
   }
 
-  const markAllRead = () => {
+  const markAllRead = async () => {
     const ids = filtered.filter((n) => !n.read).map((n) => n.id)
-    const { count } = mockMarkAllRead(ids, user)
+    const { count } = await markAllNotificationsRead(ids)
     setFlash(count ? `${count} notification${count === 1 ? '' : 's'} marked as read.` : 'Nothing to mark: everything shown is already read.')
     bump()
   }
@@ -358,10 +360,6 @@ export default function NotificationsCenter({ company, user, onNavigate, onChang
           </>
         )}
       </section>
-
-      <p className="mock-banner" style={{ textAlign: 'center', margin: 0 }}>
-        Demo only — notifications exist in this browser. No SMS, email or push messages are sent.
-      </p>
 
       {selected && (
         <NotificationDrawer
