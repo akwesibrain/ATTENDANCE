@@ -3,7 +3,7 @@
  * module; this file adds the 12/24-hour display preference from Settings.
  */
 
-import { SETTINGS_KEY, readJson } from '../services/mockStore'
+import { uses24HourClock } from '../services/backend/cache'
 import {
   formatAccraDateTime as formatDateTime,
   formatAccraTime as formatTime,
@@ -21,9 +21,9 @@ export {
   formatAccraDate,
 } from '../../supabase/functions/_shared/rules/accraTime.js'
 
-/** Settings → General: 12-hour or 24-hour clock (read directly; no cycle). */
+/** Settings → General: 12-hour or 24-hour clock. */
 function hour12() {
-  return readJson(SETTINGS_KEY, {})?.general?.timeFormat !== '24h'
+  return !uses24HourClock()
 }
 
 /** "9:05 AM" in Accra time, or '—'. */

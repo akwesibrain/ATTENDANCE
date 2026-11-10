@@ -1,6 +1,6 @@
 /**
- * Reusable field validators for the registration flow.
- * Each validator returns an error message string, or '' when valid.
+ * Field validators shared by the browser and the server.
+ * Each one returns an error message, or '' when the value is valid.
  */
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/

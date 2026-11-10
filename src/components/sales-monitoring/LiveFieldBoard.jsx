@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { FIELD_STATE, mockGetLiveFieldBoard } from '../../services/salesMonitoringService'
+import { FIELD_STATE, getLiveFieldBoard } from '../../services/salesMonitoringService'
 import { RESULT_LABELS, initials } from './labels'
 import { formatAccraTime } from '../../utils/accraTime'
 
@@ -59,7 +59,7 @@ export default function LiveFieldBoard({ company, onViewRep }) {
   }, [paused])
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const board = useMemo(() => mockGetLiveFieldBoard(company.id), [company.id, tick])
+  const board = useMemo(() => getLiveFieldBoard(company.id), [company.id, tick])
   const { located, project } = useProjection(board.shops)
   const unlocated = board.shops.filter((s) => s.latitude == null || s.longitude == null)
   const repsAt = (shopId) => board.reps.filter((r) => r.shop?.shopId === shopId)

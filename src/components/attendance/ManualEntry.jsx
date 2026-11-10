@@ -3,7 +3,7 @@ import { authorisedCompanies } from '../../constants/hrUser'
 import {
   listAttendanceRoster,
   listAttendanceRecords,
-  mockSaveManualEntries,
+  saveManualEntries,
   previewManualEntries,
   recordOrigin,
 } from '../../services/attendanceRecordsService'
@@ -104,8 +104,8 @@ export default function ManualEntry({ user, defaultCompanyId, onSaved, onViewHis
     })))
   }
 
-  const save = () => {
-    const result = mockSaveManualEntries({ employeeId, entries: rows, replaceReason }, user)
+  const save = async () => {
+    const result = await saveManualEntries({ employeeId, entries: rows, replaceReason })
     setConfirming(false)
     if (result.errors) {
       setErrors(result.errors)

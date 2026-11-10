@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { captureFrame } from '../../utils/captureFrame'
 
 const CAMERA_TIPS = [
   'Look directly at the camera.',
@@ -89,11 +90,7 @@ export default function FaceEnrollment({ faceImage, onCapture }) {
     const video = videoRef.current
     if (!video || !video.videoWidth) return
 
-    const canvas = document.createElement('canvas')
-    canvas.width = video.videoWidth
-    canvas.height = video.videoHeight
-    canvas.getContext('2d').drawImage(video, 0, 0)
-    const imageDataUrl = canvas.toDataURL('image/jpeg', 0.9)
+    const imageDataUrl = captureFrame(video)
 
     stopStream()
     onCapture(imageDataUrl)

@@ -1,12 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import {
-  getNextAction,
-  getRemainingAttempts,
-  isMarkedAbsent,
-  lookupEmployee,
-  recordAttendance,
-} from '../services/attendanceService'
-import { evaluateAction } from '../constants/attendancePolicy'
+import { lookupEmployee, MAX_FACE_ATTEMPTS, recordAttendance } from '../services/attendanceService'
+import { captureFrame } from '../utils/captureFrame'
 import '../styles/registration.css'
 
 const STEP = {
@@ -15,21 +9,10 @@ const STEP = {
   success: 2,
 }
 
-/** Simulated face-scan duration (ms) before the mock verification resolves. */
-const SCAN_DURATION_MS = 2600
-
 /**
- * Attendance check-in / check-out (frontend, mock-backed).
- *
- * Flow: enter Staff ID -> live face scan -> verified result.
- * The live scanner captures a fresh photo and the mock service "verifies" it
- * against the enrolled image. Real biometric matching is a backend
- * responsibility — this only simulates the interaction.
- *
- * STRICT RULE: an employee completes at most one check-in and one check-out
- * per day. After a successful verification the flow ends; there is no way to
- * record another event until the next required action (check-out, or the next
- * day's check-in).
+ * Attendance check-in / check-out: enter a Staff ID, scan a face, see the result.
+ * The server decides what is allowed, compares the face and sets the time.
+ * An employee completes at most one check-in and one check-out per day.
  */
 export default function AttendanceCheckIn({ onBack }) {
   const [step, setStep] = useState(STEP.staffId)
@@ -42,6 +25,7 @@ export default function AttendanceCheckIn({ onBack }) {
   const [mismatch, setMismatch] = useState(false)
   const [markedAbsent, setMarkedAbsent] = useState(false)
   const [attemptsLeft, setAttemptsLeft] = useState(null)
+  const [capturedPhoto, setCapturedPhoto] = useState(null)
 
   // Camera / scanner state
   const videoRef = useRef(null)
@@ -105,30 +89,13 @@ export default function AttendanceCheckIn({ onBack }) {
     setError(null)
     try {
       const found = await lookupEmployee(staffId)
-      // ANTI-CHEAT: an employee auto-marked absent today is blocked entirely.
-      if (isMarkedAbsent(found.staffId)) {
-        setError(
-          `${found.fullName} has been marked ABSENT for today after too many failed face-verification attempts. Please contact HR.`,
-        )
-        setLoading(false)
-        return
-      }
-      const action = getNextAction(found.staffId)
-      if (action === null) {
-        setError('You have already completed check-in and check-out for today.')
-        setLoading(false)
-        return
-      }
-      // Enforce the time window before proceeding to the scanner.
-      const window = evaluateAction(action)
-      if (!window.allowed) {
-        setError(window.message)
-        setLoading(false)
+      if (found.blockedReason) {
+        setError(found.blockedReason)
         return
       }
       setEmployee(found)
-      setNextAction(action)
-      setAttemptsLeft(getRemainingAttempts(found.staffId))
+      setNextAction(found.nextAction)
+      setAttemptsLeft(found.attemptsLeft)
       setMarkedAbsent(false)
       setMismatch(false)
       setStep(STEP.scan)
@@ -139,29 +106,24 @@ export default function AttendanceCheckIn({ onBack }) {
     }
   }
 
-  // Capture a frame and run the simulated verification.
+  // Capture a frame and send it to the server for verification.
   const handleScan = async () => {
     const video = videoRef.current
     if (!video || !video.videoWidth || loading) return
 
-    const canvas = document.createElement('canvas')
-    canvas.width = video.videoWidth
-    canvas.height = video.videoHeight
-    canvas.getContext('2d').drawImage(video, 0, 0)
-    const captured = canvas.toDataURL('image/jpeg', 0.9)
+    const captured = captureFrame(video)
 
     setCameraState('scanning')
     setError(null)
     setMismatch(false)
     setLoading(true)
     try {
-      // Simulate the scan/verification delay, then record via the mock service.
-      await new Promise((resolve) => setTimeout(resolve, SCAN_DURATION_MS))
       const event = await recordAttendance({
         staffId: employee.staffId,
         faceImage: captured,
       })
       stopStream()
+      setCapturedPhoto(captured)
       setResult(event)
       setStep(STEP.success)
     } catch (err) {
@@ -169,12 +131,9 @@ export default function AttendanceCheckIn({ onBack }) {
       const message = err?.message ?? 'Verification failed. Please try again.'
       setError(message)
       // Surface an identity mismatch prominently so it cannot be missed.
-      setMismatch(/face does not match/i.test(message))
-      // Refresh the anti-cheat state: remaining attempts, and whether this
-      // scan pushed the employee over the limit into an ABSENT mark.
-      const nowAbsent = isMarkedAbsent(employee.staffId)
-      setMarkedAbsent(nowAbsent)
-      setAttemptsLeft(getRemainingAttempts(employee.staffId))
+      setMismatch(err?.data?.code === 'face-mismatch')
+      if (err?.data?.markedAbsent) setMarkedAbsent(true)
+      if (err?.data?.attemptsLeft != null) setAttemptsLeft(err.data.attemptsLeft)
     } finally {
       setLoading(false)
     }
@@ -285,7 +244,7 @@ export default function AttendanceCheckIn({ onBack }) {
               you to {actionLabel.toLowerCase()}.
             </p>
 
-            {attemptsLeft !== null && attemptsLeft < 5 && (
+            {attemptsLeft !== null && attemptsLeft < MAX_FACE_ATTEMPTS && (
               <div className="attempts-notice" role="note">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                   <path d="M12 9v4M12 17h.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
@@ -293,13 +252,13 @@ export default function AttendanceCheckIn({ onBack }) {
                 </svg>
                 <span>
                   <strong>{attemptsLeft}</strong> verification attempt
-                  {attemptsLeft === 1 ? '' : 's'} left. After 5 failed attempts
+                  {attemptsLeft === 1 ? '' : 's'} left. After {MAX_FACE_ATTEMPTS} failed attempts
                   this Staff ID is marked <strong>ABSENT</strong>.
                 </span>
               </div>
             )}
 
-            {nextAction === 'check-in' && evaluateAction('check-in').status === 'late' && (
+            {nextAction === 'check-in' && employee.windowStatus === 'late' && (
               <div className="late-notice" role="note">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                   <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" />
@@ -428,8 +387,8 @@ export default function AttendanceCheckIn({ onBack }) {
             <div className="verified-employee">
               <img
                 className="verified-photo"
-                src={employee.faceImage}
-                alt={`${employee.fullName} registered`}
+                src={capturedPhoto}
+                alt={`${employee.fullName} at this scan`}
               />
               <div className="success-details" style={{ margin: 0, flex: 1 }}>
                 <div className="success-row">
@@ -446,7 +405,7 @@ export default function AttendanceCheckIn({ onBack }) {
                 </div>
                 <div className="success-row">
                   <span className="review-label">Position</span>
-                  <span className="review-value">{employee.position}</span>
+                  <span className="review-value">{result.position}</span>
                 </div>
                 <div className="success-row">
                   <span className="review-label">Time</span>
@@ -476,11 +435,6 @@ export default function AttendanceCheckIn({ onBack }) {
                 Done
               </button>
             </div>
-
-            <p className="mock-banner">
-              Demo environment — attendance recorded by the mock service, not a
-              production backend.
-            </p>
           </section>
         )}
       </div>

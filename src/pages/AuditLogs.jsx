@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { authorisedCompanies, can } from '../services/permissionsService'
 import { AUDIT_CATEGORIES, auditToCsv, companyLabel, listAuditEvents } from '../services/auditService'
-import { recordAuditEvent } from '../services/auditStore'
+import { recordExport } from '../services/auditStore'
 import { accraDateKey, formatAccraDateTime } from '../utils/accraTime'
 import '../styles/sales-monitoring.css'
 import '../styles/attendance.css'
@@ -39,7 +39,6 @@ function EventDrawer({ event, onClose }) {
         <header className="nt-drawer-head">
           <div>
             <div className="nt-drawer-badges">
-              <span className={`st-origin st-origin-${event.origin}`}>{event.origin === 'seed' ? 'Demo seed data' : 'Recorded mock action'}</span>
               <span className="nt-category">{event.category}</span>
             </div>
             <h3 id="audit-title">{event.action}</h3>
@@ -83,7 +82,6 @@ export default function AuditLogs({ user }) {
   const [company, setCompany] = useState('')
   const [category, setCategory] = useState('')
   const [actor, setActor] = useState('')
-  const [origin, setOrigin] = useState('')
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
   const [page, setPage] = useState(1)
@@ -105,7 +103,6 @@ export default function AuditLogs({ user }) {
     if (company && !e.companyIds.includes(company)) return false
     if (category && e.category !== category) return false
     if (actor && e.actorName !== actor) return false
-    if (origin && e.origin !== origin) return false
     const d = accraDateKey(new Date(e.at))
     if (from && d < from) return false
     if (to && d > to) return false
@@ -115,8 +112,8 @@ export default function AuditLogs({ user }) {
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const current = Math.min(page, pageCount)
   const items = filtered.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE)
-  const active = search || company || category || actor || origin || from || to
-  const clear = () => { setSearch(''); setCompany(''); setCategory(''); setActor(''); setOrigin(''); setFrom(''); setTo(''); setPage(1) }
+  const active = search || company || category || actor || from || to
+  const clear = () => { setSearch(''); setCompany(''); setCategory(''); setActor(''); setFrom(''); setTo(''); setPage(1) }
   const set = (fn) => (e) => { fn(e.target.value); setPage(1) }
 
   const exportCsv = () => {
@@ -129,7 +126,7 @@ export default function AuditLogs({ user }) {
     a.click()
     a.remove()
     URL.revokeObjectURL(url)
-    recordAuditEvent({ action: 'Audit log exported', category: 'System Settings', source: 'Audit Logs', actor: { name: user.name, role: user.role }, companyIds: company ? [company] : companies.length > 1 ? [] : companies.map((c) => c.id), affected: 'Audit log', description: `${filtered.length} events exported to CSV.` })
+    recordExport({ action: 'Audit log exported', category: 'System Settings', source: 'Audit Logs', companyIds: company ? [company] : companies.length > 1 ? [] : companies.map((c) => c.id), affected: 'Audit log', description: `${filtered.length} events exported to CSV.` })
     setVersion((v) => v + 1)
   }
 
@@ -146,10 +143,6 @@ export default function AuditLogs({ user }) {
           </div>
         )}
       </div>
-      <p className="st-legend">
-        <span className="st-origin st-origin-action">Recorded mock action</span> happened in this browser&apos;s demo.{' '}
-        <span className="st-origin st-origin-seed">Demo seed data</span> was pre-loaded to illustrate the log.
-      </p>
       <section className="sm-panel">
         <div className="at-filters">
           <input type="search" className="form-input sm-search" placeholder="Search event, record or description…" value={search} onChange={set(setSearch)} aria-label="Search audit log" />
@@ -164,11 +157,6 @@ export default function AuditLogs({ user }) {
           <select className="sm-select" value={actor} onChange={set(setActor)} aria-label="User responsible">
             <option value="">All users</option>
             {actors.map((a) => <option key={a} value={a}>{a}</option>)}
-          </select>
-          <select className="sm-select" value={origin} onChange={set(setOrigin)} aria-label="Origin">
-            <option value="">Recorded and seed</option>
-            <option value="action">Recorded mock actions</option>
-            <option value="seed">Demo seed data</option>
           </select>
           <span className="nt-range">
             <label htmlFor="au-from" className="nt-muted">From</label>
@@ -208,7 +196,7 @@ export default function AuditLogs({ user }) {
                       <td data-label="Event">
                         <span className="at-stack">
                           <span className="at-emp-name">{e.action}</span>
-                          <span className="at-sub"><span className="sm-mono">{e.eventId}</span> · <span className={`st-origin st-origin-${e.origin}`}>{e.origin === 'seed' ? 'Seed' : 'Recorded'}</span></span>
+                          <span className="at-sub"><span className="sm-mono">{e.eventId}</span></span>
                         </span>
                       </td>
                       <td data-label="Category">{e.category}</td>

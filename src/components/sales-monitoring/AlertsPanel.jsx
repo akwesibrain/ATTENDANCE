@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { ALERT_STATUS_LABELS, formatDateTime } from './labels'
-import { mockUpdateAlert } from '../../services/salesMonitoringService'
+import { updateAlert } from '../../services/salesMonitoringService'
 
 function AlertModal({ alert, onClose, onSave, canReview }) {
   const [note, setNote] = useState(alert.resolutionNote ?? '')
+  const [error, setError] = useState('')
 
   useEffect(() => {
     const onEscape = (e) => {
@@ -13,8 +14,12 @@ function AlertModal({ alert, onClose, onSave, canReview }) {
     return () => document.removeEventListener('keydown', onEscape)
   }, [onClose])
 
-  const save = (status) => {
-    mockUpdateAlert(alert.exceptionId, { status, resolutionNote: note })
+  const save = async (status) => {
+    const result = await updateAlert(alert.exceptionId, { status, resolutionNote: note })
+    if (result.error) {
+      setError(result.error)
+      return
+    }
     onSave()
     onClose()
   }
@@ -54,6 +59,7 @@ function AlertModal({ alert, onClose, onSave, canReview }) {
         </div>
 
         <div className="sm-modal-body">
+            {error && <p className="at-form-alert" role="alert">{error}</p>}
           <section className="sm-section">
             <h4 className="sm-section-title">Alert details</h4>
             <div className="sm-detail-grid">

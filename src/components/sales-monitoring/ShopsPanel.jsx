@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
 import { initials } from './labels'
 import { GEOFENCE_RADIUS_M } from '../../services/shopsService'
-import { mockAssignShop } from '../../services/shopAssignmentService'
-import { mockSetShopLocation } from '../../services/shopsService'
-import { getSessionUser } from '../../services/permissionsService'
+import { assignShop } from '../../services/shopAssignmentService'
+import { setShopLocation } from '../../services/shopsService'
 import ShopLocationPicker from '../shops/ShopLocationPicker'
 
 function AssignModal({ shop, reps, onClose, onAssigned }) {
   const [selected, setSelected] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
 
   useEffect(() => {
     const onEscape = (e) => {
@@ -17,9 +18,15 @@ function AssignModal({ shop, reps, onClose, onAssigned }) {
     return () => document.removeEventListener('keydown', onEscape)
   }, [onClose])
 
-  const handleAssign = () => {
-    if (!selected) return
-    mockAssignShop(selected, shop.shopId)
+  const handleAssign = async () => {
+    if (!selected || saving) return
+    setSaving(true)
+    const result = await assignShop(selected, shop.shopId)
+    setSaving(false)
+    if (result.error) {
+      setError(result.error)
+      return
+    }
     onAssigned()
     onClose()
   }
@@ -57,6 +64,7 @@ function AssignModal({ shop, reps, onClose, onAssigned }) {
         </div>
 
         <div className="sm-modal-body">
+            {error && <p className="at-form-alert" role="alert">{error}</p>}
           <div>
             <label className="sm-detail-label" htmlFor="assign-rep" style={{ display: 'block', marginBottom: 6 }}>
               Sales representative
@@ -112,9 +120,8 @@ function LocationModal({ shop, onClose, onSaved }) {
     return () => document.removeEventListener('keydown', onEscape)
   }, [onClose])
 
-  const save = () => {
-    const u = getSessionUser()
-    const r = mockSetShopLocation(shop.shopId, loc, u ? { name: u.name, role: u.role } : { name: 'HR', role: '' })
+  const save = async () => {
+    const r = await setShopLocation(shop.shopId, loc)
     if (r.errors) { setError(Object.values(r.errors)[0]); return }
     onSaved()
     onClose()

@@ -9,13 +9,13 @@ Workforce management and attendance for two companies, **Box For Less** and
   employees, attendance, sales reps, reports, overtime, holidays, settings and
   audit logs.
 
-> **Status: frontend prototype.** There is no backend yet. Every "server"
-> behaviour is simulated by mock services in `src/services/` that store data in
-> the browser's `localStorage`. Nothing here is secure or production-ready.
-> The [Backend developer guide](#backend-developer-guide) below lists what has
-> to be built.
+> **Status:** the app runs on Supabase. Before real use, finish the
+> [setup steps](#first-time-setup) and read the
+> [limits to accept](#limits-to-accept-before-go-live).
 
 ## Running the project
+
+Create `.env.local` from `.env.example`, then:
 
 ```bash
 npm install   # first time only
@@ -26,12 +26,13 @@ npm run dev   # http://localhost:5173  (HR portal: http://localhost:5173/hr)
 npm run build    # production build
 npm run preview  # preview the production build
 npm run lint     # oxlint
+npm test         # the business rules
 ```
 
-Camera capture needs a secure context; `localhost` works out of the box.
-To reset all demo data, clear the site's `localStorage` in the browser.
+Camera capture needs a secure context; `localhost` works out of the box, and a
+hosted copy needs HTTPS.
 
-## What the frontend does
+## What the app does
 
 ### Employee portal
 
@@ -57,11 +58,9 @@ To reset all demo data, clear the site's `localStorage` in the browser.
 | Notifications | Exceptions (late, absent, missing clock-out, failed verifications, missing shop…) with assign / review / resolve / dismiss |
 | HR Assistant | Rule-based chat that answers from the records (no AI service) |
 
-## Business rules (the contract the backend must keep)
+## Business rules
 
-These are implemented in the mock services today. The backend must implement
-them **authoritatively, using server time**, and the frontend should then only
-display what the server returns.
+The server applies these using server time. The browser only displays the result.
 
 **Time and periods**
 - Time zone **Africa/Accra** (UTC+0, no daylight saving) for every date and time.
@@ -118,156 +117,129 @@ display what the server returns.
 - One HR account (**HR Manager**) with access to both companies.
 - There is no public HR sign-up page.
 
-## Backend developer guide
+## Backend
 
-### 1. Principles
+Supabase project **ATTENDANCE** (`aiiglvsvrbtahihttwge`).
 
-- The server is the **source of truth**. Every rule above, every permission and
-  every company restriction must be enforced on the server for every request.
-  Hiding a button in the UI is not security.
-- Use **server time** for all attendance events; ignore any time sent by the
-  client.
-- Keep the existing function names and return shapes where possible, so each
-  mock service can be swapped for an API client without touching the UI.
-  Most mock functions are synchronous today; the API versions will be async, so
-  the calling components need small `await`/loading changes.
+```
+Employee pages (no login) ──> Edge Function `api` (public routes, rate limited)
+HR portal (sign-in + MFA) ──> Edge Function `api` for every write
+                          └─> Postgres reads under row-level security, into memory
+pg_cron + pg_net ─────────> `api` /jobs/* (secret header)
+```
 
-### 2. Replace the mock services
+- **Writes go through the server.** Browsers have no write access to any table.
+  Each route checks the session and company, validates, uses server time, and
+  saves together with its audit entry in one transaction.
+- **HR reads need MFA.** A password alone reads nothing, and an HR user only
+  sees their own companies.
+- **Daily records are derived, never stored.** They are built from check-ins,
+  corrections, holidays, leave and effective-dated settings, so a new holiday
+  applies as soon as records are next built.
+- **There is one copy of the rules**, in `supabase/functions/_shared/rules/`,
+  imported by both the server and the browser. HR screens and CSV exports
+  calculate in the browser from server facts using that same code.
+- **Future SMS times are unreadable.** They exist only in a table no client can
+  reach, and a check becomes visible once it has been sent.
 
-| Mock service (`src/services/`) | Backend responsibility | Suggested API (illustrative) |
-|---|---|---|
-| `registrationService.js` | Create employees, **generate Staff IDs** (sequential per company), store emergency contact, date joined; validate position and allocated shop | `POST /employees/register`, `GET /employees`, `PATCH /employees/:staffId` (date joined, emergency contact) |
-| `attendanceService.js` | Staff ID lookup, **face verification**, check-in/out windows, one in + one out per day, failed-attempt limit (5/day) | `GET /attendance/lookup/:staffId`, `POST /attendance/events` (multipart photo) |
-| `attendanceRecordsService.js` | Build the daily record per employee (rules above); corrections with history; manual entries; CSV export | `GET /attendance/records?company&from&to`, `POST /attendance/corrections`, `POST /attendance/manual-entries`, `GET /attendance/export` |
-| `overtimeService.js` | Overtime per record and per period (rules above) | `GET /reports/overtime?company&period` |
-| `holidayService.js` | Public + HR holidays; recalculation on change | `GET /holidays?year`, `POST /holidays`, `DELETE /holidays/:id` |
-| `settingsService.js` | All settings, effective-dated versions (working hours, attendance rules, overtime rate), VAT | `GET/PUT /settings/...` per section |
-| `shopsService.js`, `shopAssignmentService.js` | Shop directory per company, locations, assignment + history | `GET/POST /shops`, `PATCH /shops/:id/location`, `POST /employees/:staffId/shop` |
-| `geocodingService.js` | Shop location lookup — **proxy it through the server** (see §4) | `GET /geocode?shop&area&town` |
-| `salesMonitoringService.js` | SMS verification schedule and results, GPS/geofence checks, alerts, live board | `GET /monitoring/reps`, `GET /monitoring/reps/:id?date`, `GET /monitoring/alerts`, `PATCH /monitoring/alerts/:id` |
-| `notificationsService.js` | Generate exceptions **on the server** (scheduled job / on events), no duplicates per source; read/assign/resolve/dismiss with history | `GET /notifications`, `PATCH /notifications/:id`, `POST /notifications/:id/comments` |
-| `leaveService.js` | Leave records (approved leave is never absence). Demo data only — a leave module is not built yet | `GET /leave?employee&from&to` |
-| `auditService.js`, `auditStore.js` | **Append-only** audit log written by the server for every change | `GET /audit?company&from&to`, `GET /audit/export` |
-| `permissionsService.js` | Real authentication and sessions; permission checks per module and company | `POST /auth/login`, `POST /auth/logout`, `GET /me` |
-| `assistantService.js` | Can stay client-side (it only reads records), or move server-side later | — |
+### First-time setup
 
-Shared helpers that should stay as they are (or be mirrored on the server):
-`src/utils/accraTime.js` (Accra dates), `src/utils/attendanceRules.js`
-(period dates, working days, holidays), `src/utils/tenure.js` (time with the
-company), `src/utils/payPeriod.js` (26th–25th periods).
+1. **Turn off public sign-up.** Dashboard → Authentication → Sign In / Providers:
+   switch off *Allow new users to sign up*, and set the minimum password length
+   to at least 12.
+2. **Create the HR Manager account**, on your own computer so the password stays
+   private. The service role key is on Dashboard → Settings → API.
 
-### 3. Data model (minimum)
+   ```bash
+   SUPABASE_SERVICE_ROLE_KEY=<key> node scripts/create-hr-manager.mjs
+   ```
 
-- **Company**: id (`box-for-less`, `double-a`), name, Staff ID prefix (`BFL`, `DAA`), profile.
-- **Employee**: staffId, companyId, names, phone, email, address, position,
-  paymentMethod, emergencyContactName, emergencyContactPhone, joinedOn,
-  registeredAt, status, enrolled face template (not the raw photo — see §5).
-- **AttendanceEvent**: staffId, type (check-in/out), server timestamp, source,
-  verification result, photo reference.
-- **AttendanceCorrection / ManualEntry**: record key (staffId + date), previous
-  and new values, reason, remarks, changedBy, changedAt.
-- **Shop**: id, companyId, name, town, area, address, latitude, longitude,
-  locationSource, geofenceRadius (150), status. **ShopAssignment** with history.
-- **VerificationEvent** (field staff): staffId, dispatchedAt, respondedAt,
-  result, distance, accuracy.
-- **Holiday**: date, name, kind (public / HR), createdBy.
-- **Settings versions**: working hours, attendance rules, overtime rate — each
-  with `effectiveFrom`.
-- **Notification**: sourceKey (unique), type, company, employee, severity,
-  status, assignee, history.
-- **AuditEvent**: id, time, actor, action, category, companies, affected,
-  previous, next. Never updated or deleted.
-- **HrUser**: one HR Manager account today; model it so more users and roles
-  can be added later without schema changes.
+   The first sign-in at `/hr` sets up the authenticator app.
+3. **Turn on the scheduled jobs.** Generate one random value, then store it in
+   both places:
 
-### 4. External integrations to build
+   ```bash
+   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+   npx supabase secrets set JOBS_SECRET=<value> --project-ref aiiglvsvrbtahihttwge
+   ```
 
-| Integration | Today (mock) | What to build |
-|---|---|---|
-| Face verification | Photo is captured; match is simulated | Server-side face matching against the enrolled template; liveness check; attempt limits |
-| SMS verification | Results generated for past times only | SMS provider, random schedule generated and **kept on the server**, reply handling, delivery failures |
-| GPS / geofence | Distances simulated | Location capture on the device at verification time; distance check on the server |
-| Shop location lookup | Optional OpenStreetMap Nominatim call **from the browser**, off by default | Call the geocoder from the server (respect the provider's usage policy, add caching, or use a paid provider with a server-side key). Never put API keys in the frontend |
-| Map tiles | OpenStreetMap tiles from the browser when lookup is on | Choose a tile provider suitable for production use |
-| File storage | Photos as data URLs in `localStorage` | Object storage for registration and check-in photos, with access control |
-| Email / push | None (nothing is sent) | Only if needed later |
+   ```sql
+   -- Dashboard → SQL Editor
+   select vault.create_secret('<value>', 'jobs_secret');
+   ```
 
-### 5. Security and privacy
+   Until then the jobs do nothing. Notifications are still raised after each HR
+   change and when the Notifications page opens.
+4. **Empty the test photos.** Dashboard → Storage: clear the `face-enrollment`
+   and `attendance-photos` buckets. They hold generated test patterns only.
+5. **When the app is hosted**, set `ALLOWED_ORIGINS` (comma-separated) and
+   `APP_URL` as function secrets, then redeploy.
 
-- Real authentication (no "demo sign-in"), MFA for HR, session timeout
-  (currently a demo setting), rate limiting, HTTPS only.
-- Enforce company separation and permissions on **every** endpoint.
-- Face images and templates are **biometric data**: store encrypted, limit
-  access, keep the consent recorded at registration, and define retention and
-  deletion. Follow Ghana's Data Protection Act, 2012 (Act 843).
-- Emergency contacts and phone numbers are personal data — only HR should see
-  them.
-- Do not expose future SMS schedules or other employees' data through any API.
+### Function secrets
 
-### 6. Demo data to remove
+| Name | Purpose |
+|---|---|
+| `JOBS_SECRET` | Lets the scheduler call `/jobs/*`. Must match Vault's `jobs_secret` |
+| `SMS_PROVIDER` | `none` (default) sends no checks; `log` prints them for testing |
+| `APP_URL` | Base address used in SMS links, e.g. `https://attendance.example.com` |
+| `ALLOWED_ORIGINS` | Sites allowed to call the API. Defaults to localhost |
 
-The mock services seed demo data. None of it should reach production:
+### Deploying
 
-- Demo sales reps (`BFL-1001`…`BFL-1005`, `DAA-1001`…`DAA-1004`) and their
-  generated verification events — `salesMonitoringService.js`
-- Demo shops (China Mall, Shoprite, Melcom) — `shopsService.js`. Only China
-  Mall, Ashaiman has real coordinates (5.68486, -0.02419), supplied by HR.
-- Demo leave records — `leaveService.js`
-- The demo HR account and sign-in screen — `permissionsService.js`,
-  `components/access/AccessScreens.jsx`
-- Test hook: registering with the first name `Fail` forces an error —
-  `registrationService.js`
-- Mock attendance data before **2026-10-01** (`DIGITAL_GO_LIVE_DATE`) is
-  treated as historical (paper) data.
+```bash
+npx supabase functions deploy api --project-ref aiiglvsvrbtahihttwge --use-api --no-verify-jwt
+```
 
-`localStorage` keys used by the mocks (useful when testing; delete them to
-reset): `mock-registration:*`, `mock-attendance:*`, `mock-settings:v1`,
-`mock-audit:events`, `mock-notifications:*`, `mock-shops:*`,
-`mock-shop-assignments:*`, `mock-holidays:v1`, `mock-hr-users:v5`,
-`mock-hr-session`, `mock-sales-monitoring:alert-state`.
+`--no-verify-jwt` is required because employee check-in has no login. The
+function verifies HR sessions itself.
 
-### 7. Acceptance checks for the backend
+### Live checks
 
-- One record per employee per day, whatever the source.
-- Late after 09:00; no check-out after 19:00; no absence before 17:00 or on
-  weekends, holidays or approved leave.
-- Weekday overtime only after 17:01; weekend and holiday overtime from clock-in
-  to clock-out; one total per period; pay uses the rate in force on each day.
-- Adding a holiday on a past date turns that day's absences into holidays and
-  its work into full-day overtime; removing it reverses that.
-- Changing working hours or the overtime rate from a future date does not
-  change earlier days.
-- Box For Less never sees Double A data and vice versa (except the HR Manager,
-  with each record labelled).
-- No API returns a future SMS check time.
-- Every change appears in the audit log with who, when, company, previous and
-  new values.
+These run against the hosted project and create test rows. Do not run them once
+real employees are registered: they reset the Staff ID counters only when no
+employees remain, and `smoke-employee` leaves its rows behind.
 
-### 8. Leftover files
+```bash
+node scripts/smoke-employee.mjs
+SUPABASE_ACCESS_TOKEN=<token> node scripts/smoke-hr.mjs   # removes what it creates
+```
 
-These files are no longer used by the app and can be deleted when convenient:
-`src/pages/HistoricalImport.jsx`, `src/components/historical-import/`,
-`src/services/historicalImport*.js`, `src/pages/ShiftsManagement.jsx`,
-`src/components/shifts/`, `src/services/shiftAssignmentService.js`,
-`src/pages/HrUsers.jsx`, `src/components/hr-users/`,
-`src/services/reportsService.js`. (`shiftsService.js` is still imported for its
-time helpers and to label past shift changes in the audit log, so keep it until
-those are moved.)
+### Swapping in real services
+
+- **Face matching:** replace `supabase/functions/_shared/faceMatcher.ts`.
+- **SMS:** add a provider in `supabase/functions/_shared/smsSender.ts` and set
+  `SMS_PROVIDER`. Checks start the next day.
+
+### Limits to accept before go-live
+
+- **Face matching is not face recognition.** It compares two photos as small
+  grayscale images, so a printed photo can pass and poor lighting can fail. There
+  is no liveness check. Replace it first.
+- **SMS checks are off** until a provider is chosen.
+- **Device GPS can be spoofed.**
+- **Face photos are stored** privately for HR display, which needs covering under
+  Ghana's Data Protection Act (Act 843), including how long they are kept.
+- **Registration is open to anyone with the link**, with rate limiting only.
+- **Leave has no screen yet.** The rules honour `leave_records`, but rows must be
+  added directly in the database.
+- **Settings marked "not enforced yet"** are saved but have no effect.
 
 ## Project structure
 
 ```
 src/
-  pages/
-    Home.jsx, EmployeeRegistration.jsx, AttendanceCheckIn.jsx   # employee portal
-    HrDashboard.jsx                                              # HR portal shell + dashboard, employees, reports
-    AttendanceManagement.jsx, SalesMonitoring.jsx, Overtime.jsx,
-    NotificationsCenter.jsx, Settings.jsx, AuditLogs.jsx         # HR modules
-  components/
-    registration/    attendance/    hr/    sales-monitoring/    shops/
-    notifications/   settings/      reports/    assistant/    access/
-  services/          # MOCK backend services (see the table above)
-  constants/         # companies, labels, notification types, holidays
-  utils/             # Accra time, attendance rules, pay periods, tenure, validation
+  pages/             # employee portal, HR modules, /verify/:token
+  components/        # by area: registration, attendance, hr, sales-monitoring,
+                     #   shops, notifications, settings, reports, assistant, access
+  services/          # what screens call; reads from memory, writes through the API
+    backend/         # Supabase client and the in-memory cache
+  constants/         # companies, labels
+  utils/             # browser helpers; rules are re-exported from the shared folder
   styles/            # per-area CSS; hr-neumorphism.css is the HR portal theme
+supabase/
+  migrations/        # schema, security rules, scheduled jobs
+  functions/api/     # the Edge Function: public, HR and job routes
+  functions/_shared/ # business rules, face matcher, SMS sender
+tests/               # the business rules
+scripts/             # HR account creation and live checks
 ```

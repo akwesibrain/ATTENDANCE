@@ -216,6 +216,7 @@ function addSmsVerification(c, day) {
       passed: 'Inside the assigned shop geofence',
       failed: 'Outside the assigned shop geofence',
       unavailable: 'Location unavailable from the device',
+      'not-required': 'Location check not required',
     }
     c.gps = { status: latestGps.gpsVerificationStatus, label: labels[latestGps.gpsVerificationStatus] }
     c.distanceFromShop = latestGps.distanceFromShop

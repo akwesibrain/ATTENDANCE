@@ -46,7 +46,7 @@ export default function Settings({ user, company, initialSection = 'general', on
       <div className="sm-head">
         <div>
           <h2>Settings</h2>
-          <p>Configuration for the HR portal. Frontend demonstration: saving changes how this prototype behaves, not any real external service.</p>
+          <p>Configuration for the HR portal.</p>
         </div>
       </div>
       <div className="st-layout">

@@ -30,7 +30,7 @@ export function Field({ id, label, hint, error, children, full, applied }) {
     <div className={`st-field${full ? ' is-full' : ''}`}>
       <label className="sh-form-label" htmlFor={id}>
         {label}
-        {applied === false && <span className="st-recorded" title="Saved and shown, but not enforced by this prototype">Recorded only</span>}
+        {applied === false && <span className="st-recorded" title="Saved and shown, but not enforced yet">Recorded only</span>}
       </label>
       {children}
       {hint && <span className="st-hint">{hint}</span>}

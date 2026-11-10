@@ -1,6 +1,6 @@
 import { getCompanyById } from '../../constants/companies'
 import { getPaymentMethodLabel } from '../../constants/paymentMethods'
-import { mockGetShop } from '../../services/shopsService'
+import { getShop } from '../../services/shopsService'
 
 function ReviewSection({ title, onEdit, children }) {
   return (
@@ -43,7 +43,7 @@ export default function RegistrationReview({
     .join(' ')
   const position = data.position.trim()
   const assignedShop = data.assignedShopId
-    ? mockGetShop(data.assignedShopId)
+    ? getShop(data.assignedShopId)
     : null
 
   const hasEmergencyContact =

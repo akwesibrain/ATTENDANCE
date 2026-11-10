@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
-import { getSessionUser } from '../../services/permissionsService'
-import { employeeJoinedOn, mockUpdateEmployeeDetails, validateEmployeeDetails } from '../../services/registrationService'
+import { employeeJoinedOn, updateEmployeeDetails, validateEmployeeDetails } from '../../services/registrationService'
 import { accraTodayKey } from '../../utils/accraTime'
 import { formatTenure, tenureBetween } from '../../utils/tenure'
 
@@ -31,10 +30,10 @@ export default function EmployeeDetailsModal({ employee, onClose, onSaved }) {
   }
   const preview = tenureBetween(form.joinedOn, today)
 
-  const save = (e) => {
+  const save = async (e) => {
     e.preventDefault()
     setTouched(true)
-    const result = mockUpdateEmployeeDetails(employee.staffId, form, getSessionUser())
+    const result = await updateEmployeeDetails(employee.staffId, form)
     if (result.errors) { setErrors(result.errors); return }
     onSaved(result.employee)
   }

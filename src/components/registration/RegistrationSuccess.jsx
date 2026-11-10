@@ -2,7 +2,7 @@ import { useState } from 'react'
 
 /**
  * Screen 7 — Registration successful.
- * Displays the backend-issued (mock) Staff ID and confirmation actions.
+ * Displays the Staff ID issued by the server and confirmation actions.
  */
 export default function RegistrationSuccess({ result, onNewRegistration }) {
   const [copied, setCopied] = useState(false)
@@ -123,11 +123,6 @@ export default function RegistrationSuccess({ result, onNewRegistration }) {
           Return to Welcome Page
         </button>
       </div>
-
-      <p className="mock-banner">
-        Demo environment — this Staff ID was issued by the mock registration
-        service, not a production backend.
-      </p>
     </section>
   )
 }

@@ -5,8 +5,9 @@ import { holidayForKey } from '../utils/attendanceRules'
 import { accraTodayKey, formatAccraDate, formatAccraTime } from '../utils/accraTime'
 import { getPaymentMethodLabel } from '../constants/paymentMethods'
 import { authorisedCompanies, can } from '../constants/hrUser'
-import { demoSignOut, getSession, getSessionUser } from '../services/permissionsService'
-import { AccessDenied, DemoSignIn, SessionExpired } from '../components/access/AccessScreens'
+import { signOut } from '../services/permissionsService'
+import { refresh as reloadTables, useCacheVersion } from '../services/backend/cache'
+import { AccessDenied, HrGate } from '../components/access/AccessScreens'
 import Overtime from './Overtime'
 import { overtimeForRecord, formatCedis } from '../services/overtimeService'
 import { ATTENDANCE_STATUS } from '../constants/attendanceLabels'
@@ -14,7 +15,7 @@ import HrAssistant from '../components/assistant/HrAssistant'
 import Settings from './Settings'
 import AuditLogs from './AuditLogs'
 import { companySettings, generalSettings } from '../services/settingsService'
-import { mockListEmployees } from '../services/registrationService'
+import { listEmployees } from '../services/registrationService'
 import {
   listAttendanceRecords,
   listAttendanceRoster,
@@ -23,7 +24,7 @@ import {
 import SalesMonitoring from './SalesMonitoring'
 import AttendanceManagement from './AttendanceManagement'
 import NotificationsCenter from './NotificationsCenter'
-import { mockListNotifications, mockSyncNotifications, mockUnreadCount } from '../services/notificationsService'
+import { listNotifications, unreadCount } from '../services/notificationsService'
 import EmployeeDirectory from '../components/hr/EmployeeDirectory'
 import AssignShopModal from '../components/hr/AssignShopModal'
 import { StatusBadge } from '../components/attendance/AttendanceBadges'
@@ -200,34 +201,20 @@ function Icon({ name, size = 20 }) {
   )
 }
 
-/**
- * HR dashboard (frontend, mock-backed) — sidebar admin layout.
- */
-/**
- * HR portal entry: a demo session gate. No real authentication; the chosen
- * demo user's role and company scope drive every page below.
- */
+/** HR portal entry: nothing below renders without a complete sign-in. */
 export default function HrDashboard({ onBack }) {
-  const [, setSessionVersion] = useState(0)
-  const refresh = () => setSessionVersion((v) => v + 1)
-  const session = getSession()
-  const user = getSessionUser()
-  if (session?.expired) {
-    return <SessionExpired onExit={onBack} onSignIn={() => { demoSignOut(); refresh() }} />
-  }
-  if (!user) {
-    return (
-      <DemoSignIn
-        onExit={onBack}
-        onSignedIn={refresh}
-        reason={session ? 'Your account is no longer active, so you have been signed out.' : null}
-      />
-    )
-  }
-  return <HrDashboardContent key={user.id} user={user} onBack={onBack} onSessionChange={refresh} />
+  return (
+    <HrGate onExit={onBack}>
+      {(user) => <HrDashboardContent key={user.id} user={user} onBack={onBack} />}
+    </HrGate>
+  )
 }
 
-function HrDashboardContent({ onBack, user, onSessionChange }) {
+/** Notifications are raised on the server just after a change is saved. */
+const NOTIFICATIONS_SETTLE_MS = 2500
+const reloadNotificationsSoon = () => setTimeout(() => reloadTables('notifications', 'notification_history'), NOTIFICATIONS_SETTLE_MS)
+
+function HrDashboardContent({ onBack, user }) {
   const [activeNav, setActiveNavState] = useState(() => {
     const landing = generalSettings().landingPage
     const landingItem = NAV.find((n) => n.id === landing)
@@ -271,14 +258,16 @@ function HrDashboardContent({ onBack, user, onSessionChange }) {
   }
   // Unread notifications for the signed-in HR user (top-bar bell).
   const [unread, setUnread] = useState(0)
-  const refreshUnread = () => setUnread(can(user, 'notifications', 'view') ? mockUnreadCount(user) : 0)
+  const refreshUnread = () => setUnread(can(user, 'notifications', 'view') ? unreadCount(user) : 0)
 
-  // Raise any new notifications once when the dashboard opens (no duplicates).
+  // Every view re-reads when new data arrives, from this browser or the server.
+  const dataVersion = useCacheVersion()
   useEffect(() => {
-    mockSyncNotifications()
     refreshUnread()
+    setAttendanceVersion((v) => v + 1)
+    setAssignRefreshKey((k) => k + 1)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [dataVersion])
 
   // The company switcher can only choose among the user's own companies.
   const baseCompany = myCompanies.find((c) => c.id === companyId) ?? myCompanies[0] ?? COMPANIES[0]
@@ -315,7 +304,7 @@ function HrDashboardContent({ onBack, user, onSessionChange }) {
   const today = accraTodayKey()
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const employees = useMemo(() => mockListEmployees(), [assignRefreshKey])
+  const employees = useMemo(() => listEmployees(), [assignRefreshKey])
 
   const companyEmployees = useMemo(
     () => employees.filter((e) => e.companyName === company.name),
@@ -335,7 +324,7 @@ function HrDashboardContent({ onBack, user, onSessionChange }) {
   const companyBreakdown = useMemo(() => {
     if (!isCombined) return []
     const open = can(user, 'notifications', 'view')
-      ? mockListNotifications(user).filter((n) => ['new', 'under-review'].includes(n.status))
+      ? listNotifications(user).filter((n) => ['new', 'under-review'].includes(n.status))
       : []
     return myCompanies.map((c) => {
       const recs = todayRecords.filter((r) => r.companyId === c.id)
@@ -611,7 +600,7 @@ function HrDashboardContent({ onBack, user, onSessionChange }) {
               </span>
             </div>
             <div className="hr-session-actions">
-              <button type="button" className="sm-actions-btn" onClick={() => { demoSignOut(); onSessionChange() }}>
+              <button type="button" className="sm-actions-btn" onClick={() => signOut()}>
                 Sign out
               </button>
             </div>
@@ -679,8 +668,7 @@ function HrDashboardContent({ onBack, user, onSessionChange }) {
               user={user}
               onChanged={() => {
                 setAttendanceVersion((v) => v + 1)
-                mockSyncNotifications()
-                refreshUnread()
+                reloadNotificationsSoon()
               }}
             />
           )}
@@ -852,9 +840,7 @@ function HrDashboardContent({ onBack, user, onSessionChange }) {
               focus={attendanceFocus}
               onChanged={() => {
                 setAttendanceVersion((v) => v + 1)
-                // A correction raises a notification.
-                mockSyncNotifications()
-                refreshUnread()
+                reloadNotificationsSoon()
               }}
             />
           )}
@@ -1043,10 +1029,6 @@ function HrDashboardContent({ onBack, user, onSessionChange }) {
               )}
             </section>
           )}
-
-          <p className="mock-banner" style={{ textAlign: 'center' }}>
-            Demo environment — HR data is read from the mock services, not a production backend.
-          </p>
         </div>
       </div>
 

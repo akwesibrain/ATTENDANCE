@@ -3,6 +3,7 @@ import Home from './pages/Home'
 import EmployeeRegistration from './pages/EmployeeRegistration'
 import AttendanceCheckIn from './pages/AttendanceCheckIn'
 import HrDashboard from './pages/HrDashboard'
+import VerifyCheck from './pages/VerifyCheck'
 
 const VIEW = {
   home: 'home',
@@ -29,7 +30,14 @@ function viewFromLocation() {
   return PATH_TO_VIEW[window.location.pathname] ?? VIEW.home
 }
 
+const VERIFY_PATH = /^\/verify\/([^/]+)$/
+
 function App() {
+  const verifyToken = window.location.pathname.match(VERIFY_PATH)?.[1]
+  return verifyToken ? <VerifyCheck token={verifyToken} /> : <Portal />
+}
+
+function Portal() {
   const [view, setView] = useState(viewFromLocation)
 
   // Keep the URL in sync so each page has a shareable link.

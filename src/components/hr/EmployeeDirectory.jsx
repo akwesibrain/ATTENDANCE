@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { getPaymentMethodLabel } from '../../constants/paymentMethods'
 import {
-  mockGetAssignmentWithShop,
+  getAssignmentWithShop,
   requiresShop,
 } from '../../services/shopAssignmentService'
 import { formatClock } from '../../services/shiftsService'
@@ -79,7 +79,7 @@ function CardIcon({ name }) {
 
 function EmployeeCard({ emp, onAssignShop, onViewAttendance, onEditDetails }) {
   const isField = requiresShop(emp.position)
-  const assignment = isField ? mockGetAssignmentWithShop(emp.staffId) : null
+  const assignment = isField ? getAssignmentWithShop(emp.staffId) : null
   const needsAssignment = isField && !assignment
   const joinedOn = employeeJoinedOn(emp)
   const tenure = tenureBetween(joinedOn, accraTodayKey())
