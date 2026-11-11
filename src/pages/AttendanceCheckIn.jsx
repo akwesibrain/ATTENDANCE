@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { lookupEmployee, MAX_FACE_ATTEMPTS, recordAttendance } from '../services/attendanceService'
 import { describeFace, preloadFaceModels } from '../services/faceRecognition'
+import { clearPass, currentPass, passFromCode } from '../services/workplaceDisplayService'
+import '../styles/display.css'
 import { captureFrame } from '../utils/captureFrame'
 import '../styles/registration.css'
 
@@ -27,6 +29,30 @@ export default function AttendanceCheckIn({ onBack }) {
   const [lockedOut, setLockedOut] = useState(false)
   const [attemptsLeft, setAttemptsLeft] = useState(null)
   const [capturedPhoto, setCapturedPhoto] = useState(null)
+  // The workplace display scanned to open this page, if any.
+  const [site, setSite] = useState(() => currentPass())
+  const [siteProblem, setSiteProblem] = useState(null)
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const code = params.get('site')
+    if (!code) return
+    // Keep the code out of the address bar, so a reload or a shared link cannot reuse it.
+    window.history.replaceState(null, '', window.location.pathname)
+    passFromCode(code)
+      .then((pass) => { setSite(pass); setSiteProblem(null) })
+      .catch((err) => { clearPass(); setSite(null); setSiteProblem(err?.message ?? 'This QR code could not be read.') })
+  }, [])
+
+  /** The server refused an expired pass: forget it and ask for a new scan. */
+  const passExpired = (err) => {
+    if (err?.data?.code !== 'site-expired') return false
+    clearPass()
+    setSite(null)
+    setSiteProblem(err.message)
+    setStep(STEP.staffId)
+    return true
+  }
 
   // Camera / scanner state
   const videoRef = useRef(null)
@@ -89,7 +115,7 @@ export default function AttendanceCheckIn({ onBack }) {
     setLoading(true)
     setError(null)
     try {
-      const found = await lookupEmployee(staffId)
+      const found = await lookupEmployee(staffId, site?.pass ?? null)
       if (found.blockedReason) {
         setError(found.blockedReason)
         return
@@ -102,7 +128,7 @@ export default function AttendanceCheckIn({ onBack }) {
       setMismatch(false)
       setStep(STEP.scan)
     } catch (err) {
-      setError(err?.message ?? 'Unable to find that Staff ID.')
+      if (!passExpired(err)) setError(err?.message ?? 'Unable to find that Staff ID.')
     } finally {
       setLoading(false)
     }
@@ -126,6 +152,7 @@ export default function AttendanceCheckIn({ onBack }) {
         staffId: employee.staffId,
         faceImage: captured,
         faceDescriptor,
+        sitePass: site?.pass ?? null,
       })
       stopStream()
       setCapturedPhoto(captured)
@@ -133,6 +160,7 @@ export default function AttendanceCheckIn({ onBack }) {
       setStep(STEP.success)
     } catch (err) {
       setCameraState('active')
+      if (passExpired(err)) return
       const message = err?.message ?? 'Verification failed. Please try again.'
       setError(message)
       // Surface an identity mismatch prominently so it cannot be missed.
@@ -164,6 +192,19 @@ export default function AttendanceCheckIn({ onBack }) {
               Enter the Staff ID you received at registration, then verify your
               face to check in or out.
             </p>
+
+            {site && (
+              <p className="site-banner" role="status">
+                <span aria-hidden="true">✓</span>
+                <span>Workplace QR code scanned: <strong>{site.siteName}</strong> ({site.companyName}).</span>
+              </p>
+            )}
+            {siteProblem && (
+              <p className="site-banner is-problem" role="alert">
+                <span aria-hidden="true">!</span>
+                <span>{siteProblem}</span>
+              </p>
+            )}
 
             <div className="form-field">
               <label className="form-label" htmlFor="field-staffId">

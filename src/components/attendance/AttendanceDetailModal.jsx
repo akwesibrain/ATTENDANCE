@@ -244,7 +244,7 @@ export default function AttendanceDetailModal({ record, canCorrect, onCorrect, o
             <h4 className="sm-section-title">Verification</h4>
             <div className="sm-detail-grid">
               <Detail label="Face verification">{r.face.label}</Detail>
-              <Detail label="GPS verification">{r.gps.label}</Detail>
+              <Detail label="Location check">{r.gps.label}</Detail>
               <Detail label="Distance from assigned shop">
                 {r.distanceFromShop != null
                   ? `${r.distanceFromShop} m (geofence ${r.shop?.geofenceRadius ?? GEOFENCE_RADIUS_M} m)`

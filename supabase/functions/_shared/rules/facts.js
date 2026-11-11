@@ -115,6 +115,7 @@ export function eventFromRow(row) {
     overtimeHours: row.overtime_hours == null ? undefined : Number(row.overtime_hours),
     reason: row.reason,
     photoPath: row.photo_path,
+    displayId: row.display_id ?? null,
   }
 }
 
@@ -197,6 +198,7 @@ export function contextFromRows(rows, settings, now = new Date()) {
     customHolidays: rows.holidays,
     leaves: rows.leaves.map(leaveFromRow),
     shopsById: new Map(rows.shops.map((row) => [row.shop_id, shopFromRow(row)])),
+    displayNames: new Map((rows.displays ?? []).map((row) => [row.id, row.name])),
     hoursFor: (companyId, dateKey) => hoursInForce(settings, companyId, dateKey),
     attendanceRulesFor: (dateKey) => attendanceRulesInForce(settings, dateKey),
     smsDay: (employee, dateKey) => {
