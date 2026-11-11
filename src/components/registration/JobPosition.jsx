@@ -17,7 +17,7 @@ const ErrorIcon = () => (
  * Privileged roles (administrator, HR, supervisor, etc.) cannot be
  * self-assigned.
  *
- * Field positions (Sales Representative, Merchandiser) must have an allocated
+ * Merchandisers must have an allocated
  * shop: search the company's shops by name, town or address, or add a new
  * shop (e.g. China Mall, Ashaiman) which is saved to this company. Other
  * positions do not need a shop.
@@ -101,7 +101,7 @@ export default function JobPosition({ data, onChange, showErrors, onSubmit }) {
           <legend className="form-label">
             Allocated shop <span className="required-tag">Required</span>
           </legend>
-          <p className="shop-help">Sales Representatives and Merchandisers must be linked to the shop they work from.</p>
+          <p className="shop-help">Merchandisers must be linked to the shop they work from. (Sales Representatives and Supervisors visit several outlets and are not tied to one shop.)</p>
 
           {!isNew ? (
             <>
@@ -182,7 +182,7 @@ export default function JobPosition({ data, onChange, showErrors, onSubmit }) {
               />
               <p className="shop-help">
                 The shop is saved to this company&apos;s Shop Directory and linked to the employee profile. Its location is used for
-                GPS checks against the 150-metre geofence; if it is not set now, HR can set it later in Sales Rep Monitoring →
+                GPS checks against the 150-metre geofence; if it is not set now, HR can set it later in Merchandiser Monitoring →
                 Assigned Shops.
               </p>
               {duplicate && (

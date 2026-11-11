@@ -26,7 +26,7 @@ function todayKey(date = new Date()) {
 }
 
 /**
- * Sales Representative Monitoring — field attendance, assigned shops and
+ * Merchandiser Monitoring — field attendance, assigned shops and
  * attendance verification activity. Mock-backed; shows only historical
  * verification events, never future schedules.
  */
@@ -119,7 +119,7 @@ export default function SalesMonitoring({ company, user }) {
     <div className="sm-page">
       <div className="sm-head">
         <div>
-          <h2>Sales Representative Monitoring</h2>
+          <h2>Merchandiser Monitoring</h2>
           <p>
             Monitor field attendance, assigned shops and attendance verification
             activities.
@@ -228,7 +228,7 @@ export default function SalesMonitoring({ company, user }) {
         <>
           <div className="sm-stats" role="status" aria-label="Monitoring summary">
             <div className="sm-stat">
-              <span className="sm-stat-label">Total Sales Representatives</span>
+              <span className="sm-stat-label">Total Merchandisers</span>
               <span className="sm-stat-value">{stats.total}</span>
             </div>
             <div className="sm-stat">

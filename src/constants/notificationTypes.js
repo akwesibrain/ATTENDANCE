@@ -2,7 +2,7 @@
 
 export const NOTIFICATION_CATEGORIES = {
   attendance: 'Attendance',
-  'sales-monitoring': 'Sales Rep Monitoring',
+  'sales-monitoring': 'Merchandiser Monitoring',
   'employee-shift': 'Employee & Shop',
   'system-data': 'System & Data',
 }
@@ -17,15 +17,16 @@ export const NOTIFICATION_TYPES = {
   'no-clock-in': { category: 'attendance', label: 'Did not clock in', severity: 'medium', kind: 'exception' },
   'missing-clock-out': { category: 'attendance', label: 'Missing clock-out', severity: 'low', kind: 'exception' },
   'incomplete-record': { category: 'attendance', label: 'Incomplete attendance record', severity: 'medium', kind: 'exception' },
+  'break-scan-missing': { category: 'attendance', label: 'Break return not scanned', severity: 'medium', kind: 'exception' },
   'unusual-activity': { category: 'attendance', label: 'Unusual attendance activity', severity: 'high', kind: 'exception' },
-  // Sales Rep Monitoring
+  // Merchandiser Monitoring
   'sms-missed': { category: 'sales-monitoring', label: 'SMS verification missed', severity: 'medium', kind: 'exception' },
   'sms-delivery-failed': { category: 'sales-monitoring', label: 'SMS delivery failed', severity: 'medium', kind: 'exception' },
   'face-failed': { category: 'sales-monitoring', label: 'Face verification failed', severity: 'high', kind: 'exception' },
   'gps-failed': { category: 'sales-monitoring', label: 'GPS verification failed', severity: 'medium', kind: 'exception' },
   'outside-geofence': { category: 'sales-monitoring', label: 'Outside assigned shop geofence', severity: 'high', kind: 'exception' },
   'mobile-data-unavailable': { category: 'sales-monitoring', label: 'Mobile data unavailable during verification', severity: 'medium', kind: 'exception' },
-  'rep-no-shop': { category: 'sales-monitoring', label: 'Sales representative has no assigned shop', severity: 'high', kind: 'exception' },
+  'rep-no-shop': { category: 'sales-monitoring', label: 'Merchandiser has no assigned shop', severity: 'high', kind: 'exception' },
   // Employee & Shop (no-shift / shift-review are kept only so older
   // notifications still display; they are no longer raised.)
   'no-shift': { category: 'employee-shift', label: 'No assigned shift', severity: 'medium', kind: 'exception' },

@@ -25,7 +25,7 @@ const SECTIONS = [
   { id: 'attendance', label: 'Attendance Settings', hint: 'Cycle and rules' },
   { id: 'hours', label: 'Working Hours & Timezone', hint: 'Default hours' },
   { id: 'holidays', label: 'Holidays', hint: 'Public and HR-set holidays' },
-  { id: 'monitoring', label: 'Sales Rep Monitoring', hint: 'Verification rules' },
+  { id: 'monitoring', label: 'Merchandiser Monitoring', hint: 'Verification rules' },
   { id: 'notifications', label: 'Notification Settings', hint: 'Alerts and roles' },
   { id: 'security', label: 'Security Settings', hint: 'Access policy' },
   { id: 'data', label: 'Data Management', hint: 'Counts and exports' },

@@ -1,4 +1,8 @@
 import { mockHasRegistered } from '../services/registrationService'
+// The landing page brings its own styles (it used to rely on the registration
+// screen loading them, which stopped once pages were loaded separately).
+import '../styles/registration.css'
+import '../styles/landing.css'
 
 /**
  * Entry screen — choose between employee registration and attendance.
@@ -10,7 +14,7 @@ import { mockHasRegistered } from '../services/registrationService'
 export default function Home({ onRegister, onAttendance, onHr }) {
   const hasRegistered = mockHasRegistered()
   return (
-    <main className="registration-page">
+    <main className="registration-page landing-page">
       <div className="registration-shell">
         <header className="registration-brand">
           <span className="registration-brand-mark" aria-hidden="true">

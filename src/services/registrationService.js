@@ -182,7 +182,7 @@ export function submitRegistration(registration) {
           .map((part) => part.trim())
           .join(' ')
 
-        // Field positions (Sales Representative, Merchandiser) require an
+        // Merchandisers require an
         // assigned shop. Validate it belongs to the employee's company.
         let assignedShopId = null
         if (requiresShop(position)) {
@@ -264,11 +264,24 @@ export function validateEmployeeDetails(values, todayKey = accraTodayKey()) {
   else if (values.joinedOn < '1950-01-01') errors.joinedOn = 'Check the year.'
   const name = (values.emergencyContactName ?? '').trim()
   const phone = (values.emergencyContactPhone ?? '').trim()
-  const phoneError = validateOptionalPhone(phone, 'Emergency contact phone')
-  if (phoneError) errors.emergencyContactPhone = phoneError
-  if (phone && !name) errors.emergencyContactName = 'Enter the emergency contact’s name.'
-  if (name && name.length < 2) errors.emergencyContactName = 'Enter the full name.'
+  // Saving locks these details, so the emergency contact must be complete.
+  if (!name) errors.emergencyContactName = 'Enter the emergency contact’s name.'
+  else if (name.length < 2) errors.emergencyContactName = 'Enter the full name.'
+  if (!phone) errors.emergencyContactPhone = 'Enter the emergency contact’s phone number.'
+  else {
+    const phoneError = validateOptionalPhone(phone, 'Emergency contact phone')
+    if (phoneError) errors.emergencyContactPhone = phoneError
+  }
   return errors
+}
+
+/**
+ * The date joined and emergency contact are entered by HR once. After they
+ * are saved they are locked: the edit option disappears and the service
+ * refuses further changes.
+ */
+export function employeeDetailsLocked(emp) {
+  return Boolean(emp?.detailsUpdatedAt)
 }
 
 /**
@@ -282,6 +295,9 @@ export function mockUpdateEmployeeDetails(staffId, values, actor) {
   if (!emp) return { errors: { form: 'Employee not found.' } }
   if (!can(actor, 'employees', 'edit') || !canAccessCompany(actor, emp.companyId)) {
     return { errors: { form: 'You are not authorised to change this employee’s details.' } }
+  }
+  if (employeeDetailsLocked(emp)) {
+    return { errors: { form: `These details were already confirmed by ${emp.detailsUpdatedBy ?? 'HR'} and can no longer be changed.` } }
   }
   const errors = validateEmployeeDetails(values)
   if (Object.keys(errors).length) return { errors }
@@ -306,12 +322,12 @@ export function mockUpdateEmployeeDetails(staffId, values, actor) {
   })
   recordAuditEvent({
     source: 'Employees',
-    action: 'Employee details updated',
+    action: 'Employee details confirmed',
     category: 'Employee Management',
     actor: { name: actor.name, role: actor.role },
     companyIds: [emp.companyId],
     affected: `${emp.fullName} (${emp.staffId})`,
-    description: `Updated: ${changed.map((k) => ({ joinedOn: 'date joined', emergencyContactName: 'emergency contact name', emergencyContactPhone: 'emergency contact phone' })[k]).join(', ')}.`,
+    description: `Confirmed and locked: ${changed.map((k) => ({ joinedOn: 'date joined', emergencyContactName: 'emergency contact name', emergencyContactPhone: 'emergency contact phone' })[k]).join(', ')}.`,
     previous: show(previous),
     next: show(next),
   })

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { COMPANIES } from '../../constants/companies'
-import { demoSignIn, listHrUsers } from '../../services/permissionsService'
+import { loginLockMinutesLeft, signInWithPassword } from '../../services/permissionsService'
 
 function Shell({ title, children, onExit }) {
   return (
@@ -13,8 +13,8 @@ function Shell({ title, children, onExit }) {
           <button type="button" className="hr-link ac-exit" onClick={onExit}>← Leave the HR portal</button>
         )}
         <p className="ac-note">
-          Demo only. There is no real sign-in, password or MFA here, and this prototype is not secure.
-          In production every restriction must be enforced by the backend.
+          Demo sign-in: the password is checked in the browser, so this prototype is not secure. In production,
+          sign-in, MFA and every restriction must be enforced by the backend.
         </p>
       </div>
     </div>
@@ -23,41 +23,83 @@ function Shell({ title, children, onExit }) {
 
 const companyNames = (ids) => ids.map((id) => COMPANIES.find((c) => c.id === id)?.name).join(' & ')
 
-/** Demo sign-in for the single HR account (no password; not authentication). */
-export function DemoSignIn({ onSignedIn, onExit, reason }) {
+/**
+ * HR portal login: email or phone number + password. Errors are announced and
+ * shown next to the form; the same message is used whatever was wrong.
+ */
+export function HrLogin({ onSignedIn, onExit, reason }) {
+  const [identifier, setIdentifier] = useState('')
+  const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
-  const users = listHrUsers()
+  const [busy, setBusy] = useState(false)
+  const locked = loginLockMinutesLeft()
+
+  const submit = async (e) => {
+    e.preventDefault()
+    if (busy) return
+    setBusy(true)
+    setError('')
+    const result = await signInWithPassword(identifier, password)
+    setBusy(false)
+    if (result.error) {
+      setError(result.error)
+      setPassword('')
+      return
+    }
+    onSignedIn(result.user)
+  }
+
   return (
     <Shell title="Sign in to the HR portal" onExit={onExit}>
       {reason && <p className="ac-reason" role="status">{reason}</p>}
-      <ul className="ac-users">
-        {users.map((u) => {
-          const blocked = u.status !== 'active'
-          const why = 'Account not active'
-          return (
-            <li key={u.id}>
-              <button
-                type="button"
-                className="ac-user"
-                disabled={blocked}
-                onClick={() => {
-                  const result = demoSignIn(u.id)
-                  if (result.error) setError(result.error)
-                  else onSignedIn(result.user)
-                }}
-              >
-                <span className="hr-avatar hr-avatar-fallback" aria-hidden="true">{u.initials}</span>
-                <span className="ac-user-text">
-                  <strong>{u.name}</strong>
-                  <span>{u.role} · {companyNames(u.companyIds)}</span>
-                </span>
-                {blocked && <span className="ac-blocked">{why}</span>}
-              </button>
-            </li>
-          )
-        })}
-      </ul>
-      {error && <p className="at-form-alert" role="alert">{error}</p>}
+      <p className="ac-lead">Use the email address or phone number on your HR account.</p>
+      <form className="ac-form" onSubmit={submit} noValidate>
+        <div className="ac-field">
+          <label className="sh-form-label" htmlFor="ac-id">Email or phone number</label>
+          <input
+            id="ac-id"
+            className="sh-form-input"
+            type="text"
+            inputMode="email"
+            autoComplete="username"
+            autoCapitalize="none"
+            spellCheck={false}
+            value={identifier}
+            onChange={(e) => setIdentifier(e.target.value)}
+            aria-invalid={Boolean(error)}
+            aria-describedby={error ? 'ac-error' : undefined}
+            required
+          />
+        </div>
+        <div className="ac-field">
+          <label className="sh-form-label" htmlFor="ac-pw">Password</label>
+          <div className="ac-password">
+            <input
+              id="ac-pw"
+              className="sh-form-input"
+              type={showPassword ? 'text' : 'password'}
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              aria-invalid={Boolean(error)}
+              aria-describedby={error ? 'ac-error' : undefined}
+              required
+            />
+            <button type="button" className="sm-actions-btn ac-show" onClick={() => setShowPassword((v) => !v)} aria-pressed={showPassword} aria-controls="ac-pw">
+              {showPassword ? 'Hide' : 'Show'}
+            </button>
+          </div>
+        </div>
+        {(error || locked > 0) && (
+          <p id="ac-error" className="at-form-alert" role="alert">
+            {error || `Too many incorrect attempts. Try again in ${locked} minute${locked === 1 ? '' : 's'}.`}
+          </p>
+        )}
+        <button type="submit" className="btn btn-primary ac-submit" disabled={busy}>
+          {busy ? 'Signing in…' : 'Sign in'}
+        </button>
+      </form>
     </Shell>
   )
 }
@@ -66,7 +108,7 @@ export function SessionExpired({ onSignIn, onExit }) {
   return (
     <Shell title="Your session has expired" onExit={onExit}>
       <p className="ac-lead">For your security you have been signed out. Nothing on screen was kept. (Demo state.)</p>
-      <button type="button" className="btn btn-primary" onClick={onSignIn}>Sign in again (demo)</button>
+      <button type="button" className="btn btn-primary" onClick={onSignIn}>Sign in again</button>
     </Shell>
   )
 }

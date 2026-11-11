@@ -38,7 +38,7 @@ function titleCase(value) {
 
 const NAV_FOR_CATEGORY = {
   attendance: { nav: 'attendance', label: 'Go to Attendance' },
-  'sales-monitoring': { nav: 'sales-monitoring', label: 'Go to Sales Rep Monitoring' },
+  'sales-monitoring': { nav: 'sales-monitoring', label: 'Go to Merchandiser Monitoring' },
   'employee-shift': { nav: 'employees', label: 'Go to Employees' },
   'system-data': { nav: 'attendance', label: 'Go to Attendance' },
 }

@@ -16,6 +16,7 @@
 
 import { COMPANIES } from '../constants/companies'
 import { AUDIT_KEY, SETTINGS_KEY, readJson, writeJson } from './mockStore'
+import { HR_LOGIN } from '../config/hrLogin'
 
 const USERS_KEY = 'mock-hr-users:v5'
 const SESSION_KEY = 'mock-hr-session'
@@ -34,7 +35,7 @@ export const MODULES = [
   { id: 'employees', label: 'Employees', levels: ['view', 'create', 'edit', 'export'] },
   { id: 'attendance', label: 'Attendance', levels: ['view', 'export'] },
   { id: 'attendance-corrections', label: 'Attendance corrections', levels: ['view', 'create', 'edit'] },
-  { id: 'sales-monitoring', label: 'Sales Rep Monitoring', levels: ['view', 'edit', 'export'] },
+  { id: 'sales-monitoring', label: 'Field Monitoring (Merchandisers, Sales Reps, Supervisors)', levels: ['view', 'edit', 'export'] },
   { id: 'shops', label: 'Shop Directory', levels: ['view', 'create', 'edit'] },
   { id: 'reports', label: 'Reports & Analytics', levels: ['view', 'export'] },
   { id: 'notifications', label: 'Notifications & Exceptions', levels: ['view', 'edit', 'manage'] },
@@ -188,14 +189,23 @@ function sanitise(users) {
   return users
 }
 
+function withLoginContact(users) {
+  const u = users[HR_LOGIN.userId]
+  if (u) {
+    u.email = HR_LOGIN.email
+    u.phone = HR_LOGIN.phone
+  }
+  return users
+}
+
 function readUsers() {
   try {
     const stored = JSON.parse(window.localStorage.getItem(USERS_KEY))
-    if (stored && typeof stored === 'object') return sanitise(stored)
+    if (stored && typeof stored === 'object') return withLoginContact(sanitise(stored))
   } catch {
     // fall through to seed
   }
-  const seeded = seedUsers()
+  const seeded = withLoginContact(seedUsers())
   writeUsers(seeded)
   purgeRemovedHrUsers()
   return seeded
@@ -305,18 +315,104 @@ export function getSessionUser() {
   return u && u.status === 'active' ? u : null
 }
 
-/** Demo sign-in: pick an active user. No password; not authentication. */
-export function demoSignIn(userId) {
+/** Start a session for a user (used after the password check, and by tests). */
+export function demoSignIn(userId, label = 'Signed in (demo)') {
   const users = readUsers()
   const u = users[userId]
   if (!u) return { error: 'User not found.' }
   if (u.status === 'inactive') return { error: 'This account is deactivated.' }
   if (u.status !== 'active') return { error: 'This user has not accepted their invitation yet.' }
   u.lastLoginAt = new Date().toISOString()
-  u.activity.push(activity('Signed in (demo)', u.name))
+  u.activity.push(activity(label, u.name))
   writeUsers(users)
   writeSession({ userId, signedInAt: u.lastLoginAt, expired: false })
   return { user: u }
+}
+
+/* --------------------------------------------------------------------------
+ * Login with email or phone + password (demo — checked in the browser)
+ * ------------------------------------------------------------------------ */
+
+const ATTEMPTS_KEY = 'mock-hr-login:attempts'
+export const LOGIN_LOCK_MINUTES = 5
+
+export function normaliseEmail(value) {
+  return String(value ?? '').trim().toLowerCase()
+}
+
+/** Ghana numbers: "+233 54 030 9637", "233540309637" and "054 030 9637" all become "0540309637". */
+export function normalisePhone(value) {
+  let digits = String(value ?? '').replace(/[^\d+]/g, '')
+  if (digits.startsWith('+233')) digits = `0${digits.slice(4)}`
+  else if (digits.startsWith('233') && digits.length === 12) digits = `0${digits.slice(3)}`
+  return digits.replace(/\D/g, '')
+}
+
+export function loginAttemptLimit() {
+  return Number(readJson(SETTINGS_KEY, {})?.security?.loginAttemptLimit) || 5
+}
+
+function readAttempts() {
+  return readJson(ATTEMPTS_KEY, { count: 0, lockedUntil: null })
+}
+
+/** Minutes left on a lockout after too many wrong passwords, or 0. */
+export function loginLockMinutesLeft(now = Date.now()) {
+  const a = readAttempts()
+  if (!a.lockedUntil) return 0
+  const left = Date.parse(a.lockedUntil) - now
+  return left > 0 ? Math.ceil(left / 60000) : 0
+}
+
+async function sha256Hex(text) {
+  const bytes = new TextEncoder().encode(text)
+  const digest = await globalThis.crypto.subtle.digest('SHA-256', bytes)
+  return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('')
+}
+
+function logToAccount(action, note) {
+  const users = readUsers()
+  const u = users[HR_LOGIN.userId]
+  if (!u) return
+  u.activity.push(activity(action, 'System', note))
+  writeUsers(users)
+}
+
+/**
+ * Sign in with the account's email or phone number and password.
+ * The same message is shown whatever was wrong (so it does not reveal which
+ * part was correct). After too many wrong passwords, sign-in is locked for a
+ * few minutes. Frontend demo only — production must do this on the server.
+ * @returns {Promise<{ user } | { error, lockedMinutes? }>}
+ */
+export async function signInWithPassword(identifier, password) {
+  const id = String(identifier ?? '').trim()
+  if (!id || !password) return { error: 'Enter your email or phone number and your password.' }
+  const locked = loginLockMinutesLeft()
+  if (locked) return { error: `Too many incorrect attempts. Try again in ${locked} minute${locked === 1 ? '' : 's'}.`, lockedMinutes: locked }
+
+  const matchesAccount = id.includes('@')
+    ? normaliseEmail(id) === normaliseEmail(HR_LOGIN.email)
+    : normalisePhone(id) === normalisePhone(HR_LOGIN.phone)
+  const hash = await sha256Hex(`${HR_LOGIN.salt}${password}`)
+  if (matchesAccount && hash === HR_LOGIN.passwordSha256) {
+    writeJson(ATTEMPTS_KEY, { count: 0, lockedUntil: null })
+    return demoSignIn(HR_LOGIN.userId, 'Signed in')
+  }
+
+  const a = readAttempts()
+  const count = (a.count ?? 0) + 1
+  const limit = loginAttemptLimit()
+  if (count >= limit) {
+    const lockedUntil = new Date(Date.now() + LOGIN_LOCK_MINUTES * 60000).toISOString()
+    writeJson(ATTEMPTS_KEY, { count: 0, lockedUntil })
+    logToAccount('Sign-in locked', `${limit} incorrect attempts in a row; locked for ${LOGIN_LOCK_MINUTES} minutes.`)
+    return { error: `Too many incorrect attempts. Try again in ${LOGIN_LOCK_MINUTES} minutes.`, lockedMinutes: LOGIN_LOCK_MINUTES }
+  }
+  writeJson(ATTEMPTS_KEY, { count, lockedUntil: null })
+  logToAccount('Failed sign-in attempt', `Attempt ${count} of ${limit}.`)
+  const left = limit - count
+  return { error: `The email/phone number or password is incorrect. ${left} attempt${left === 1 ? '' : 's'} left before sign-in is locked for ${LOGIN_LOCK_MINUTES} minutes.` }
 }
 
 export function demoExpireSession() {

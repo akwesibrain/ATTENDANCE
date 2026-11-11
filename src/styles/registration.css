@@ -1744,3 +1744,12 @@
 .shop-duplicate { margin: 0; padding: 8px 12px; border-radius: var(--radius-sm); background: var(--warn-soft); color: var(--ink); font-size: 13.5px; }
 .shop-duplicate .shop-add-link { margin: 0; padding: 0; font-size: 13.5px; }
 @media (max-width: 560px) { .shop-new-grid { grid-template-columns: 1fr; } }
+
+/* Outlet visit (Sales Representatives and Supervisors) */
+.visit-mode { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.visit-mode-option { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 8px 14px; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--surface); font-size: 14px; font-weight: 600; cursor: pointer; }
+.visit-mode-option.is-selected { border-color: var(--accent); background: var(--accent-soft); color: var(--brand); }
+.visit-location { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 14px 0 4px; padding: 10px 14px; border-radius: var(--radius-md); font-size: 14px; background: var(--ground); color: var(--ink-2); }
+.visit-location.is-ok { background: var(--ok-soft); color: var(--ok); font-weight: 600; }
+.visit-location.is-error { background: var(--warn-soft); color: var(--warn); font-weight: 600; }
+.visit-location-retry { margin-left: auto; min-height: 36px; padding: 6px 12px; }

@@ -7,7 +7,9 @@
  * applied to those records.
  *
  *   Saturday, Sunday and holidays (public or set by HR): the whole time
- *     worked is overtime (clock-in to clock-out), for every employee.
+ *     worked is overtime (clock-in to clock-out), for every employee. For
+ *     Warehouse Workers, breaks they scanned are taken off; Sales Reps and
+ *     Supervisors have no break.
  *   Monday to Friday: overtime minutes = recorded clock-out − overtime start
  *     (only time AFTER the overtime start counts; never negative)
  *   Overtime start = the company's configured overtime start time
@@ -85,9 +87,17 @@ export function overtimeForRecord(record) {
     return { ...base, status: 'skip' }
   }
   if (Date.parse(record.clockOut) <= Date.parse(record.clockIn)) return { ...base, status: 'excluded', reason: 'Invalid times (clock-out not after clock-in)' }
+  // Warehouse Workers: breaks they scanned are not working time. A missing
+  // break return means the hours are unknown, so it waits for HR review.
+  if (record.breakIssue) return { ...base, status: 'excluded', reason: 'Break return not scanned (needs HR review)' }
   // Weekend or holiday: overtime runs from clock-in. Weekday: from the overtime start.
   const threshold = kind === 'after-hours' ? overtimeThreshold(record) : record.clockIn
-  const minutes = Math.max(0, Math.floor((Date.parse(record.clockOut) - Date.parse(threshold)) / 60000))
+  const breakAfter = (record.breaks ?? []).filter((b) => b.start && b.end).reduce((sum, b) => {
+    const from = Math.max(Date.parse(b.start), Date.parse(threshold))
+    const to = Math.min(Date.parse(b.end), Date.parse(record.clockOut))
+    return sum + Math.max(0, to - from)
+  }, 0) / 60000
+  const minutes = Math.max(0, Math.floor((Date.parse(record.clockOut) - Date.parse(threshold)) / 60000 - breakAfter))
   if (!minutes) return { ...base, status: 'none', threshold }
   return { status: 'counted', kind, minutes, rate, pay: overtimePay(minutes, rate), threshold }
 }

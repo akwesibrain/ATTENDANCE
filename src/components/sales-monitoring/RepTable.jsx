@@ -58,14 +58,14 @@ function ActionsMenu({ rep, onViewDetails, onViewHistory, onViewShop }) {
 }
 
 /**
- * Sales representative monitoring table.
+ * Merchandiser monitoring table.
  * Shows only actual, past verification activity — never future schedules.
  */
 export default function RepTable({ reps, onViewDetails, onViewHistory, onViewShop }) {
   if (reps.length === 0) {
     return (
       <p className="sm-empty">
-        No sales representatives match the selected filters.
+        No merchandisers match the selected filters.
       </p>
     )
   }

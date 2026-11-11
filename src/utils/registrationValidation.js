@@ -13,6 +13,8 @@ import {
 export const POSITIONS = [
   'Warehouse Worker',
   'Sales Representative',
+  'Merchandiser',
+  'Supervisor',
   'Sales Manager',
   'Finance Officer',
   'Accountant',
@@ -48,7 +50,7 @@ export function isPersonalInformationValid(data) {
  * Elevated access is granted separately by company administration.
  */
 const PRIVILEGED_PATTERN =
-  /\b(admin|administrator|hr|human resources|supervisor|manager|superintendent|director|chief|head of)\b/i
+  /\b(admin|administrator|hr|human resources|manager|superintendent|director|chief|head of)\b/i
 
 export function isPrivilegedPosition(position) {
   return PRIVILEGED_PATTERN.test(position.trim())
@@ -59,15 +61,15 @@ export function validateJobPosition(data) {
   if (!position) return 'Please enter your job position to continue.'
   if (position.length < 2) return 'Job position must be at least 2 characters.'
   if (isPrivilegedPosition(position)) {
-    return 'Administrator, HR and supervisor roles cannot be self-assigned. Enter your operational job title, or contact HR if you believe this is a mistake.'
+    return 'Administrator, HR and manager roles cannot be self-assigned. Enter your operational job title, or contact HR if you believe this is a mistake.'
   }
   return ''
 }
 
-/** Whether a position needs an allocated shop (Sales Representative, Merchandiser). */
+/** Whether a position needs an allocated shop (Merchandisers only). */
 export function isFieldPosition(position) {
   const p = position?.trim().toLowerCase() ?? ''
-  return p === 'sales representative' || p === 'merchandiser'
+  return p === 'merchandiser'
 }
 
 /**

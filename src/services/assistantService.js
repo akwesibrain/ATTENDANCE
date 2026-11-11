@@ -193,7 +193,7 @@ function verifications(ids) {
   const byEmp = new Map()
   missed.forEach(({ r }) => byEmp.set(r.employeeId, { r, n: (byEmp.get(r.employeeId)?.n ?? 0) + 1 }))
   const { items } = capped([...byEmp.values()].sort((a, b) => b.n - a.n).map(({ r, n }) => recordItem(r, ids, `${n} missed in 7 days`)))
-  return reply(`Last 7 days (${scopeLabel(ids)}): ${events.length} checks happened — ${count('verified')} verified, ${missed.length} missed, ${count('failed-face')} failed face, ${count('outside-shop')} outside the geofence, ${count('gps-unavailable')} GPS unavailable, ${count('sms-failed')} SMS delivery failures. A missed check is an exception for review, not an absence or misconduct.`, { items, links: [{ label: 'Open Sales Rep Monitoring', nav: 'sales-monitoring' }] })
+  return reply(`Last 7 days (${scopeLabel(ids)}): ${events.length} checks happened — ${count('verified')} verified, ${missed.length} missed, ${count('failed-face')} failed face, ${count('outside-shop')} outside the geofence, ${count('gps-unavailable')} GPS unavailable, ${count('sms-failed')} SMS delivery failures. A missed check is an exception for review, not an absence or misconduct.`, { items, links: [{ label: 'Open Merchandiser Monitoring', nav: 'sales-monitoring' }] })
 }
 
 function shops(ids) {
@@ -201,7 +201,7 @@ function shops(ids) {
   const list = mockListAllShops().filter((s) => ids.includes(s.companyId))
   const needing = roster.filter((e) => e.isFieldRole && !e.shopId)
   const items = list.map((s) => ({ primary: s.shopName, secondary: `${s.latitude == null ? 'location not set' : 'location set'} · ${roster.filter((e) => e.shopId === s.shopId).length} assigned · ${s.geofenceRadius} m geofence` }))
-  return reply(`${list.length} shops for ${scopeLabel(ids)}. ${needing.length ? `${needing.length} field ${needing.length === 1 ? 'employee needs' : 'employees need'} a shop assignment: ${needing.map((e) => e.fullName).join(', ')}.` : 'Every field employee has a shop.'}`, { items, links: [{ label: 'Open Sales Rep Monitoring', nav: 'sales-monitoring' }] })
+  return reply(`${list.length} shops for ${scopeLabel(ids)}. ${needing.length ? `${needing.length} field ${needing.length === 1 ? 'employee needs' : 'employees need'} a shop assignment: ${needing.map((e) => e.fullName).join(', ')}.` : 'Every field employee has a shop.'}`, { items, links: [{ label: 'Open Merchandiser Monitoring', nav: 'sales-monitoring' }] })
 }
 
 function myAccess(user) {
@@ -212,7 +212,7 @@ function myAccess(user) {
 
 const HOW_TO = [
   { match: ['correct', 'fix attendance', 'edit attendance', 'manual attendance', 'record attendance'], module: 'attendance-corrections', level: 'edit', nav: 'attendance', text: 'Open Attendance, find the record and choose Correct (or Record attendance for a new entry). Enter the times, a reason and supporting remarks, then confirm. The previous values are always kept in the correction history.' },
-  { match: ['assign shop', 'change shop', 'shop assignment'], module: 'employees', level: 'edit', nav: 'employees', text: 'Open Employees and use Assign shop on a field employee, or the Assigned Shops tab in Sales Rep Monitoring. The shop record stays the source of truth for location and geofence.' },
+  { match: ['assign shop', 'change shop', 'shop assignment'], module: 'employees', level: 'edit', nav: 'employees', text: 'Open Employees and use Assign shop on a field employee, or the Assigned Shops tab in Merchandiser Monitoring. The shop record stays the source of truth for location and geofence.' },
   { match: ['manual', 'notebook', 'enter attendance', 'bulk'], module: 'attendance-corrections', level: 'create', nav: 'attendance', text: 'Open Attendance → Manual Entry. Choose the company and employee, add the dates they actually attended (or tick dates from a range), enter each clock-in and clock-out, then save. Dates you do not tick are never touched or marked absent. A date that already has a record needs your review and a reason before it is replaced.' },
   { match: ['export', 'download', 'csv'], module: 'attendance', level: 'export', nav: 'attendance', text: 'Attendance, Reports, Audit Logs and Settings → Data Management each have CSV exports. Exports follow your filters and only include your companies.' },
   { match: ['resolve', 'dismiss', 'exception', 'review alert'], module: 'notifications', level: 'edit', nav: 'notifications', text: 'Open Notifications, choose Review on an item, then Start review, Resolve (action taken and notes required) or Dismiss (reason required). Nothing is deleted; every step is kept in the history.' },
@@ -291,7 +291,7 @@ export function askAssistant(text, { user, companyId = '' }) {
   if (has(q, 'awaiting clock', 'not clocked in', 'not yet clocked', 'yet to clock')) return needs('attendance', 'Attendance', () => attendanceToday('awaiting', ids))
   if (has(q, 'incomplete', 'clock-out', 'clock out', 'clockout')) return needs('attendance', 'Attendance', () => incompleteThisPeriod(ids))
   if (has(q, 'exception', 'notification', 'alert', 'critical', 'pending issue', 'open issue', 'urgent')) return needs('notifications', 'Notifications & Exceptions', () => openExceptions(q, user, ids))
-  if (has(q, 'sms', 'verification', 'verify', 'geofence', 'gps', 'face')) return needs('sales-monitoring', 'Sales Rep Monitoring', () => verifications(ids))
+  if (has(q, 'sms', 'verification', 'verify', 'geofence', 'gps', 'face')) return needs('sales-monitoring', 'Merchandiser Monitoring', () => verifications(ids))
   if (has(q, 'shift', 'working hours', 'work hours')) return reply(`There are no shifts. Every employee works the standard hours for their company: ${ids.map((id) => { const h = defaultHoursFor(id); return `${nameOf(id)} ${h.startTime}–${h.endTime}, late after ${h.lateAfter}` }).join('; ')}. Saturday and Sunday work is overtime.`)
   if (has(q, 'shop', 'store', 'branch')) return needs('shops', 'the Shop Directory', () => shops(ids))
   if (has(q, 'summary', 'overview', 'present', 'attendance', 'today', 'how many')) return needs('attendance', 'Attendance', () => summaryToday(ids))

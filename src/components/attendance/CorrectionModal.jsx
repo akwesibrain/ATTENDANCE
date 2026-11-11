@@ -35,6 +35,12 @@ function toTimeInput(iso) {
  * the form, then a confirmation showing the previous and new values. Saving
  * appends to the record's correction history; nothing is overwritten silently.
  */
+/** Warehouse Workers: their scanned breaks, editable (others have no break fields). */
+function breakFields(record) {
+  if (record?.category !== 'warehouse') return {}
+  return { breaks: (record.breaks ?? []).map((b) => ({ startTime: toTimeInput(b.start), endTime: toTimeInput(b.end) })) }
+}
+
 export default function CorrectionModal({ roster, initial, user, onClose, onSaved }) {
   const fixedRecord = Boolean(initial?.employeeId && initial?.date)
   const [form, setForm] = useState(() => {
@@ -44,6 +50,7 @@ export default function CorrectionModal({ roster, initial, user, onClose, onSave
       date: initial?.date ?? accraTodayKey(),
       clockInTime: toTimeInput(record?.clockIn),
       clockOutTime: toTimeInput(record?.clockOut),
+      ...breakFields(record),
       reason: '',
       remarks: '',
     }
@@ -79,6 +86,9 @@ export default function CorrectionModal({ roster, initial, user, onClose, onSave
       const rec = mockGetAttendanceRecord(next.employeeId, next.date)
       next.clockInTime = toTimeInput(rec?.clockIn)
       next.clockOutTime = toTimeInput(rec?.clockOut)
+      Object.assign(next, breakFields(rec))
+      delete next.breaks
+      if (rec?.category === 'warehouse') next.breaks = breakFields(rec).breaks
       return next
     })
     setSaveErrors({})
@@ -215,6 +225,28 @@ export default function CorrectionModal({ roster, initial, user, onClose, onSave
                 <FieldError message={errors.clockOutTime} />
               </div>
 
+              {Array.isArray(form.breaks) && (
+                <fieldset className="sh-form-field is-full at-breaks">
+                  <legend className="sh-form-label">Breaks (Warehouse Worker)</legend>
+                  <p className="at-sub" style={{ margin: 0 }}>Break time is not working time. Leave a return time empty only if it is genuinely unknown — the day then stays on hold for review.</p>
+                  {form.breaks.map((b, i) => (
+                    <div className="at-break-row" key={i}>
+                      <label className="sh-form-label">Break {form.breaks.length > 1 ? i + 1 : ''} departure
+                        <input type="time" className="sh-form-input" value={b.startTime} onChange={(e) => update('breaks', form.breaks.map((x, j) => (j === i ? { ...x, startTime: e.target.value } : x)))} />
+                      </label>
+                      <label className="sh-form-label">Return
+                        <input type="time" className="sh-form-input" value={b.endTime} onChange={(e) => update('breaks', form.breaks.map((x, j) => (j === i ? { ...x, endTime: e.target.value } : x)))} />
+                      </label>
+                      <button type="button" className="sm-actions-btn" onClick={() => update('breaks', form.breaks.filter((_, j) => j !== i))} aria-label={`Remove break ${i + 1}`}>Remove</button>
+                    </div>
+                  ))}
+                  {form.breaks.length < 3 && (
+                    <button type="button" className="sm-actions-btn" style={{ alignSelf: 'flex-start' }} onClick={() => update('breaks', [...form.breaks, { startTime: '', endTime: '' }])}>+ Add break</button>
+                  )}
+                  <FieldError message={errors.breaks} />
+                </fieldset>
+              )}
+
               <div className="sh-form-field is-full">
                 <label className="sh-form-label" htmlFor="cor-reason">Reason for correction</label>
                 <select
@@ -285,6 +317,13 @@ export default function CorrectionModal({ roster, initial, user, onClose, onSave
                     <td>{clockText(record?.clockOut, record?.clockOutUnknown)}</td>
                     <td><strong>{preview.clockOut ? formatAccraTime(preview.clockOut) : 'Not recorded'}</strong></td>
                   </tr>
+                  {Array.isArray(form.breaks) && (
+                    <tr>
+                      <th scope="row">Breaks</th>
+                      <td>{(record?.breaks ?? []).length ? record.breaks.map((b) => `${formatAccraTime(b.start)}–${b.end ? formatAccraTime(b.end) : 'not scanned'}`).join(', ') : 'None'}</td>
+                      <td><strong>{form.breaks.length ? form.breaks.map((b) => `${b.startTime}–${b.endTime || 'not known'}`).join(', ') : 'None'}</strong></td>
+                    </tr>
+                  )}
                   <tr>
                     <th scope="row">Reason</th>
                     <td colSpan="2">{form.reason}</td>

@@ -31,7 +31,7 @@ export const AUDIT_CATEGORIES = [
   'Employee Management',
   'Attendance',
   'Shifts & Shops',
-  'Sales Rep Monitoring',
+  'Merchandiser Monitoring',
   'Notifications & Exceptions',
   'Historical Import',
   'HR Users & Permissions',
@@ -202,7 +202,7 @@ function notificationEvents() {
   const store = readJson('mock-notifications:items', {})
   return Object.values(store).flatMap((n) => n.history
     // System entries and reviews pulled from Sales Monitoring (audited there) are skipped.
-    .filter((h) => h.by !== 'System' && h.by !== 'HR (Sales Rep Monitoring)')
+    .filter((h) => h.by !== 'System' && h.by !== 'HR (Sales Rep Monitoring)' && h.by !== 'HR (Merchandiser Monitoring)')
     .map((h) => ev(`ntf:${n.id}:${h.id}`, {
       source: 'Notifications & Exceptions',
       at: h.at,

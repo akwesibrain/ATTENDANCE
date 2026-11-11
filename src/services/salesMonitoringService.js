@@ -2,7 +2,7 @@
  * ============================================================================
  * MOCK SALES MONITORING SERVICE — NOT A PRODUCTION BACKEND
  * ============================================================================
- * Simulates the backend for the Sales Representative Monitoring module so the
+ * Simulates the backend for the Merchandiser Monitoring module so the
  * frontend can be built and reviewed end to end.
  *
  * STRICT SCOPE RULES (mirrored from the agreed system design):
@@ -81,16 +81,16 @@ function rngFor(...parts) {
 
 const SALES_REPS = [
   // Box For Less
-  { employeeId: 'BFL-1001', companyId: 'box-for-less', fullName: 'Kwame Mensah', phoneNumber: '+233 24 410 2233', position: 'Sales Representative', employmentStatus: 'ACTIVE', assignedShopId: 'shop-bfl-china-mall-ashaiman', profileImage: null },
-  { employeeId: 'BFL-1002', companyId: 'box-for-less', fullName: 'Ama Boateng', phoneNumber: '+233 20 555 8891', position: 'Sales Representative', employmentStatus: 'ACTIVE', assignedShopId: 'shop-bfl-china-mall-ashaiman', profileImage: null },
-  { employeeId: 'BFL-1003', companyId: 'box-for-less', fullName: 'Daniel Mensah', phoneNumber: '+233 55 902 1147', position: 'Sales Representative', employmentStatus: 'ACTIVE', assignedShopId: 'shop-bfl-shoprite-accra', profileImage: null },
-  { employeeId: 'BFL-1004', companyId: 'box-for-less', fullName: 'Comfort Adjei', phoneNumber: '+233 27 331 6650', position: 'Sales Representative', employmentStatus: 'ACTIVE', assignedShopId: 'shop-bfl-china-mall-spintex', profileImage: null },
-  { employeeId: 'BFL-1005', companyId: 'box-for-less', fullName: 'Isaac Oppong', phoneNumber: '+233 24 778 0092', position: 'Sales Representative', employmentStatus: 'ACTIVE', assignedShopId: 'shop-bfl-china-mall-spintex', profileImage: null },
+  { employeeId: 'BFL-1001', companyId: 'box-for-less', fullName: 'Kwame Mensah', phoneNumber: '+233 24 410 2233', position: 'Merchandiser', employmentStatus: 'ACTIVE', assignedShopId: 'shop-bfl-china-mall-ashaiman', profileImage: null },
+  { employeeId: 'BFL-1002', companyId: 'box-for-less', fullName: 'Ama Boateng', phoneNumber: '+233 20 555 8891', position: 'Merchandiser', employmentStatus: 'ACTIVE', assignedShopId: 'shop-bfl-china-mall-ashaiman', profileImage: null },
+  { employeeId: 'BFL-1003', companyId: 'box-for-less', fullName: 'Daniel Mensah', phoneNumber: '+233 55 902 1147', position: 'Merchandiser', employmentStatus: 'ACTIVE', assignedShopId: 'shop-bfl-shoprite-accra', profileImage: null },
+  { employeeId: 'BFL-1004', companyId: 'box-for-less', fullName: 'Comfort Adjei', phoneNumber: '+233 27 331 6650', position: 'Merchandiser', employmentStatus: 'ACTIVE', assignedShopId: 'shop-bfl-china-mall-spintex', profileImage: null },
+  { employeeId: 'BFL-1005', companyId: 'box-for-less', fullName: 'Isaac Oppong', phoneNumber: '+233 24 778 0092', position: 'Merchandiser', employmentStatus: 'ACTIVE', assignedShopId: 'shop-bfl-china-mall-spintex', profileImage: null },
   // Double A
-  { employeeId: 'DAA-1001', companyId: 'double-a', fullName: 'Efua Asante', phoneNumber: '+233 20 114 5563', position: 'Sales Representative', employmentStatus: 'ACTIVE', assignedShopId: 'shop-daa-melcom-kumasi', profileImage: null },
-  { employeeId: 'DAA-1002', companyId: 'double-a', fullName: 'Kojo Owusu', phoneNumber: '+233 55 640 7728', position: 'Sales Representative', employmentStatus: 'ACTIVE', assignedShopId: 'shop-daa-melcom-kumasi', profileImage: null },
-  { employeeId: 'DAA-1003', companyId: 'double-a', fullName: 'Abena Frimpong', phoneNumber: '+233 27 883 2210', position: 'Sales Representative', employmentStatus: 'ACTIVE', assignedShopId: 'shop-daa-shoprite-accra', profileImage: null },
-  { employeeId: 'DAA-1004', companyId: 'double-a', fullName: 'Yaw Darko', phoneNumber: '+233 24 996 3345', position: 'Sales Representative', employmentStatus: 'ACTIVE', assignedShopId: 'shop-daa-shoprite-accra', profileImage: null },
+  { employeeId: 'DAA-1001', companyId: 'double-a', fullName: 'Efua Asante', phoneNumber: '+233 20 114 5563', position: 'Merchandiser', employmentStatus: 'ACTIVE', assignedShopId: 'shop-daa-melcom-kumasi', profileImage: null },
+  { employeeId: 'DAA-1002', companyId: 'double-a', fullName: 'Kojo Owusu', phoneNumber: '+233 55 640 7728', position: 'Merchandiser', employmentStatus: 'ACTIVE', assignedShopId: 'shop-daa-melcom-kumasi', profileImage: null },
+  { employeeId: 'DAA-1003', companyId: 'double-a', fullName: 'Abena Frimpong', phoneNumber: '+233 27 883 2210', position: 'Merchandiser', employmentStatus: 'ACTIVE', assignedShopId: 'shop-daa-shoprite-accra', profileImage: null },
+  { employeeId: 'DAA-1004', companyId: 'double-a', fullName: 'Yaw Darko', phoneNumber: '+233 24 996 3345', position: 'Merchandiser', employmentStatus: 'ACTIVE', assignedShopId: 'shop-daa-shoprite-accra', profileImage: null },
 ]
 
 /* --------------------------------------------------------------------------
@@ -149,7 +149,7 @@ function resolveShopId(rep) {
   return assignment?.shopId && mockGetShop(assignment.shopId) ? assignment.shopId : rep.assignedShopId
 }
 
-/** Sales representatives with their active assignment applied. */
+/** Merchandisers (demo) with their active shop assignment applied. */
 export function mockListSalesReps(companyId) {
   return SALES_REPS.filter((r) => r.companyId === companyId).map((r) => ({
     ...r,
@@ -159,7 +159,7 @@ export function mockListSalesReps(companyId) {
 
 /**
  * Everyone who works from a shop in a company: the demo's monitored reps plus
- * Sales Representatives / Merchandisers registered through the app. Used for
+ * Merchandisers registered through the app. Used for
  * the Assigned Shops view. Registered staff have no simulated SMS history
  * (noSmsData), so nothing is invented for them.
  */
@@ -585,8 +585,8 @@ export function mockUpdateAlert(exceptionId, { status, resolutionNote }, { audit
     const u = getSessionUser()
     recordAuditEvent({
       action: status === 'resolved' ? 'Monitoring alert resolved' : 'Monitoring alert review updated',
-      category: 'Sales Rep Monitoring',
-      source: 'Sales Rep Monitoring',
+      category: 'Merchandiser Monitoring',
+      source: 'Merchandiser Monitoring',
       actor: u ? { name: u.name, role: u.role } : { name: 'System', role: 'System' },
       companyIds: rep ? [rep.companyId] : [],
       affected: `${rep?.fullName ?? employeeId} (${employeeId}) · ${dateKey} · ${ALERT_META[type]?.label ?? type}`,

@@ -21,6 +21,7 @@ import '../styles/sales-monitoring.css'
 import '../styles/shifts.css'
 import '../styles/attendance.css'
 import { SkeletonLine, SkeletonTable } from '../components/common/Skeletons'
+import { CATEGORIES } from '../constants/employeeCategories'
 
 const PAGE_SIZE = 12
 const NON_WORKING = ['rest-day', 'holiday']
@@ -28,6 +29,7 @@ const LOADING_MS = 250
 
 const EMPTY_FILTERS = {
   search: '',
+  category: '',
   position: '',
   shopId: '',
   status: '',
@@ -149,6 +151,7 @@ export default function AttendanceManagement({ company, user, onChanged, focus =
     if (term && !r.fullName.toLowerCase().includes(term) && !r.employeeId.toLowerCase().includes(term)) {
       return false
     }
+    if (filters.category && r.category !== filters.category) return false
     if (filters.position && r.position !== filters.position) return false
     if (filters.shopId && r.shopId !== filters.shopId) return false
     return true
@@ -353,6 +356,10 @@ export default function AttendanceManagement({ company, user, onChanged, focus =
             onChange={(e) => setFilter('search', e.target.value)}
             aria-label="Search by employee name or ID"
           />
+          <select className="sm-select" value={filters.category} onChange={(e) => setFilter('category', e.target.value)} aria-label="Filter by employee category">
+            <option value="">All categories</option>
+            {Object.values(CATEGORIES).map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
+          </select>
           <select className="sm-select" value={filters.position} onChange={(e) => setFilter('position', e.target.value)} aria-label="Filter by position">
             <option value="">All positions</option>
             {positions.map((p) => <option key={p} value={p}>{p}</option>)}

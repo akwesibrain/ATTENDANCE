@@ -23,6 +23,27 @@ import {
   overtimeHours,
 } from '../constants/attendancePolicy'
 import { faceSimilarity, FACE_MATCH_THRESHOLD } from '../utils/faceMatch'
+import { categoryForPosition, recordsVisits } from '../constants/employeeCategories'
+import { defaultHoursFor } from './settingsService'
+import { validateVisitOutlet, verifyVisitLocation } from './fieldVisitsService'
+
+/**
+ * Attendance actions. Which ones an employee may take depends on their
+ * category and what they have already scanned today:
+ *   everyone            Clock in → … → Clock out
+ *   Warehouse Workers   Going on break / Back from break (as many sessions
+ *                       as the company allows), between clock-in and clock-out
+ *   Sales Reps and      Record outlet visit (any number), between clock-in
+ *   Supervisors         and clock-out
+ * A break or visit scan is never treated as a clock-in or clock-out.
+ */
+export const ACTIONS = {
+  'check-in': { label: 'Clock in', past: 'Clocked in' },
+  'break-start': { label: 'Going on break', past: 'Break started' },
+  'break-end': { label: 'Back from break', past: 'Back from break' },
+  visit: { label: 'Record outlet visit', past: 'Visit recorded' },
+  'check-out': { label: 'Clock out', past: 'Clocked out' },
+}
 
 /** localStorage key for mock attendance events. */
 const ATTENDANCE_STORAGE_KEY = 'mock-attendance:events'
@@ -188,14 +209,42 @@ function getTodayEvents(staffId) {
  * currently checked in, or null if they have completed both for the day.
  */
 export function getNextAction(staffId) {
-  // An employee auto-marked absent (too many failed face attempts) cannot
-  // record any further attendance today.
-  if (isMarkedAbsent(staffId)) return null
+  const actions = getAvailableActions(staffId)
+  return actions.length ? actions[0] : null
+}
+
+/** Where an employee is in today's workflow. */
+export function getDayState(staffId) {
   const events = getTodayEvents(staffId).filter((e) => e.type !== 'absent')
-  const last = events[events.length - 1]
-  if (!last) return 'check-in'
-  if (last.type === 'check-in') return 'check-out'
-  return null // already checked in AND out today
+  const breakEvents = events.filter((e) => e.type === 'break-start' || e.type === 'break-end')
+  const lastBreak = breakEvents[breakEvents.length - 1]
+  return {
+    checkedIn: events.some((e) => e.type === 'check-in'),
+    checkedOut: events.some((e) => e.type === 'check-out'),
+    onBreak: lastBreak?.type === 'break-start',
+    breaksTaken: events.filter((e) => e.type === 'break-start').length,
+    visits: events.filter((e) => e.type === 'visit').length,
+  }
+}
+
+/**
+ * MOCK ONLY — the actions an employee can take now, in the order to offer
+ * them. Empty when the day is complete (or the employee was marked absent).
+ */
+export function getAvailableActions(staffId) {
+  if (isMarkedAbsent(staffId)) return []
+  const employee = mockFindEmployeeByStaffId(staffId)
+  const category = categoryForPosition(employee?.position)
+  const st = getDayState(staffId)
+  if (!st.checkedIn) return ['check-in']
+  if (st.checkedOut) return []
+  if (category === 'warehouse') {
+    if (st.onBreak) return ['break-end']
+    const allowed = Number(defaultHoursFor(employee?.companyId).warehouseBreakSessions ?? 1)
+    return st.breaksTaken < allowed ? ['break-start', 'check-out'] : ['check-out']
+  }
+  if (recordsVisits(category)) return ['visit', 'check-out']
+  return ['check-out']
 }
 
 /**
@@ -211,7 +260,7 @@ export function getNextAction(staffId) {
  * @param {object} params - { staffId, faceImage }
  * @returns {Promise<object>} the recorded attendance event.
  */
-export function recordAttendance({ staffId, faceImage }) {
+export function recordAttendance({ staffId, faceImage, action = null, visit = null }) {
   return new Promise((resolve, reject) => {
     setTimeout(async () => {
       const employee = mockFindEmployeeByStaffId(staffId)
@@ -270,11 +319,12 @@ export function recordAttendance({ staffId, faceImage }) {
         return
       }
 
-      // STRICT RULE: one check-in and one check-out per employee per day.
-      // Re-derive the allowed action at record time and refuse duplicates so
-      // a double-submit or repeat visit cannot create a second check-in.
-      const type = getNextAction(staffId)
-      if (type === null) {
+      // STRICT RULE: one check-in and one check-out per employee per day,
+      // and only the actions allowed right now (re-checked at record time so
+      // a double-submit cannot create a duplicate or out-of-order scan).
+      const available = getAvailableActions(staffId)
+      const type = action ?? available[0] ?? null
+      if (type === null || !available.length) {
         reject(
           new Error(
             'You have already completed check-in and check-out for today.',
@@ -282,7 +332,25 @@ export function recordAttendance({ staffId, faceImage }) {
         )
         return
       }
-      const alreadyDone = getTodayEvents(staffId).some((e) => e.type === type)
+      if (!available.includes(type)) {
+        const st = getDayState(staffId)
+        reject(new Error(
+          type === 'check-out' && st.onBreak ? 'You are on break. Scan "Back from break" before clocking out.'
+            : type === 'break-start' ? 'No more breaks are allowed today, or you are not clocked in.'
+              : type === 'break-end' ? 'You have not started a break.'
+                : type === 'visit' ? 'Outlet visits are recorded by Sales Representatives and Supervisors after clocking in.'
+                  : `"${ACTIONS[type]?.label ?? type}" is not available right now.`,
+        ))
+        return
+      }
+      if (type === 'visit') {
+        const problem = validateVisitOutlet(visit?.outlet)
+        if (problem) {
+          reject(new Error(problem))
+          return
+        }
+      }
+      const alreadyDone = (type === 'check-in' || type === 'check-out') && getTodayEvents(staffId).some((e) => e.type === type)
       if (alreadyDone) {
         reject(
           new Error(
@@ -294,9 +362,12 @@ export function recordAttendance({ staffId, faceImage }) {
         return
       }
 
-      // TIME-WINDOW RULE: enforce the check-in / check-out windows.
+      // TIME-WINDOW RULE: enforce the check-in / check-out windows. Break
+      // and visit scans happen during the working day and have no window.
       const now = new Date()
-      const window = evaluateAction(type, now)
+      const window = type === 'check-in' || type === 'check-out'
+        ? evaluateAction(type, now)
+        : { allowed: true, status: 'on-time' }
       if (!window.allowed) {
         reject(new Error(window.message))
         return
@@ -315,6 +386,19 @@ export function recordAttendance({ staffId, faceImage }) {
         time: now.toISOString(),
         // Weekend work is overtime.
         weekend,
+      }
+      if (type === 'visit') {
+        const location = visit.location && Number.isFinite(visit.location.latitude) ? {
+          latitude: visit.location.latitude,
+          longitude: visit.location.longitude,
+          accuracy: Number.isFinite(visit.location.accuracy) ? Math.round(visit.location.accuracy) : null,
+        } : null
+        event.outlet = visit.outlet.shopId
+          ? { shopId: visit.outlet.shopId }
+          : { shopId: null, name: String(visit.outlet.name).trim(), town: String(visit.outlet.town).trim() }
+        event.location = location
+        event.locationError = location ? null : (visit.locationError ?? 'Location not provided')
+        event.verification = verifyVisitLocation(event.outlet, location)
       }
 
       // On a weekend check-out, compute the overtime hours worked today

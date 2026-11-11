@@ -2,7 +2,7 @@
  * ============================================================================
  * MOCK SHOP ASSIGNMENT SERVICE — NOT A PRODUCTION BACKEND
  * ============================================================================
- * Tracks which shop a field employee (Sales Representative or Merchandiser) is
+ * Tracks which shop a Merchandiser is
  * assigned to. The ACTIVE assignment is the employee's official workplace; every
  * change is recorded in an assignment history with an effective date — previous
  * assignments are preserved, never deleted.
@@ -39,7 +39,9 @@ function writeJson(key, value) {
 }
 
 /** Positions that require a sales shop assignment. */
-export const FIELD_POSITIONS = ['sales representative', 'merchandiser']
+// Only Merchandisers work from one allocated shop. Sales Representatives and
+// Supervisors visit several outlets (see fieldVisitsService).
+export const FIELD_POSITIONS = ['merchandiser']
 
 /** Whether a job position requires an assigned shop. */
 export function requiresShop(position) {

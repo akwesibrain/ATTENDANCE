@@ -51,8 +51,8 @@ To reset all demo data, clear the site's `localStorage` in the browser.
 | Dashboard | Today's figures per company and combined; today's register |
 | Employees | Directory cards with emergency contact; HR sets the **date joined** and the time with the company is calculated (years, months, days); shop assignment for field staff |
 | Attendance | One record per employee per day (from check-ins, SMS verification, or HR manual entry); corrections with full history; manual entry for paper records |
-| Sales Reps | Rep monitoring, 3 random SMS verification checks per working day, 150 m shop geofence, alerts, shop directory with map locations, live field board |
-| Reports | Monthly report (26th–25th) with working days, hours, overtime and pay; daily records; **Overtime** tab |
+| Field Monitoring | **Merchandiser Monitoring** (allocated shop, 3 random SMS verification checks per working day, 150 m geofence, alerts, shop directory with map locations, live field board on a map of Ghana); **Sales Rep Monitoring** and **Supervisor Monitoring** (outlet visits with face scan and the phone's location) |
+| Reports | Monthly report (26th–25th) per employee category — Warehouse Workers, Sales Representatives, Merchandisers, Supervisors, office staff — or combined; summary and daily records (incl. break times); separate CSV exports; **Overtime** tab |
 | Settings | General, company profiles, attendance rules, working hours, **holidays**, sales-rep monitoring, notifications, security, data export, **Audit Logs** tab |
 | Notifications | Exceptions (late, absent, missing clock-out, failed verifications, missing shop…) with assign / review / resolve / dismiss |
 | HR Assistant | Rule-based chat that answers from the records (no AI service) |
@@ -103,7 +103,20 @@ display what the server returns.
 - Adding or removing a holiday must **recalculate** attendance and overtime for
   that day.
 
-**Sales representatives and merchandisers**
+**Employee categories** (from the job position — `src/constants/employeeCategories.js`)
+- **Warehouse Workers:** scan clock-in → break out → break in → clock-out (up
+  to the number of break sessions the company allows). Working hours exclude
+  the breaks actually scanned. A break with no return scan is flagged for HR
+  review — no time is filled in — and its hours/overtime wait until HR enters
+  the return time. Break scans are never treated as clock-in/out.
+- **Sales Representatives** (mini-markets) and **Supervisors** (larger outlets,
+  several a day): company hours, **no scheduled break**, not tied to one shop.
+  Each outlet visit is a face scan plus the phone's real location, checked
+  against the outlet's geofence when the outlet has saved coordinates.
+- **Merchandisers:** one allocated shop and the monitoring below.
+- **Office & other staff:** company hours and the default break.
+
+**Merchandisers**
 - Must have an allocated shop belonging to their own company; assignment history
   is kept.
 - Three verification checks at random times inside working hours; **future
@@ -137,14 +150,16 @@ display what the server returns.
 | Mock service (`src/services/`) | Backend responsibility | Suggested API (illustrative) |
 |---|---|---|
 | `registrationService.js` | Create employees, **generate Staff IDs** (sequential per company), store emergency contact, date joined; validate position and allocated shop | `POST /employees/register`, `GET /employees`, `PATCH /employees/:staffId` (date joined, emergency contact) |
-| `attendanceService.js` | Staff ID lookup, **face verification**, check-in/out windows, one in + one out per day, failed-attempt limit (5/day) | `GET /attendance/lookup/:staffId`, `POST /attendance/events` (multipart photo) |
+| `attendanceService.js` | Staff ID lookup, **face verification**, check-in/out windows, one in + one out per day, **break out/in scans (Warehouse)** and **outlet visits (Sales Reps, Supervisors)** by category, failed-attempt limit (5/day) | `GET /attendance/lookup/:staffId`, `POST /attendance/events` (multipart photo) |
 | `attendanceRecordsService.js` | Build the daily record per employee (rules above); corrections with history; manual entries; CSV export | `GET /attendance/records?company&from&to`, `POST /attendance/corrections`, `POST /attendance/manual-entries`, `GET /attendance/export` |
 | `overtimeService.js` | Overtime per record and per period (rules above) | `GET /reports/overtime?company&period` |
 | `holidayService.js` | Public + HR holidays; recalculation on change | `GET /holidays?year`, `POST /holidays`, `DELETE /holidays/:id` |
 | `settingsService.js` | All settings, effective-dated versions (working hours, attendance rules, overtime rate), VAT | `GET/PUT /settings/...` per section |
 | `shopsService.js`, `shopAssignmentService.js` | Shop directory per company, locations, assignment + history | `GET/POST /shops`, `PATCH /shops/:id/location`, `POST /employees/:staffId/shop` |
 | `geocodingService.js` | Shop location lookup — **proxy it through the server** (see §4) | `GET /geocode?shop&area&town` |
-| `salesMonitoringService.js` | SMS verification schedule and results, GPS/geofence checks, alerts, live board | `GET /monitoring/reps`, `GET /monitoring/reps/:id?date`, `GET /monitoring/alerts`, `PATCH /monitoring/alerts/:id` |
+| `fieldVisitsService.js` | Sales Rep / Supervisor outlet visits: store each visit with the device location and the server-side geofence result | `POST /attendance/visits`, `GET /monitoring/visits?company&category&date` |
+| `categoryReportService.js` | Monthly reports per employee category and combined, using the same calculations as attendance and overtime | `GET /reports/monthly?company&period&category&employee` |
+| `salesMonitoringService.js` | Merchandiser monitoring: SMS verification schedule and results, GPS/geofence checks, alerts, live board | `GET /monitoring/reps`, `GET /monitoring/reps/:id?date`, `GET /monitoring/alerts`, `PATCH /monitoring/alerts/:id` |
 | `notificationsService.js` | Generate exceptions **on the server** (scheduled job / on events), no duplicates per source; read/assign/resolve/dismiss with history | `GET /notifications`, `PATCH /notifications/:id`, `POST /notifications/:id/comments` |
 | `leaveService.js` | Leave records (approved leave is never absence). Demo data only — a leave module is not built yet | `GET /leave?employee&from&to` |
 | `auditService.js`, `auditStore.js` | **Append-only** audit log written by the server for every change | `GET /audit?company&from&to`, `GET /audit/export` |
@@ -194,8 +209,12 @@ company), `src/utils/payPeriod.js` (26th–25th periods).
 
 ### 5. Security and privacy
 
-- Real authentication (no "demo sign-in"), MFA for HR, session timeout
-  (currently a demo setting), rate limiting, HTTPS only.
+- Real authentication on the server. The HR login page today (email or
+  phone + password, lockout after repeated wrong passwords) checks a salted
+  SHA-256 hash **in the browser** (`src/config/hrLogin.js`) — anyone can bypass
+  it. Replace it with server-side sign-in: slow password hashing
+  (bcrypt/argon2), MFA for HR, server sessions with timeout, rate limiting,
+  HTTPS only. The plain password is not stored anywhere in this repository.
 - Enforce company separation and permissions on **every** endpoint.
 - Face images and templates are **biometric data**: store encrypted, limit
   access, keep the consent recorded at registration, and define retention and
@@ -213,8 +232,8 @@ The mock services seed demo data. None of it should reach production:
 - Demo shops (China Mall, Shoprite, Melcom) — `shopsService.js`. Only China
   Mall, Ashaiman has real coordinates (5.68486, -0.02419), supplied by HR.
 - Demo leave records — `leaveService.js`
-- The demo HR account and sign-in screen — `permissionsService.js`,
-  `components/access/AccessScreens.jsx`
+- The demo HR account and browser-side login — `permissionsService.js`,
+  `config/hrLogin.js`, `components/access/AccessScreens.jsx`
 - Test hook: registering with the first name `Fail` forces an error —
   `registrationService.js`
 - Mock attendance data before **2026-10-01** (`DIGITAL_GO_LIVE_DATE`) is
@@ -269,5 +288,5 @@ src/
   services/          # MOCK backend services (see the table above)
   constants/         # companies, labels, notification types, holidays
   utils/             # Accra time, attendance rules, pay periods, tenure, validation
-  styles/            # per-area CSS; hr-neumorphism.css is the HR portal theme
+  styles/            # per-area CSS; hr-soft3d.css is the HR portal theme (3D Soft Realism)
 ```

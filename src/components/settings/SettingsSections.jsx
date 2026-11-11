@@ -324,11 +324,11 @@ function VersionTable({ versions, render }) {
 function HoursForm({ companyId, user }) {
   const today = accraTodayKey()
   const current = defaultHoursFor(companyId, today)
-  const initial = { workingDays: current.workingDays, startTime: current.startTime, lateAfter: current.lateAfter, endTime: current.endTime, overtimeStart: current.overtimeStart, breakStart: current.breakStart, breakMinutes: current.breakMinutes, effectiveFrom: today }
+  const initial = { workingDays: current.workingDays, startTime: current.startTime, lateAfter: current.lateAfter, endTime: current.endTime, overtimeStart: current.overtimeStart, breakStart: current.breakStart, breakMinutes: current.breakMinutes, warehouseBreakSessions: current.warehouseBreakSessions ?? 1, effectiveFrom: today }
   const s = useSection(initial)
   const readOnly = !canEditCompanySettings(user, companyId)
   const f = s.form
-  const labels = { workingDays: 'Working days', startTime: 'Official clock-in', lateAfter: 'Late after', endTime: 'Official clock-out', overtimeStart: 'Overtime starts', breakStart: 'Break starts', breakMinutes: 'Break (min)', effectiveFrom: 'Effective from' }
+  const labels = { workingDays: 'Working days', startTime: 'Official clock-in', lateAfter: 'Late after', endTime: 'Official clock-out', overtimeStart: 'Overtime starts', breakStart: 'Break starts', breakMinutes: 'Break (min)', warehouseBreakSessions: 'Warehouse break sessions', effectiveFrom: 'Effective from' }
   const save = () => {
     const { effectiveFrom, ...values } = f
     const r = saveWorkingHours(companyId, values, effectiveFrom, user)
@@ -362,7 +362,12 @@ function HoursForm({ companyId, user }) {
         <Field id="w-bstart" label="Break starts" error={s.errors.breakStart}>
           <input id="w-bstart" type="time" className="sh-form-input" value={f.breakStart} disabled={readOnly} onChange={(e) => s.set('breakStart', e.target.value)} />
         </Field>
-        <Field id="w-bmin" label="Default break (minutes)" hint="Deducted from working hours when the work spans the break." error={s.errors.breakMinutes}>
+        <Field id="w-wbs" label="Warehouse break sessions per day" hint="Warehouse Workers scan out for break and back in. Their working hours exclude the breaks they actually take." error={s.errors.warehouseBreakSessions}>
+          <select id="w-wbs" className="sh-form-select" value={f.warehouseBreakSessions} disabled={readOnly} onChange={(e) => s.set('warehouseBreakSessions', Number(e.target.value))}>
+            {[1, 2, 3].map((n) => <option key={n} value={n}>{n} {n === 1 ? 'break' : 'breaks'}</option>)}
+          </select>
+        </Field>
+        <Field id="w-bmin" label="Default break (minutes)" hint="For Merchandisers and office staff, deducted when the work spans the break. Sales Representatives and Supervisors have no scheduled break; Warehouse Workers use their scanned breaks." error={s.errors.breakMinutes}>
           <input id="w-bmin" type="number" min={0} max={120} className="sh-form-input" value={f.breakMinutes} disabled={readOnly} onChange={(e) => s.set('breakMinutes', e.target.value)} />
         </Field>
         <Field id="w-eff" label="Effective from" hint="Today or later; earlier days keep the hours in force at the time." error={s.errors.effectiveFrom}>
@@ -471,7 +476,7 @@ export function MonitoringSection({ user }) {
     s.done('Monitoring settings saved. No SMS provider or scheduler was changed.', r.settings.monitoring)
   }
   return (
-    <SectionCard title="Sales Representative Monitoring" description="Rules for the three random SMS verification checks per working day." readOnly={readOnly} readOnlyReason={readOnly ? SYSTEM_RO : null} dirty={s.dirty} flash={s.flash} error={s.errors.form} onSave={() => s.setConfirming(true)} onCancel={s.reset}>
+    <SectionCard title="Merchandiser Monitoring" description="Rules for the three random SMS verification checks per working day." readOnly={readOnly} readOnlyReason={readOnly ? SYSTEM_RO : null} dirty={s.dirty} flash={s.flash} error={s.errors.form} onSave={() => s.setConfirming(true)} onCancel={s.reset}>
       <p className="hu-warning">
         Future SMS check times are generated only by a secure backend scheduler and are never shown here. Saving these
         settings does not change any real SMS provider or scheduler. A missed verification is never treated as absence
@@ -575,7 +580,7 @@ export function SecuritySection({ user }) {
         In production all of these must be implemented and enforced by the backend.
       </p>
       <div className="st-status-list">
-        <StatusRow label="HR portal access" value="Private portal · demo sign-in" tone="info" detail="Separate from the employee portal." />
+        <StatusRow label="HR portal access" value="Private portal · email/phone + password (demo)" tone="info" detail="Separate from the employee portal." />
         <StatusRow label="Public HR registration" value="Disabled" tone="ok" detail="Locked. There is one HR account (HR Manager); no others can be created." />
         <StatusRow label="MFA policy" value="Not implemented" tone="warn" detail="Required in production." />
         <StatusRow label="Permission enforcement" value="Frontend checks (demo)" tone="warn" detail="Backend enforcement on every API is required in production." />
@@ -585,7 +590,7 @@ export function SecuritySection({ user }) {
         <Field id="s-timeout" label="Session timeout (minutes)" hint="Applied to the demo session: it expires this long after sign-in." error={s.errors.sessionTimeoutMinutes}>
           <input id="s-timeout" type="number" min={5} max={480} className="sh-form-input" value={f.sessionTimeoutMinutes} disabled={readOnly} onChange={(e) => s.set('sessionTimeoutMinutes', e.target.value)} />
         </Field>
-        <Field id="s-attempts" label="Login attempt limit" applied={false} hint="There are no passwords in this demo." error={s.errors.loginAttemptLimit}>
+        <Field id="s-attempts" label="Login attempt limit" hint="Wrong passwords in a row before sign-in is locked for 5 minutes." error={s.errors.loginAttemptLimit}>
           <input id="s-attempts" type="number" min={3} max={10} className="sh-form-input" value={f.loginAttemptLimit} disabled={readOnly} onChange={(e) => s.set('loginAttemptLimit', e.target.value)} />
         </Field>
         <Field id="s-pw" label="Password policy: minimum length" applied={false} hint="Demonstration of the policy production should enforce." error={s.errors.passwordMinLength}>

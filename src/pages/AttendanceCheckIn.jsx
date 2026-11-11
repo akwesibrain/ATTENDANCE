@@ -1,12 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
-  getNextAction,
+  ACTIONS,
+  getAvailableActions,
   getRemainingAttempts,
   isMarkedAbsent,
   lookupEmployee,
   recordAttendance,
 } from '../services/attendanceService'
 import { evaluateAction } from '../constants/attendancePolicy'
+import { categoryForPosition, categoryLabel } from '../constants/employeeCategories'
+import { mockListShops } from '../services/shopsService'
+import { VISIT_RESULT, validateVisitOutlet } from '../services/fieldVisitsService'
 import '../styles/registration.css'
 import { captureVideoFrame } from '../utils/imageCompression'
 
@@ -14,7 +18,11 @@ const STEP = {
   staffId: 0,
   scan: 1,
   success: 2,
+  choose: 3,
+  visit: 4,
 }
+
+const EMPTY_VISIT = { mode: 'directory', shopId: '', name: '', town: '' }
 
 /** Simulated face-scan duration (ms) before the mock verification resolves. */
 const SCAN_DURATION_MS = 2600
@@ -43,6 +51,12 @@ export default function AttendanceCheckIn({ onBack }) {
   const [mismatch, setMismatch] = useState(false)
   const [markedAbsent, setMarkedAbsent] = useState(false)
   const [attemptsLeft, setAttemptsLeft] = useState(null)
+  const [actions, setActions] = useState([])
+  const [visit, setVisit] = useState(EMPTY_VISIT)
+  const [visitError, setVisitError] = useState('')
+  // The phone's real location for an outlet visit. Never invented: if it
+  // cannot be read, the visit is recorded as "no location".
+  const [locating, setLocating] = useState({ status: 'idle', coords: null, message: '' })
 
   // Camera / scanner state
   const videoRef = useRef(null)
@@ -114,30 +128,74 @@ export default function AttendanceCheckIn({ onBack }) {
         setLoading(false)
         return
       }
-      const action = getNextAction(found.staffId)
-      if (action === null) {
+      const available = getAvailableActions(found.staffId)
+      if (!available.length) {
         setError('You have already completed check-in and check-out for today.')
         setLoading(false)
         return
       }
-      // Enforce the time window before proceeding to the scanner.
-      const window = evaluateAction(action)
-      if (!window.allowed) {
-        setError(window.message)
-        setLoading(false)
-        return
-      }
       setEmployee(found)
-      setNextAction(action)
+      setActions(available)
       setAttemptsLeft(getRemainingAttempts(found.staffId))
       setMarkedAbsent(false)
       setMismatch(false)
-      setStep(STEP.scan)
+      if (available.length === 1) {
+        if (!chooseAction(available[0])) setEmployee(null)
+      } else {
+        setStep(STEP.choose)
+      }
     } catch (err) {
       setError(err?.message ?? 'Unable to find that Staff ID.')
     } finally {
       setLoading(false)
     }
+  }
+
+  // Pick what to scan for. Clock-in/out keep their time windows; break and
+  // visit scans happen during the working day.
+  const chooseAction = (action) => {
+    if (action === 'check-in' || action === 'check-out') {
+      const window = evaluateAction(action)
+      if (!window.allowed) {
+        setError(window.message)
+        return false
+      }
+    }
+    setError(null)
+    setNextAction(action)
+    if (action === 'visit') {
+      setVisit(EMPTY_VISIT)
+      setVisitError('')
+      readLocation()
+      setStep(STEP.visit)
+    } else {
+      setStep(STEP.scan)
+    }
+    return true
+  }
+
+  const readLocation = () => {
+    if (!navigator.geolocation) {
+      setLocating({ status: 'error', coords: null, message: 'This phone cannot share its location.' })
+      return
+    }
+    setLocating({ status: 'locating', coords: null, message: '' })
+    navigator.geolocation.getCurrentPosition(
+      (pos) => setLocating({ status: 'ok', coords: { latitude: pos.coords.latitude, longitude: pos.coords.longitude, accuracy: pos.coords.accuracy }, message: '' }),
+      (err) => setLocating({ status: 'error', coords: null, message: err?.code === 1 ? 'Location permission was denied.' : 'Location is not available right now.' }),
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
+    )
+  }
+
+  const visitOutlet = () => (visit.mode === 'directory'
+    ? (visit.shopId ? { shopId: visit.shopId } : null)
+    : { shopId: null, name: visit.name, town: visit.town })
+
+  const continueVisit = () => {
+    const problem = validateVisitOutlet(visitOutlet())
+    if (problem) { setVisitError(problem); return }
+    setVisitError('')
+    setStep(STEP.scan)
   }
 
   // Capture a frame and run the simulated verification.
@@ -157,6 +215,10 @@ export default function AttendanceCheckIn({ onBack }) {
       const event = await recordAttendance({
         staffId: employee.staffId,
         faceImage: captured,
+        action: nextAction,
+        visit: nextAction === 'visit'
+          ? { outlet: visitOutlet(), location: locating.coords, locationError: locating.status === 'ok' ? null : (locating.message || 'Location not provided') }
+          : null,
       })
       stopStream()
       setResult(event)
@@ -177,7 +239,9 @@ export default function AttendanceCheckIn({ onBack }) {
     }
   }
 
-  const actionLabel = nextAction === 'check-in' ? 'Check In' : 'Check Out'
+  const actionLabel = ACTIONS[nextAction]?.label ?? 'Check In'
+  const category = categoryForPosition(employee?.position)
+  const directoryShops = employee ? mockListShops(employee.companyId) : []
 
   return (
     <main className="registration-page">
@@ -242,6 +306,94 @@ export default function AttendanceCheckIn({ onBack }) {
                   'Continue'
                 )}
               </button>
+            </div>
+          </section>
+        )}
+
+        {step === STEP.choose && employee && (
+          <section className="card">
+            <p className="step-eyebrow">Attendance — {categoryLabel(category, { single: true })}</p>
+            <h2 className="step-title">What are you scanning for?</h2>
+            <p className="step-description">
+              {employee.fullName} ({employee.staffId}). Choose one, then verify your face.
+            </p>
+            <div className="home-actions">
+              {actions.map((a) => (
+                <button key={a} type="button" className="home-option" onClick={() => chooseAction(a)}>
+                  <span className="home-option-text">
+                    <span className="home-option-title">{ACTIONS[a].label}</span>
+                    <span className="home-option-desc">
+                      {a === 'break-start' && 'Leaving for your break. Scan again when you come back.'}
+                      {a === 'break-end' && 'Returning from your break.'}
+                      {a === 'visit' && 'You have arrived at an outlet. Your location is checked against the outlet.'}
+                      {a === 'check-out' && 'Finishing work for the day.'}
+                      {a === 'check-in' && 'Starting work for the day.'}
+                    </span>
+                  </span>
+                  <span className="home-option-arrow" aria-hidden="true">→</span>
+                </button>
+              ))}
+            </div>
+            {error && <div className="submit-error" role="alert" style={{ marginTop: 16 }}><span>{error}</span></div>}
+            <div className="step-actions">
+              <button type="button" className="btn btn-secondary" onClick={() => { setError(null); setStep(STEP.staffId) }}>Back</button>
+            </div>
+          </section>
+        )}
+
+        {step === STEP.visit && employee && (
+          <section className="card">
+            <p className="step-eyebrow">Outlet visit — {categoryLabel(category, { single: true })}</p>
+            <h2 className="step-title">Which outlet are you at?</h2>
+            <p className="step-description">
+              {category === 'supervisor'
+                ? 'Choose the outlet from the list. If it is not listed, enter it yourself.'
+                : 'Enter the mini-market you are visiting, or choose it from the list if it is there.'}
+            </p>
+            <div className="visit-mode" role="radiogroup" aria-label="How to choose the outlet">
+              <label className={`visit-mode-option${visit.mode === 'directory' ? ' is-selected' : ''}`}>
+                <input type="radio" name="visit-mode" checked={visit.mode === 'directory'} onChange={() => setVisit((v) => ({ ...v, mode: 'directory' }))} />
+                From the outlet list
+              </label>
+              <label className={`visit-mode-option${visit.mode === 'other' ? ' is-selected' : ''}`}>
+                <input type="radio" name="visit-mode" checked={visit.mode === 'other'} onChange={() => setVisit((v) => ({ ...v, mode: 'other' }))} />
+                Enter another outlet
+              </label>
+            </div>
+            {visit.mode === 'directory' ? (
+              <div className="form-field">
+                <label className="form-label" htmlFor="visit-shop">Outlet</label>
+                <select id="visit-shop" className="form-input" value={visit.shopId} onChange={(e) => setVisit((v) => ({ ...v, shopId: e.target.value }))}>
+                  <option value="">Choose an outlet…</option>
+                  {directoryShops.map((sh) => <option key={sh.shopId} value={sh.shopId}>{sh.shopName}</option>)}
+                </select>
+              </div>
+            ) : (
+              <div className="form-grid">
+                <div className="form-field">
+                  <label className="form-label" htmlFor="visit-name">Outlet name</label>
+                  <input id="visit-name" className="form-input" value={visit.name} placeholder="e.g. Adom Mini Mart" onChange={(e) => setVisit((v) => ({ ...v, name: e.target.value }))} />
+                </div>
+                <div className="form-field">
+                  <label className="form-label" htmlFor="visit-town">Town or area</label>
+                  <input id="visit-town" className="form-input" value={visit.town} placeholder="e.g. Madina" onChange={(e) => setVisit((v) => ({ ...v, town: e.target.value }))} />
+                </div>
+              </div>
+            )}
+            <div className={`visit-location is-${locating.status}`} role="status">
+              {locating.status === 'locating' && 'Reading your location…'}
+              {locating.status === 'ok' && `Location found (accurate to about ${Math.round(locating.coords.accuracy)} m).`}
+              {locating.status === 'error' && `${locating.message} The visit will be recorded without a location.`}
+              {locating.status !== 'locating' && (
+                <button type="button" className="btn btn-outline visit-location-retry" onClick={readLocation}>
+                  {locating.status === 'ok' ? 'Read again' : 'Try again'}
+                </button>
+              )}
+            </div>
+            {visitError && <span className="field-error" role="alert">{visitError}</span>}
+            <div className="step-actions">
+              <button type="button" className="btn btn-secondary" onClick={() => setStep(actions.length > 1 ? STEP.choose : STEP.staffId)}>Back</button>
+              <button type="button" className="btn btn-primary" onClick={continueVisit} disabled={locating.status === 'locating'}>Continue to face scan</button>
             </div>
           </section>
         )}
@@ -386,7 +538,7 @@ export default function AttendanceCheckIn({ onBack }) {
                 onClick={() => {
                   setMismatch(false)
                   setError(null)
-                  setStep(STEP.staffId)
+                  setStep(nextAction === 'visit' ? STEP.visit : actions.length > 1 ? STEP.choose : STEP.staffId)
                 }}
                 disabled={loading}
               >
@@ -414,12 +566,14 @@ export default function AttendanceCheckIn({ onBack }) {
               </svg>
             </div>
             <h2 className="step-title">
-              {result.type === 'check-in' ? 'Checked In' : 'Checked Out'}
+              {ACTIONS[result.type]?.past ?? 'Recorded'}
             </h2>
             <p className="step-description" style={{ marginBottom: 0 }}>
-              {result.type === 'check-in'
-                ? 'Face verified. Have a great day at work.'
-                : 'Face verified. Thank you, see you next time.'}
+              {result.type === 'check-in' && 'Face verified. Have a great day at work.'}
+              {result.type === 'check-out' && 'Face verified. Thank you, see you next time.'}
+              {result.type === 'break-start' && 'Face verified. Enjoy your break — scan "Back from break" when you return.'}
+              {result.type === 'break-end' && 'Face verified. Welcome back.'}
+              {result.type === 'visit' && `Face verified. Visit recorded: ${VISIT_RESULT[result.verification?.status]?.label ?? ''}${result.verification?.distance != null ? ` (${result.verification.distance} m from the outlet)` : ''}.`}
             </p>
 
             <div className="verified-employee">
@@ -449,23 +603,25 @@ export default function AttendanceCheckIn({ onBack }) {
                   <span className="review-label">Time</span>
                   <span className="review-value">{new Date(result.time).toLocaleString()}</span>
                 </div>
-                <div className="success-row">
+                {(result.type === 'check-in' || result.type === 'check-out') && <div className="success-row">
                   <span className="review-label">Status</span>
                   {result.status === 'late' ? (
                     <span className="status-badge status-late">LATE</span>
                   ) : (
                     <span className="status-badge">ON TIME</span>
                   )}
-                </div>
+                </div>}
               </div>
             </div>
 
             <p className="success-message">
-              {result.type === 'check-in'
-                ? result.status === 'late'
-                  ? 'You are checked in and marked as late coming (after 9:00 AM). You can check out between 5:00 and 7:00 PM.'
-                  : 'You are checked in. You can check out between 5:00 and 7:00 PM.'
-                : 'You are checked out. Your attendance for today is complete.'}
+              {result.type === 'check-in' && (result.status === 'late'
+                ? 'You are checked in and marked as late coming (after 9:00 AM). You can check out between 5:00 and 7:00 PM.'
+                : 'You are checked in. You can check out between 5:00 and 7:00 PM.')}
+              {result.type === 'check-out' && 'You are checked out. Your attendance for today is complete.'}
+              {result.type === 'break-start' && 'Your break time is not counted as working time.'}
+              {result.type === 'break-end' && 'You can take another break if your company allows it, or clock out at the end of the day.'}
+              {result.type === 'visit' && 'Record a new visit at each outlet you go to. Clock out at the end of the day.'}
             </p>
 
             <div className="success-actions">

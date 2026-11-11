@@ -2,7 +2,7 @@
  * ============================================================================
  * MOCK SHOPS SERVICE — Shop Directory (single source of truth for shops)
  * ============================================================================
- * A "shop" is the actual outlet a Sales Representative or Merchandiser works
+ * A "shop" is the actual outlet a Merchandiser works (or a Supervisor visits)
  * in (e.g. China Mall, Ashaiman), never a company branch, town or region.
  * Employee records reference a shop by ID only; the shop record holds the
  * name, location text, GPS coordinates and geofence radius.

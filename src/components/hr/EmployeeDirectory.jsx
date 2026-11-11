@@ -6,10 +6,13 @@ import {
 } from '../../services/shopAssignmentService'
 import { formatClock } from '../../services/shiftsService'
 import { defaultHoursFor } from '../../services/settingsService'
-import { employeeJoinedOn } from '../../services/registrationService'
+import { employeeDetailsLocked, employeeJoinedOn } from '../../services/registrationService'
 import { accraTodayKey, formatAccraDate } from '../../utils/accraTime'
 import { formatTenure, tenureBetween } from '../../utils/tenure'
 import EmployeeDetailsModal from './EmployeeDetailsModal'
+import LeaveModal from './LeaveModal'
+import { CATEGORIES, categoryForPosition } from '../../constants/employeeCategories'
+import { currentOrNextLeave } from '../../services/leaveService'
 
 const PAGE_SIZE = 8
 
@@ -63,6 +66,12 @@ function CardIcon({ name }) {
         <path d="M2 10h20" />
       </>
     ),
+    lock: (
+      <>
+        <rect x="4" y="11" width="16" height="10" rx="2" />
+        <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+      </>
+    ),
     alert: (
       <>
         <path d="M12 2 2 20h20L12 2z" />
@@ -77,12 +86,13 @@ function CardIcon({ name }) {
   )
 }
 
-function EmployeeCard({ emp, onAssignShop, onViewAttendance, onEditDetails }) {
+function EmployeeCard({ emp, onAssignShop, onViewAttendance, onEditDetails, onLeave }) {
   const isField = requiresShop(emp.position)
   const assignment = isField ? mockGetAssignmentWithShop(emp.staffId) : null
   const needsAssignment = isField && !assignment
   const joinedOn = employeeJoinedOn(emp)
   const tenure = tenureBetween(joinedOn, accraTodayKey())
+  const { current: onLeaveNow, next: nextLeave } = currentOrNextLeave(emp.staffId)
 
   return (
     <article className="emp-card">
@@ -102,6 +112,17 @@ function EmployeeCard({ emp, onAssignShop, onViewAttendance, onEditDetails }) {
         </div>
         <h3 className="emp-card-name">{emp.fullName}</h3>
         <p className="emp-card-position">{emp.position}</p>
+        <span className={`emp-card-category emp-cat-${categoryForPosition(emp.position)}`}>{CATEGORIES[categoryForPosition(emp.position)].single}</span>
+        {onLeaveNow && (
+          <p className="emp-card-leave is-now">
+            <CardIcon name="calendar" /> On {onLeaveNow.leaveType.toLowerCase()} until {formatAccraDate(onLeaveNow.endDate)}
+          </p>
+        )}
+        {!onLeaveNow && nextLeave && (
+          <p className="emp-card-leave">
+            <CardIcon name="calendar" /> {nextLeave.leaveType} from {formatAccraDate(nextLeave.startDate)}
+          </p>
+        )}
 
         {isField && (
           <div className={`emp-card-shop${needsAssignment ? ' is-required' : ''}`}>
@@ -184,9 +205,18 @@ function EmployeeCard({ emp, onAssignShop, onViewAttendance, onEditDetails }) {
             </>
           ) : <span className="emp-card-note">Not provided</span>}
         </div>
-        {onEditDetails && (
+        {employeeDetailsLocked(emp) ? (
+          <p className="emp-card-locked">
+            <CardIcon name="lock" /> Confirmed by {emp.detailsUpdatedBy ?? 'HR'} on {formatAccraDate(emp.detailsUpdatedAt.slice(0, 10))}
+          </p>
+        ) : onEditDetails && (
           <button type="button" className="sm-actions-btn emp-card-edit" onClick={() => onEditDetails(emp)}>
-            Edit date joined &amp; emergency contact
+            Add date joined &amp; emergency contact
+          </button>
+        )}
+        {onLeave && (
+          <button type="button" className="sm-actions-btn emp-card-edit" onClick={() => onLeave(emp)}>
+            {onLeaveNow ? 'Leave · end early or view' : 'Record leave'}
           </button>
         )}
         {onViewAttendance && (
@@ -207,13 +237,17 @@ function EmployeeCard({ emp, onAssignShop, onViewAttendance, onEditDetails }) {
 export default function EmployeeDirectory({ employees, onAssignShop, onViewAttendance, onEmployeeChanged }) {
   const [search, setSearch] = useState('')
   const [editing, setEditing] = useState(null)
+  const [leaveFor, setLeaveFor] = useState(null)
+  const [, setLeaveVersion] = useState(0)
   const [saved, setSaved] = useState('')
   const [page, setPage] = useState(1)
 
+  const [category, setCategory] = useState('')
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase()
-    if (!term) return employees
-    return employees.filter(
+    const inCategory = category ? employees.filter((e) => categoryForPosition(e.position) === category) : employees
+    if (!term) return inCategory
+    return inCategory.filter(
       (e) =>
         e.fullName.toLowerCase().includes(term) ||
         e.staffId.toLowerCase().includes(term) ||
@@ -222,7 +256,7 @@ export default function EmployeeDirectory({ employees, onAssignShop, onViewAtten
         (e.email ?? '').toLowerCase().includes(term) ||
         (e.emergencyContactName ?? '').toLowerCase().includes(term),
     )
-  }, [employees, search])
+  }, [employees, search, category])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const safePage = Math.min(page, totalPages)
@@ -257,6 +291,16 @@ export default function EmployeeDirectory({ employees, onAssignShop, onViewAtten
           aria-label="Search employees"
         />
       </div>
+      <div className="sm-tabs emp-category-filter" role="tablist" aria-label="Employee category">
+        {['', 'warehouse', 'sales-rep', 'merchandiser', 'supervisor', 'office'].map((c) => {
+          const n = c ? employees.filter((e) => categoryForPosition(e.position) === c).length : employees.length
+          return (
+            <button key={c || 'all'} type="button" role="tab" aria-selected={category === c} className={`sm-tab${category === c ? ' is-active' : ''}`} onClick={() => { setCategory(c); setPage(1) }}>
+              {c ? CATEGORIES[c].label : 'All'} <span className="sm-tab-count">{n}</span>
+            </button>
+          )
+        })}
+      </div>
 
       {saved && <p className="emp-saved" role="status">{saved}</p>}
       {editing && (
@@ -264,6 +308,14 @@ export default function EmployeeDirectory({ employees, onAssignShop, onViewAtten
           employee={editing}
           onClose={() => setEditing(null)}
           onSaved={(emp) => { setEditing(null); setSaved(`Saved ${emp.fullName}'s details.`); onEmployeeChanged(emp) }}
+        />
+      )}
+
+      {leaveFor && (
+        <LeaveModal
+          employee={leaveFor}
+          onClose={() => setLeaveFor(null)}
+          onChanged={() => { setLeaveVersion((v) => v + 1); onEmployeeChanged(leaveFor) }}
         />
       )}
 
@@ -277,7 +329,7 @@ export default function EmployeeDirectory({ employees, onAssignShop, onViewAtten
             <h3 className="emp-group-title">{position}</h3>
             <div className="emp-grid">
               {members.map((emp) => (
-                <EmployeeCard key={emp.staffId} emp={emp} onAssignShop={onAssignShop} onViewAttendance={onViewAttendance} onEditDetails={onEmployeeChanged ? setEditing : null} />
+                <EmployeeCard key={emp.staffId} emp={emp} onAssignShop={onAssignShop} onViewAttendance={onViewAttendance} onEditDetails={onEmployeeChanged ? setEditing : null} onLeave={onEmployeeChanged ? setLeaveFor : null} />
               ))}
             </div>
           </section>

@@ -46,6 +46,7 @@ export const LANDING_PAGES = {
 export const NOTIFICATION_GROUPS = {
   'late-arrivals': { label: 'Late arrivals', types: ['late-clock-in'] },
   'missing-attendance': { label: 'Missing attendance (no clock-in)', types: ['no-clock-in'] },
+  'break-scans': { label: 'Missing break scans (Warehouse)', types: ['break-scan-missing'] },
   'incomplete-records': { label: 'Incomplete records / missing clock-out', types: ['missing-clock-out', 'incomplete-record'] },
   'sms-delivery-failed': { label: 'Failed SMS delivery', types: ['sms-delivery-failed'] },
   'missed-verification': { label: 'Missed verification', types: ['sms-missed'] },
@@ -71,6 +72,9 @@ const DEFAULT_HOURS = {
   overtimeStart: '17:01',
   breakStart: '12:30',
   breakMinutes: 0,
+  // Warehouse Workers scan out for break and back in; this is how many
+  // break sessions they may take in a day.
+  warehouseBreakSessions: 1,
 }
 
 export const DEFAULT_OVERTIME_RATE = 60 // GH₵ per hour
@@ -408,6 +412,8 @@ export function validateWorkingHours(v, effectiveFrom) {
   const br = Number(v.breakMinutes)
   if (!Number.isInteger(br) || br < 0 || br > 120) e.breakMinutes = 'Break must be 0–120 minutes.'
   if (br > 0 && !TIME.test(v.breakStart ?? '')) e.breakStart = 'Enter when the break starts.'
+  const sessions = Number(v.warehouseBreakSessions ?? 1)
+  if (!Number.isInteger(sessions) || sessions < 1 || sessions > 3) e.warehouseBreakSessions = 'Allow 1 to 3 break sessions.'
   if (!/^\d{4}-\d{2}-\d{2}$/.test(effectiveFrom ?? '')) e.effectiveFrom = 'Choose the date the change takes effect.'
   else if (effectiveFrom < todayKey()) e.effectiveFrom = 'Changes cannot be backdated; choose today or a later date.'
   return e
@@ -420,12 +426,12 @@ export function saveWorkingHours(companyId, values, effectiveFrom, user) {
   const s = getSettings()
   const versions = s.workingHoursVersions[companyId]
   const prev = versionFor(versions, effectiveFrom).values
-  const next = { workingDays: values.workingDays.slice().sort(), startTime: values.startTime, lateAfter: values.lateAfter, endTime: values.endTime, overtimeStart: values.overtimeStart, breakStart: values.breakStart, breakMinutes: Number(values.breakMinutes) }
+  const next = { workingDays: values.workingDays.slice().sort(), startTime: values.startTime, lateAfter: values.lateAfter, endTime: values.endTime, overtimeStart: values.overtimeStart, breakStart: values.breakStart, breakMinutes: Number(values.breakMinutes), warehouseBreakSessions: Number(values.warehouseBreakSessions ?? 1) }
   const d = diff(prev, next)
   if (!d.changed.length) return deny('Nothing has changed.')
   upsertVersion(versions, effectiveFrom, next, user)
   save(s)
-  audit(user, 'Working hours changed', [companyId], `${s.companies[companyId].displayName} default hours`, `Effective from ${effectiveFrom}. Applies only to employees without an assigned shift; shift assignments are unchanged.`, d)
+  audit(user, 'Working hours changed', [companyId], `${s.companies[companyId].displayName} default hours`, `Effective from ${effectiveFrom}. Applies to all employees of this company.`, d)
   return { settings: s }
 }
 
@@ -506,7 +512,7 @@ export function saveMonitoring(values, user) {
   if (!d.changed.length) return deny('Nothing has changed.')
   s.monitoring = next
   save(s)
-  audit(user, 'Monitoring settings changed', [], 'Sales Rep Monitoring settings', `Changed: ${d.changed.join(', ')}. No real SMS provider or scheduler is configured by this change.`, d)
+  audit(user, 'Monitoring settings changed', [], 'Merchandiser Monitoring settings', `Changed: ${d.changed.join(', ')}. No real SMS provider or scheduler is configured by this change.`, d)
   return { settings: s }
 }
 

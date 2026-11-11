@@ -10,7 +10,7 @@
  *     seeded field representatives (salesMonitoringService).
  *   - Shops: the active shop assignments.
  *   - Digital attendance: face check-in / check-out events (attendanceService).
- *   - Sales rep attendance + the three SMS verification events per working day:
+ *   - Merchandiser attendance + the three SMS verification events per working day:
  *     salesMonitoringService (only events that have already happened).
  *   - Historical attendance (before DIGITAL_GO_LIVE_DATE): ONLY approved
  *     historical import entries (historicalImportStore). Nothing simulated;
@@ -44,6 +44,9 @@ import {
 } from './salesMonitoringService'
 import { mockGetActiveAssignment, requiresShop } from './shopAssignmentService'
 import { mockGetShop } from './shopsService'
+import { CATEGORIES, categoryForPosition } from '../constants/employeeCategories'
+
+const CATEGORY_LABELS = Object.fromEntries(Object.values(CATEGORIES).map((c) => [c.id, c.single]))
 import {
   formatWorkingDays,
   shiftWindowMinutes,
@@ -122,6 +125,7 @@ export function listAttendanceRoster(companyId = null) {
         phone: e.phone || null,
         paymentMethod: e.paymentMethod ?? '',
         isFieldRole,
+        category: categoryForPosition(e.position),
         // Only a shop that exists in the Shop Directory counts; an old branch
         // record means the employee still needs an allocated shop.
         shopId: isFieldRole
@@ -148,6 +152,7 @@ export function listAttendanceRoster(companyId = null) {
         phone: r.phoneNumber,
         paymentMethod: '',
         isFieldRole: true,
+        category: categoryForPosition(r.position),
         shopId: r.assignedShopId,
         photo: r.profileImage,
         employmentStart: null,
@@ -230,6 +235,8 @@ function emptyCapture() {
     missingEntry: false,
     smsEvents: [],
     scanEvents: [],
+    breaks: [],
+    visits: [],
     face: { status: 'none', label: 'No verification recorded' },
     gps: { status: 'none', label: 'No verification recorded' },
     distanceFromShop: null,
@@ -246,6 +253,8 @@ function buildEventIndex() {
     if (e.type === 'check-in' && !entry.checkIn) entry.checkIn = e
     if (e.type === 'check-out' && !entry.checkOut) entry.checkOut = e
     if (e.type === 'absent' && !entry.absent) entry.absent = e
+    if (e.type === 'break-start' || e.type === 'break-end') (entry.breakEvents ??= []).push(e)
+    if (e.type === 'visit') (entry.visits ??= []).push(e)
     index.set(key, entry)
   })
   return index
@@ -269,6 +278,18 @@ function captureDigital(emp, dateKey, eventIndex) {
     if (entry.checkOut) {
       c.scanEvents.push({ at: entry.checkOut.time, label: 'Clock-out face scan', outcome: 'Face matched' })
     }
+    // Warehouse breaks: each "going on break" scan opens a break; the next
+    // "back from break" scan closes it. A missing return stays open (null).
+    ;(entry.breakEvents ?? []).slice().sort((a, b) => a.time.localeCompare(b.time)).forEach((e) => {
+      if (e.type === 'break-start') c.breaks.push({ start: e.time, end: null })
+      else {
+        const open = c.breaks.find((b) => !b.end)
+        if (open) open.end = e.time
+      }
+      c.scanEvents.push({ at: e.time, label: e.type === 'break-start' ? 'Break departure scan' : 'Break return scan', outcome: 'Face matched' })
+    })
+    c.visits = (entry.visits ?? []).slice().sort((a, b) => a.time.localeCompare(b.time))
+    c.visits.forEach((v) => c.scanEvents.push({ at: v.time, label: 'Outlet visit scan', outcome: 'Face matched' }))
   }
   if (entry.absent) {
     c.source = c.source ?? 'digital'
@@ -458,6 +479,7 @@ function buildRecord(emp, dateKey, ctx) {
     clockOut = correction.clockOut
     clockInUnknown = false
     clockOutUnknown = false
+    if (Array.isArray(correction.breaks)) captured.breaks = correction.breaks.map((b) => ({ ...b }))
     source = 'hr-correction'
   }
 
@@ -538,13 +560,27 @@ function buildRecord(emp, dateKey, ctx) {
     gps = { ...NOT_AVAILABLE, label: 'No verification — entered manually by HR' }
   }
 
+  // Breaks by category:
+  //   Warehouse Workers       the breaks they actually scanned (or HR entered);
+  //   Sales Reps, Supervisors no break at all;
+  //   everyone else           the company's default break, if the work spans it.
+  const category = emp.category ?? categoryForPosition(emp.position)
+  const breaks = category === 'warehouse' ? captured.breaks : []
+  const breakMinutes = Math.round(breaks.filter((b) => b.start && b.end).reduce((sum, b) => sum + (Date.parse(b.end) - Date.parse(b.start)) / 60000, 0))
+  const openBreak = breaks.find((b) => b.start && !b.end) ?? null
+  const onBreak = Boolean(openBreak) && isToday && !clockOut && !clockOutClosed
+  const breakIssue = openBreak && !onBreak ? 'A break return was not scanned' : null
+  if (breakIssue) notes.push('A break return was not scanned. Working hours need HR review; no time is filled in automatically.')
+
   let workingMinutes = null
   if (clockIn && clockOut) {
     const inMs = Date.parse(clockIn)
     const outMs = Date.parse(clockOut)
     const gross = (outMs - inMs) / 60000
     if (gross > 0) {
-      workingMinutes = Math.round(gross - breakOverlapMinutes(schedule, dateKey, inMs, outMs))
+      if (category === 'warehouse') workingMinutes = breakIssue ? null : Math.round(gross - breakMinutes)
+      else if (category === 'sales-rep' || category === 'supervisor') workingMinutes = Math.round(gross)
+      else workingMinutes = Math.round(gross - breakOverlapMinutes(schedule, dateKey, inMs, outMs))
     }
   }
 
@@ -560,6 +596,12 @@ function buildRecord(emp, dateKey, ctx) {
     photo: emp.photo,
     employmentStart: emp.employmentStart,
     joinedOn: emp.joinedOn ?? null,
+    category,
+    breaks,
+    breakMinutes,
+    breakIssue,
+    onBreak,
+    visits: captured.visits ?? [],
     isFieldRole: emp.isFieldRole,
     shopId: emp.shopId,
     shop,
@@ -686,6 +728,26 @@ export function summariseAttendance(records) {
  * Public API — HR corrections
  * ------------------------------------------------------------------------ */
 
+/** Break times in a correction (HH:MM pairs) → ISO, with any problem. */
+function correctionBreaks(input, clockIn, clockOut) {
+  if (!Array.isArray(input.breaks)) return { breaks: undefined, error: null }
+  const out = []
+  for (const [i, b] of input.breaks.entries()) {
+    const n = input.breaks.length > 1 ? ` ${i + 1}` : ''
+    if (!TIME_PATTERN.test(b.startTime ?? '')) return { error: `Enter the break${n} departure time.` }
+    if (b.endTime && !TIME_PATTERN.test(b.endTime)) return { error: `Enter a valid break${n} return time, or leave it empty.` }
+    const start = accraIso(input.date, timeToMinutes(b.startTime))
+    const end = b.endTime ? accraIso(input.date, timeToMinutes(b.endTime)) : null
+    if (start < clockIn) return { error: `Break${n} cannot start before clock-in.` }
+    if (end && end <= start) return { error: `Break${n} return must be after its departure.` }
+    if (clockOut && (end ?? start) > clockOut) return { error: `Break${n} must end before clock-out.` }
+    if (out.length && start < (out[out.length - 1].end ?? out[out.length - 1].start)) return { error: 'Breaks must not overlap and must be in time order.' }
+    out.push({ start, end })
+  }
+  if (out.length > 3) return { error: 'Record at most 3 breaks.' }
+  return { breaks: out, error: null }
+}
+
 function correctionTimes(input, record) {
   const inMin = timeToMinutes(input.clockInTime)
   const clockIn = accraIso(input.date, inMin)
@@ -739,6 +801,10 @@ export function validateCorrection(input, record) {
   if (!errors.clockInTime && !errors.clockOutTime && !errors.date && input.date) {
     const { clockIn, clockOut, outError } = correctionTimes(input, record)
     if (outError) errors.clockOutTime = outError
+    const br = correctionBreaks(input, clockIn, clockOut)
+    if (br.error) errors.breaks = br.error
+    const toMinute = (list) => JSON.stringify(list.map((x) => [x.start?.slice(0, 16), x.end?.slice(0, 16) ?? null]))
+    const breaksChanged = br.breaks !== undefined && toMinute(br.breaks) !== toMinute(record?.breaks ?? [])
     const nowMs = Date.now()
     if (Date.parse(clockIn) > nowMs) errors.clockInTime = 'Clock-in cannot be in the future.'
     if (clockOut && Date.parse(clockOut) > nowMs) {
@@ -748,7 +814,8 @@ export function validateCorrection(input, record) {
       record &&
       !outError &&
       clockIn === record.clockIn &&
-      (clockOut ?? null) === (record.clockOut ?? null)
+      (clockOut ?? null) === (record.clockOut ?? null) &&
+      !breaksChanged
     ) {
       errors.form = 'These times match the current record, so there is nothing to change.'
     }
@@ -782,6 +849,7 @@ export function mockSaveAttendanceCorrection(input, user = getSessionUser()) {
   if (Object.keys(errors).length > 0) return { errors }
 
   const { clockIn, clockOut } = correctionTimes(input, record)
+  const { breaks } = correctionBreaks(input, clockIn, clockOut)
   const all = readCorrections()
   const key = recordKey(input.employeeId, input.date)
   const existing = all[key] ?? null
@@ -803,8 +871,9 @@ export function mockSaveAttendanceCorrection(input, user = getSessionUser()) {
       clockOutUnknown: record.clockOutUnknown,
       source: record.source,
       status: record.status,
+      ...(breaks !== undefined ? { breaks: record.breaks } : {}),
     },
-    next: { clockIn, clockOut },
+    next: { clockIn, clockOut, ...(breaks !== undefined ? { breaks } : {}) },
   }
 
   all[key] = {
@@ -814,6 +883,7 @@ export function mockSaveAttendanceCorrection(input, user = getSessionUser()) {
     entryMethod: existing?.entryMethod ?? 'correction',
     clockIn,
     clockOut,
+    ...(breaks !== undefined ? { breaks } : existing?.breaks ? { breaks: existing.breaks } : {}),
     history: [...(existing?.history ?? []), entry],
   }
   writeCorrections(all)
@@ -1013,12 +1083,16 @@ export function attendanceRecordsToCsv(records) {
     'Employee ID',
     'Company',
     'Job Position',
+    'Category',
     'Assigned Shop',
     'Working Hours Schedule',
     'Expected Start',
     'Expected End',
     'Clock-In',
     'Clock-Out',
+    'Break Departure(s)',
+    'Break Return(s)',
+    'Break (minutes)',
     'Working Hours',
     'Attendance Status',
     'Late (minutes)',
@@ -1038,13 +1112,17 @@ export function attendanceRecordsToCsv(records) {
       r.employeeId,
       r.companyName,
       r.position,
+      CATEGORY_LABELS[r.category] ?? '',
       r.shop?.shopName ?? (r.isFieldRole ? 'Not assigned' : 'Not applicable'),
       r.schedule.name,
       formatAccraTime(r.expectedStart),
       formatAccraTime(r.expectedEnd),
       clockText(r.clockIn, r.clockInUnknown),
       clockText(r.clockOut, r.clockOutUnknown),
-      hoursText(r.workingMinutes),
+      r.breaks.map((b) => formatAccraTime(b.start)).join(' / '),
+      r.breaks.map((b) => (b.end ? formatAccraTime(b.end) : 'Not scanned')).join(' / '),
+      r.category === 'warehouse' ? r.breakMinutes : '',
+      r.breakIssue ? 'Needs review' : hoursText(r.workingMinutes),
       ATTENDANCE_STATUS[r.status]?.label ?? r.status,
       r.isLate ? r.lateMinutes : r.lateUnknown ? 'Unknown' : '',
       VERIFICATION_STATUS[r.verification]?.label ?? r.verification,

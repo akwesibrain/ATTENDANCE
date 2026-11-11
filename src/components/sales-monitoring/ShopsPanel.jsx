@@ -59,7 +59,7 @@ function AssignModal({ shop, reps, onClose, onAssigned }) {
         <div className="sm-modal-body">
           <div>
             <label className="sm-detail-label" htmlFor="assign-rep" style={{ display: 'block', marginBottom: 6 }}>
-              Sales representative
+              Merchandiser
             </label>
             <select
               id="assign-rep"

@@ -188,6 +188,18 @@ function detectFromRecord(r, push) {
     })
   }
 
+  // Warehouse break scans: a break that was started but never ended.
+  if (r.breakIssue) {
+    const open = r.breaks.find((b) => !b.end)
+    push({
+      ...base,
+      sourceKey: `break-missing:${r.employeeId}:${r.date}`,
+      type: 'break-scan-missing',
+      description: `${r.fullName} scanned out for a break at ${formatAccraTime(open.start)} on ${day} but did not scan back in. Working hours and overtime for this day are on hold until HR confirms the break return time (Attendance → Correct). No time is filled in automatically.`,
+      occurredAt: open.start,
+    })
+  }
+
   if (r.status === 'incomplete' && attendanceRulesFor(r.date).incompleteHandling === 'flag-and-notify') {
     push({
       ...base,
@@ -320,7 +332,7 @@ function detectFromRoster(emp, push) {
   const since = emp.employmentStart ? `${emp.employmentStart}T08:00:00.000Z` : new Date().toISOString()
 
   if (emp.isFieldRole && !emp.shopId) {
-    const isRep = emp.position.trim().toLowerCase() === 'sales representative'
+    const isRep = emp.position.trim().toLowerCase() === 'merchandiser'
     push({
       ...who,
       sourceKey: `no-shop:${emp.employeeId}`,
@@ -468,6 +480,7 @@ const DATED_TYPES_CLEARABLE = new Set([
   'missing-clock-out',
   'incomplete-record',
   'historical-verification',
+  'break-scan-missing',
 ])
 // Types whose source is re-checked in full on every sync (not date-windowed).
 const ROSTER_TYPES = new Set([
@@ -534,23 +547,23 @@ function makeNotification(issue, now) {
   }
 }
 
-/** Pull review decisions made in Sales Rep Monitoring's Alerts tab. */
+/** Pull review decisions made in Merchandiser Monitoring's Alerts tab. */
 function pullSalesReview(n) {
   if (!n.salesExceptionId) return
   const review = mockGetAlertReview(n.salesExceptionId)
   if (!review || !review.reviewedAt) return
   if (n.salesSyncedAt && review.reviewedAt <= n.salesSyncedAt) return
   n.salesSyncedAt = review.reviewedAt
-  const by = 'HR (Sales Rep Monitoring)'
+  const by = 'HR (Merchandiser Monitoring)'
   if (review.status === 'resolved' && OPEN_STATUSES.includes(n.status)) {
     n.status = 'resolved'
     n.resolution = {
-      actionTaken: 'Resolved in Sales Rep Monitoring',
+      actionTaken: 'Resolved in Merchandiser Monitoring',
       notes: review.resolutionNote || 'No note recorded.',
       by,
       at: review.reviewedAt,
     }
-    n.history.push(historyEntry('Resolved', by, review.resolutionNote || 'Resolved from the Sales Rep Monitoring alerts list.'))
+    n.history.push(historyEntry('Resolved', by, review.resolutionNote || 'Resolved from the Merchandiser Monitoring alerts list.'))
   } else if (review.status === 'under-review' && n.status !== 'under-review') {
     n.status = 'under-review'
     n.history.push(historyEntry('Status changed to Under Review', by, review.resolutionNote || ''))
@@ -688,7 +701,7 @@ function mutate(id, user, fn) {
   return { notification: n }
 }
 
-/** Keep Sales Rep Monitoring's alert review in step with this one. */
+/** Keep Merchandiser Monitoring's alert review in step with this one. */
 function pushSalesReview(n, status, note) {
   if (!n.salesExceptionId) return
   const saved = mockUpdateAlert(n.salesExceptionId, { status, resolutionNote: note }, { audit: false })

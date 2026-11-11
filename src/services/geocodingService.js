@@ -3,7 +3,7 @@
  * LOCATION LOOKUP (geocoding) — finds a shop's coordinates from its name and
  * location text, for HR to confirm on a map.
  * ============================================================================
- * Provider is chosen in Settings → Sales Rep Monitoring → Location services:
+ * Provider is chosen in Settings → Merchandiser Monitoring → Location services:
  *   - 'none' (default): not configured. Nothing is looked up and no
  *     coordinates are produced. HR can still place the pin or type them.
  *   - 'nominatim': OpenStreetMap's public Nominatim service (no API key).
@@ -75,5 +75,30 @@ export async function searchPlaces(input, { fetchImpl = globalThis.fetch } = {})
     return { status: results.length ? 'ok' : 'no-results', results, query }
   } catch {
     return { status: 'error', results: [], query, message: 'The location service could not be reached. Check the connection, or set the location on the map.' }
+  }
+}
+
+/**
+ * Search any place in Ghana by name (e.g. "Makola Market", "Kaneshie Market",
+ * "Accra Mall") to move the Live Tracker map there. Uses the configured
+ * provider; never fabricates results.
+ */
+export async function searchMapPlace(text, { fetchImpl = globalThis.fetch } = {}) {
+  const status = locationServiceStatus()
+  if (!status.configured) return { status: 'not-configured', results: [], message: 'Street map and place search are switched off.' }
+  const q = String(text ?? '').trim()
+  if (q.length < 3) return { status: 'invalid', results: [], message: 'Type at least 3 letters.' }
+  const url = `${LOCATION_PROVIDERS.nominatim.searchUrl}?format=jsonv2&limit=6&countrycodes=gh&q=${encodeURIComponent(q)}`
+  try {
+    if (typeof fetchImpl !== 'function') throw new Error('No network access')
+    const res = await fetchImpl(url, { headers: { Accept: 'application/json', 'Accept-Language': 'en' } })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const data = await res.json()
+    const results = (Array.isArray(data) ? data : [])
+      .map((d) => ({ id: String(d.place_id ?? `${d.lat},${d.lon}`), label: d.display_name ?? 'Unnamed place', latitude: Number(d.lat), longitude: Number(d.lon), kind: [d.category, d.type].filter(Boolean).join(' · ') }))
+      .filter((r) => Number.isFinite(r.latitude) && Number.isFinite(r.longitude))
+    return { status: results.length ? 'ok' : 'no-results', results, query: q }
+  } catch {
+    return { status: 'error', results: [], query: q, message: 'The map service could not be reached. Check the internet connection.' }
   }
 }
