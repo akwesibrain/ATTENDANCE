@@ -4,7 +4,7 @@ import { listAttendanceRecords } from '../services/attendanceRecordsService'
 import { VISIT_RESULT, outletLabel } from '../services/fieldVisitsService'
 import { visitProofForRecord } from '../services/trackingReportService'
 import { MIN_STAY_MINUTES, OFF_LIST, SHOP_PROOF, getVisitList, mockSaveVisitList } from '../services/visitListService'
-import { mockListShops } from '../services/shopsService'
+import { listShops } from '../services/shopsService'
 import { can } from '../services/permissionsService'
 import { accraTodayKey, formatAccraDate, formatAccraTime } from '../utils/accraTime'
 import { StatusBadge } from '../components/attendance/AttendanceBadges'
@@ -239,7 +239,7 @@ export default function FieldVisitsMonitoring({ company, category, user, onOpenA
 
 /** HR chooses the shops a Sales Rep / Supervisor visits every working day. */
 function VisitListEditor({ record, company, user, onClose, onSaved }) {
-  const shops = mockListShops(company.id)
+  const shops = listShops(company.id)
   const [selected, setSelected] = useState(() => new Set(getVisitList(record.employeeId)))
   const [error, setError] = useState('')
   const toggle = (id) => setSelected((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n })

@@ -387,7 +387,7 @@ verification events 6 years; face images per the Privacy Policy.
 | `locationTrackingService.daySummary()`, `summariseTrail()` | server job + `GET /tracking/reports/daily` |
 | `liveTrackerService.getLiveTracker()` | `GET /tracking/live` |
 | `trackingReportService.trackingDailyReport()`, `trackingReportToCsv()` | `GET /tracking/reports/daily` and `/export` |
-| `salesMonitoringService.mockGetMonitoringOverview / mockGetRepresentativeDetail / mockGetAlerts / mockUpdateAlert / mockGetLiveFieldBoard` | `GET /monitoring/reps`, `GET /monitoring/reps/:id?date`, `GET /monitoring/alerts`, `PATCH /monitoring/alerts/:id` — **extended to Sales Reps and Supervisors** |
+| `salesMonitoringService.getMonitoringOverview / getRepresentativeDetail / getAlerts / updateAlert / getLiveFieldBoard` (already on Supabase for Merchandisers) | `GET /monitoring/reps`, `GET /monitoring/reps/:id?date`, `GET /monitoring/alerts`, `PATCH /monitoring/alerts/:id` — **extended to Sales Reps and Supervisors** |
 | `fieldVisitsService.verifyVisitLocation()` | geofence check on the server when a visit is recorded |
 | `visitListService.getVisitList() / mockSaveVisitList()` | `GET / PUT /employees/:staffId/visit-list` |
 | `visitListService.shopStays() / visitProof()`, `locationTrackingService.dayShopStays()`, `trackingReportService.visitProofForRecord()` | server-side proof per employee-day, returned by `GET /monitoring/visits` and in the daily report's `shops` block |

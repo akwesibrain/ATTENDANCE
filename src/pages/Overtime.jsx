@@ -4,7 +4,7 @@ import { overtimeReport, overtimeToCsv, formatCedis, formatOvertime, OVERTIME_KI
 import { listAttendanceRoster } from '../services/attendanceRecordsService'
 import { defaultHoursFor } from '../services/settingsService'
 import { scopeCompanyIds } from '../services/permissionsService'
-import { recordAuditEvent } from '../services/auditStore'
+import { recordExport } from '../services/auditStore'
 import { listPayPeriods } from '../utils/payPeriod'
 import { accraTodayKey, formatAccraDate, formatAccraTime } from '../utils/accraTime'
 import { sourceLabel } from '../constants/attendanceLabels'
@@ -87,7 +87,7 @@ function EmployeeDrawer({ row, canCorrect, onCorrect, onClose }) {
 /**
  * Overtime — minutes after the company overtime start, accumulated over the
  * 26th–25th attendance period, with GH₵ earnings at the configured rate.
- * Mock calculation from the shared attendance records; not production payroll.
+ * Calculated from the attendance records.
  */
 export default function Overtime({ company, user, onChanged }) {
   const periods = useMemo(() => listPayPeriods(12), [])
@@ -118,7 +118,7 @@ export default function Overtime({ company, user, onChanged }) {
   const exportCsv = (detail) => {
     const scope = companyId || (combined ? 'all-companies' : ids[0])
     download(`overtime-${detail ? 'daily-' : ''}${scope}-period-${period.key}.csv`, overtimeToCsv(report, { detail }))
-    recordAuditEvent({ action: 'Overtime report exported', category: 'Attendance', source: 'Overtime', actor: { name: user.name, role: user.role }, companyIds: ids, affected: `${period.label} period`, description: `${detail ? 'Daily' : 'Employee'} overtime CSV (${report.employees.length} employees).` })
+    recordExport({ action: 'Overtime report exported', category: 'Attendance', source: 'Overtime', companyIds: ids, affected: `${period.label} period`, description: `${detail ? 'Daily' : 'Employee'} overtime CSV (${report.employees.length} employees).` })
   }
 
   return (
@@ -137,7 +137,7 @@ export default function Overtime({ company, user, onChanged }) {
       </div>
 
       <p className="hu-warning" role="note">
-        Mock calculation from demo attendance records — not production payroll. Saturdays, Sundays and holidays are overtime:
+        Saturdays, Sundays and holidays are overtime:
         all time worked on those days counts. On weekdays, only time after the overtime start counts. Overtime pay = (overtime minutes ÷ 60)
         × the hourly rate. VAT is a separate tax setting and is not deducted from overtime.
       </p>

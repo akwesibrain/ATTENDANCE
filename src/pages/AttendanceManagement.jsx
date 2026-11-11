@@ -6,10 +6,10 @@ import {
   attendanceRecordsToCsv,
   listAttendanceRecords,
   listAttendanceRoster,
-  mockGetAttendanceRecord,
+  getAttendanceRecord,
   summariseAttendance,
 } from '../services/attendanceRecordsService'
-import { mockListAllShops } from '../services/shopsService'
+import { listAllShops } from '../services/shopsService'
 import { elapsedPeriodDateKeys, periodForDateKey } from '../utils/attendanceRules'
 import { accraTodayKey, formatAccraDate } from '../utils/accraTime'
 import AttendanceDetailModal from '../components/attendance/AttendanceDetailModal'
@@ -66,8 +66,7 @@ function Stat({ label, value, tone, sub }) {
 
 /**
  * Attendance Management — daily and period attendance for HR, built on the
- * shared mock data (employees, shops, verification, leave).
- * Frontend and mock data only.
+ * employees, shops, verification results and leave.
  */
 export default function AttendanceManagement({ company, user, onChanged, focus = null }) {
   const today = accraTodayKey()
@@ -123,7 +122,7 @@ export default function AttendanceManagement({ company, user, onChanged, focus =
   )
 
   const shops = useMemo(
-    () => mockListAllShops().filter((s) => (companyId ? s.companyId === companyId : allowedIds.includes(s.companyId))),
+    () => listAllShops().filter((s) => (companyId ? s.companyId === companyId : allowedIds.includes(s.companyId))),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [companyId, allowedKey],
   )
@@ -188,7 +187,7 @@ export default function AttendanceManagement({ company, user, onChanged, focus =
   const pageRecords = tableRecords.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
 
   const detailRecord = useMemo(
-    () => (detailKey ? mockGetAttendanceRecord(detailKey.employeeId, detailKey.date) : null),
+    () => (detailKey ? getAttendanceRecord(detailKey.employeeId, detailKey.date) : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [detailKey, refreshKey],
   )
@@ -561,10 +560,6 @@ export default function AttendanceManagement({ company, user, onChanged, focus =
       </section>
 
       </>}
-
-      <p className="mock-banner" style={{ textAlign: 'center', margin: 0 }}>
-        Demo data — face, GPS and SMS verification results are simulated, not genuine evidence. Manual Entry records are never verified.
-      </p>
 
       {detailRecord && (
         <AttendanceDetailModal

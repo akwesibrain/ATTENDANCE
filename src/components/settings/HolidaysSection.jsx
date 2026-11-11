@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { can } from '../../services/permissionsService'
-import { listHolidays, mockAddHoliday, mockRemoveHoliday } from '../../services/holidayService'
+import { listHolidays, addHoliday, removeHoliday } from '../../services/holidayService'
 import { accraTodayKey, formatAccraDate } from '../../utils/accraTime'
 import { ConfirmChange, Field, SectionCard } from './SettingsKit'
 
@@ -21,9 +21,9 @@ export default function HolidaysSection({ user }) {
   const readOnly = !can(user, 'settings', 'edit')
   const holidays = listHolidays(year)
 
-  const add = (e) => {
+  const add = async (e) => {
     e.preventDefault()
-    const r = mockAddHoliday(form, user)
+    const r = await addHoliday(form)
     if (r.errors) { setErrors(r.errors); setFlash(''); return }
     setErrors({})
     setForm({ date: '', name: '' })
@@ -31,8 +31,8 @@ export default function HolidaysSection({ user }) {
     setFlash(`${r.holiday.name} (${formatAccraDate(r.holiday.date)}) is now a holiday. Attendance and overtime have been recalculated.`)
     setVersion((v) => v + 1)
   }
-  const remove = () => {
-    const r = mockRemoveHoliday(removing.id, user)
+  const remove = async () => {
+    const r = await removeHoliday(removing.id)
     setRemoving(null)
     if (r.error) { setErrors({ form: r.error }); return }
     setFlash(`${r.removed.name} was removed. ${formatAccraDate(r.removed.date)} is a normal working day again.`)

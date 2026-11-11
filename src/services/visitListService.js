@@ -14,12 +14,15 @@
  *
  * Visits to shops that are not on the list are recorded and flagged; outlets
  * typed in by the employee have no saved location and can never be proven.
+ *
+ * FRONTEND-ONLY for now: lists are kept in this browser (and change history
+ * is kept here, not in the server audit log) until the backend provides
+ * GET/PUT /employees/:staffId/visit-list.
  * ============================================================================
  */
 
-import { readJson, writeJson } from './mockStore'
-import { recordAuditEvent } from './auditStore'
-import { GEOFENCE_RADIUS_M, mockGetShop } from './shopsService'
+import { readJson, writeJson } from '../utils/localStore'
+import { GEOFENCE_RADIUS_M, getShop } from './shopsService'
 
 const LISTS_KEY = 'mock-visit-lists:v1'
 const HISTORY_KEY = 'mock-visit-lists:history'
@@ -32,12 +35,12 @@ const STAY_GAP_MINUTES = 5
 /** The shop IDs on an employee's daily visit list (only shops that still exist). */
 export function getVisitList(employeeId) {
   const list = readJson(LISTS_KEY, {})[String(employeeId).toUpperCase()]?.shopIds ?? []
-  return list.filter((id) => mockGetShop(id))
+  return list.filter((id) => getShop(id))
 }
 
 /** Shops on the list, with their details. */
 export function getVisitListShops(employeeId) {
-  return getVisitList(employeeId).map((id) => mockGetShop(id))
+  return getVisitList(employeeId).map((id) => getShop(id))
 }
 
 /** Change history for an employee's list, newest first. */
@@ -52,7 +55,7 @@ export function getVisitListHistory(employeeId) {
 export function mockSaveVisitList({ employeeId, fullName, companyId, shopIds }, user) {
   const id = String(employeeId).toUpperCase()
   const unique = [...new Set(shopIds)]
-  const bad = unique.find((sid) => mockGetShop(sid)?.companyId !== companyId)
+  const bad = unique.find((sid) => getShop(sid)?.companyId !== companyId)
   if (bad) return { error: 'Choose shops that belong to this employee’s company.' }
   const all = readJson(LISTS_KEY, {})
   const previous = all[id]?.shopIds ?? []
@@ -62,18 +65,7 @@ export function mockSaveVisitList({ employeeId, fullName, companyId, shopIds }, 
   const history = readJson(HISTORY_KEY, [])
   history.push({ employeeId: id, at, by: user?.name ?? 'Unknown', previous, next: unique })
   writeJson(HISTORY_KEY, history)
-  const names = (ids) => ids.map((sid) => mockGetShop(sid)?.shopName ?? sid).join(', ') || 'none'
-  recordAuditEvent({
-    action: 'Daily shop list changed',
-    category: 'Shops',
-    source: 'Field Monitoring',
-    actor: { name: user?.name, role: user?.role },
-    companyIds: [companyId],
-    affected: `${fullName ?? id} (${id})`,
-    description: `${unique.length} shop${unique.length === 1 ? '' : 's'} to visit every working day.`,
-    previous: names(previous),
-    next: names(unique),
-  })
+  void fullName
   return { shopIds: unique }
 }
 
@@ -154,7 +146,7 @@ const RANK = { inside: 3, outside: 2, unverified: 1, 'location-unavailable': 0 }
  */
 export function visitProof({ listIds, visits, stays, dayOver }) {
   const listed = listIds.map((shopId) => {
-    const shop = mockGetShop(shopId)
+    const shop = getShop(shopId)
     const scans = visits.filter((v) => v.outlet?.shopId === shopId)
     // The best scan at this shop: inside beats outside beats no location.
     const scan = scans.slice().sort((a, b) => (RANK[b.verification?.status] ?? 0) - (RANK[a.verification?.status] ?? 0))[0] ?? null

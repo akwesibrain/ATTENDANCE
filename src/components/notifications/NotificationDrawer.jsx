@@ -7,15 +7,15 @@ import { sourceLabel } from '../../constants/attendanceLabels'
 import { canManageNotifications, hrUsersForCompany } from '../../constants/hrUser'
 import {
   isOpen,
-  mockAddComment,
-  mockAssign,
-  mockDismiss,
-  mockReopen,
-  mockResolve,
-  mockSetRead,
-  mockStartReview,
+  addNotificationComment,
+  assignNotification,
+  dismissNotification,
+  reopenNotification,
+  resolveNotification,
+  setNotificationRead,
+  startNotificationReview,
 } from '../../services/notificationsService'
-import { mockGetAttendanceRecord, listAttendanceRoster } from '../../services/attendanceRecordsService'
+import { getAttendanceRecord, listAttendanceRoster } from '../../services/attendanceRecordsService'
 import { RESULT_LABELS } from '../sales-monitoring/labels'
 import { StatusBadge, VerificationBadge } from '../attendance/AttendanceBadges'
 import { clockText } from '../attendance/format'
@@ -123,7 +123,7 @@ function ConfirmDialog({ kind, notification, onCancel, onConfirm, error }) {
 }
 
 /**
- * Notification detail drawer. Shows only evidence that exists in the mock
+ * Notification detail drawer. Shows only evidence that exists in the
  * data: the live attendance record, the related SMS event's recorded fields
  * and the assigned shop. Employee GPS coordinates are never shown or invented.
  */
@@ -145,7 +145,7 @@ export default function NotificationDrawer({ notification, user, onClose, onChan
   }, [onClose, confirm])
 
   const record = useMemo(
-    () => (n.relatedDate ? mockGetAttendanceRecord(n.employeeId, n.relatedDate) : null),
+    () => (n.relatedDate ? getAttendanceRecord(n.employeeId, n.relatedDate) : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [n.id, n.history.length],
   )
@@ -163,7 +163,8 @@ export default function NotificationDrawer({ notification, user, onClose, onChan
     ? { nav: 'attendance', label: 'Go to Attendance' }
     : NAV_FOR_CATEGORY[n.category]
 
-  const run = (result) => {
+  const run = async (pending) => {
+    const result = await pending
     if (result.error) {
       setError(result.error)
       return false
@@ -173,11 +174,11 @@ export default function NotificationDrawer({ notification, user, onClose, onChan
     return true
   }
 
-  const handleConfirm = ({ actionTaken, text }) => {
+  const handleConfirm = async ({ actionTaken, text }) => {
     let result
-    if (confirm === 'resolve') result = mockResolve(n.id, { actionTaken, notes: text }, user)
-    else if (confirm === 'dismiss') result = mockDismiss(n.id, { reason: text }, user)
-    else result = mockReopen(n.id, text, user)
+    if (confirm === 'resolve') result = await resolveNotification(n.id, { actionTaken, notes: text })
+    else if (confirm === 'dismiss') result = await dismissNotification(n.id, { reason: text })
+    else result = await reopenNotification(n.id, text)
     if (result.error) {
       setConfirmError(result.error)
       return
@@ -247,11 +248,11 @@ export default function NotificationDrawer({ notification, user, onClose, onChan
           {canAct && (
             <section className="nt-actions-panel" aria-label="HR actions">
               <div className="nt-action-row">
-                <button type="button" className="sm-actions-btn" onClick={() => run(mockSetRead(n.id, !n.read, user))}>
+                <button type="button" className="sm-actions-btn" onClick={() => run(setNotificationRead(n.id, !n.read))}>
                   Mark as {n.read ? 'unread' : 'read'}
                 </button>
                 {open && n.status === 'new' && (
-                  <button type="button" className="sm-actions-btn" onClick={() => run(mockStartReview(n.id, user))}>
+                  <button type="button" className="sm-actions-btn" onClick={() => run(startNotificationReview(n.id))}>
                     Start review
                   </button>
                 )}
@@ -291,7 +292,7 @@ export default function NotificationDrawer({ notification, user, onClose, onChan
                   className="sm-actions-btn"
                   disabled={!assignee}
                   onClick={() => {
-                    if (run(mockAssign(n.id, assignee, user))) setAssignee('')
+                    run(assignNotification(n.id, assignee)).then((ok) => { if (ok) setAssignee('') })
                   }}
                 >
                   Assign
@@ -364,12 +365,12 @@ export default function NotificationDrawer({ notification, user, onClose, onChan
                   {smsEvent.distanceFromShop != null ? `${smsEvent.distanceFromShop} m (geofence ${shop?.geofenceRadius ?? 150} m)` : 'Not recorded'}
                 </Detail>
                 <Detail label="GPS accuracy">{smsEvent.gpsAccuracy != null ? `±${smsEvent.gpsAccuracy} m` : 'Not recorded'}</Detail>
-                <Detail label="Employee coordinates">Not stored in this demo</Detail>
+                <Detail label="Employee coordinates">Not stored; only the distance is kept</Detail>
               </div>
             ) : record && record.face.status !== 'none' ? (
               <div className="sm-detail-grid">
                 <Detail label="Face verification">{record.face.label}</Detail>
-                <Detail label="GPS verification">{record.gps.label}</Detail>
+                <Detail label="Location check">{record.gps.label}</Detail>
               </div>
             ) : (
               <p className="sm-empty at-flush" style={{ padding: 14 }}>
@@ -377,7 +378,7 @@ export default function NotificationDrawer({ notification, user, onClose, onChan
               </p>
             )}
             <p className="at-section-note">
-              Verification results are simulated demo data, not genuine biometric or GPS evidence.
+              The face check compares photos and the location comes from the device. Treat both as supporting evidence.
             </p>
           </section>
 
@@ -399,7 +400,7 @@ export default function NotificationDrawer({ notification, user, onClose, onChan
                     className="sm-actions-btn"
                     disabled={comment.trim().length < 3}
                     onClick={() => {
-                      if (run(mockAddComment(n.id, comment, user))) setComment('')
+                      run(addNotificationComment(n.id, comment)).then((ok) => { if (ok) setComment('') })
                     }}
                   >
                     Add comment

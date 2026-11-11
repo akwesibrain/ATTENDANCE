@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * HR ASSISTANT (demo) — rule-based answers from the shared mock data
+ * HR ASSISTANT — rule-based answers from the same data every module reads
  * ============================================================================
  * Not an AI model. Questions are matched against a fixed set of topics and
  * answered by calculating from the same services every module uses, so the
@@ -23,8 +23,8 @@ import { COMPANIES } from '../constants/companies'
 import { ATTENDANCE_STATUS } from '../constants/attendanceLabels'
 import { LEVEL_LABELS, MODULES, authorisedCompanies, can } from './permissionsService'
 import { listAttendanceRecords, listAttendanceRoster, summariseAttendance } from './attendanceRecordsService'
-import { mockListNotifications } from './notificationsService'
-import { mockListAllShops } from './shopsService'
+import { listNotifications } from './notificationsService'
+import { listAllShops } from './shopsService'
 import { companyDisplayName, defaultHoursFor } from './settingsService'
 import { elapsedPeriodDateKeys, periodForDateKey } from '../utils/attendanceRules'
 import { accraTodayKey, addDaysToKey, formatAccraDate, formatAccraTime } from '../utils/accraTime'
@@ -100,7 +100,7 @@ function attendanceToday(kind, ids) {
   const recs = todayRecords(ids)
   if (!recs.length) return reply(`There are no employees tracked for ${scopeLabel(ids)} today.`)
   const pick = {
-    absent: { filter: (r) => r.status === 'absent', none: 'Nobody is absent so far today.', title: 'absent', detail: (r) => r.explicitAbsentReason ?? `no clock-in; working day ended ${formatAccraTime(r.expectedEnd)}` },
+    absent: { filter: (r) => r.status === 'absent', none: 'Nobody is absent so far today.', title: 'absent', detail: (r) => `no clock-in; working day ended ${formatAccraTime(r.expectedEnd)}` },
     late: { filter: (r) => r.isLate, none: 'Nobody has clocked in late today.', title: 'late', detail: (r) => `clocked in ${formatAccraTime(r.clockIn)} (${r.lateMinutes} min after start)` },
     atWork: { filter: (r) => r.atWork, none: 'Nobody is currently clocked in.', title: 'currently at work', detail: (r) => `since ${formatAccraTime(r.clockIn)}` },
     leave: { filter: (r) => r.status === 'on-leave', none: 'Nobody is on approved leave today.', title: 'on approved leave', detail: (r) => r.leave?.leaveType ?? 'leave recorded' },
@@ -169,7 +169,7 @@ function employeeLookup(emp, user) {
 }
 
 function openExceptions(q, user, ids) {
-  const open = mockListNotifications(user).filter((n) => ids.includes(n.companyId) && ['new', 'under-review'].includes(n.status))
+  const open = listNotifications(user).filter((n) => ids.includes(n.companyId) && ['new', 'under-review'].includes(n.status))
   if (!open.length) return reply(`There are no open notifications or exceptions for ${scopeLabel(ids)}.`, { links: [{ label: 'Open Notifications', nav: 'notifications' }] })
   const rank = { critical: 0, high: 1, medium: 2, low: 3 }
   const wantCritical = has(q, 'critical', 'urgent', 'serious', 'high')
@@ -198,7 +198,7 @@ function verifications(ids) {
 
 function shops(ids) {
   const roster = listAttendanceRoster(null).filter((e) => ids.includes(e.companyId))
-  const list = mockListAllShops().filter((s) => ids.includes(s.companyId))
+  const list = listAllShops().filter((s) => ids.includes(s.companyId))
   const needing = roster.filter((e) => e.isFieldRole && !e.shopId)
   const items = list.map((s) => ({ primary: s.shopName, secondary: `${s.latitude == null ? 'location not set' : 'location set'} · ${roster.filter((e) => e.shopId === s.shopId).length} assigned · ${s.geofenceRadius} m geofence` }))
   return reply(`${list.length} shops for ${scopeLabel(ids)}. ${needing.length ? `${needing.length} field ${needing.length === 1 ? 'employee needs' : 'employees need'} a shop assignment: ${needing.map((e) => e.fullName).join(', ')}.` : 'Every field employee has a shop.'}`, { items, links: [{ label: 'Open Merchandiser Monitoring', nav: 'sales-monitoring' }] })

@@ -1,10 +1,6 @@
 /**
- * Image compression in the browser (no libraries).
- *
- * Photos are saved as data URLs (browser storage in this prototype, uploads
- * later), so they are resized and re-encoded before saving: a full-resolution
- * camera frame is typically 150–400 KB; at 480 px / JPEG 80% it is ~25–45 KB.
- * Face matching only looks at a 32×32 sample, so it is unaffected.
+ * Image compression in the browser (no libraries), for uploaded images such as
+ * company logos. Camera frames use utils/captureFrame.js instead.
  */
 
 /** Size that fits inside maxSide × maxSide, never upscaling. */
@@ -22,11 +18,6 @@ function encode(source, srcW, srcH, { maxSide, type, quality }) {
   ctx.imageSmoothingQuality = 'high'
   ctx.drawImage(source, 0, 0, width, height)
   return canvas.toDataURL(type, quality)
-}
-
-/** A compressed JPEG of the current camera frame. */
-export function captureVideoFrame(video, { maxSide = 480, quality = 0.8 } = {}) {
-  return encode(video, video.videoWidth, video.videoHeight, { maxSide, type: 'image/jpeg', quality })
 }
 
 /**

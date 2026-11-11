@@ -2,7 +2,7 @@ import { memo, useMemo, useState } from 'react'
 import { TRACKER_GROUPS } from '../../services/liveTrackerService'
 import { TRACKING_RESULT, minutesText, percentText, trackingDailyReport, trackingReportToCsv } from '../../services/trackingReportService'
 import { can } from '../../services/permissionsService'
-import { recordAuditEvent } from '../../services/auditStore'
+import { recordExport } from '../../services/auditStore'
 import { accraTodayKey, formatAccraDate, formatAccraTime } from '../../utils/accraTime'
 
 // Status badge classes from sales-monitoring.css (word + shape, colour reinforces).
@@ -48,11 +48,10 @@ const TrackingDailyReport = memo(function TrackingDailyReport({ company, user, r
 
   const exportCsv = () => {
     download(`live-tracker-daily-${company.id}-${dateKey}.csv`, trackingReportToCsv({ ...report, rows }))
-    recordAuditEvent({
+    recordExport({
       action: 'Live Tracker daily report exported',
       category: 'Attendance',
       source: 'Live Tracker',
-      actor: { name: user?.name, role: user?.role },
       companyIds: [company.id],
       affected: `${formatAccraDate(dateKey)}`,
       description: `Daily tracking CSV (${rows.length} employees).`,

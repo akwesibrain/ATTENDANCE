@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { captureVideoFrame } from '../../utils/imageCompression'
+import { describeFace, preloadFaceModels } from '../../services/faceRecognition'
+import { captureFrame } from '../../utils/captureFrame'
 
 const CAMERA_TIPS = [
   'Look directly at the camera.',
@@ -11,10 +12,9 @@ const CAMERA_TIPS = [
 /**
  * Screen 4 — Face enrollment.
  *
- * This screen ONLY captures a photo and attaches it to the registration
- * payload for backend submission. No facial recognition, face matching or
- * liveness detection happens in the frontend — biometric verification is
- * implemented by the backend.
+ * Captures a photo and works out its face descriptor on the phone, so a photo
+ * without one clear face is caught here. The server stores the descriptor and
+ * decides every later match. There is no liveness check.
  */
 export default function FaceEnrollment({ faceImage, onCapture }) {
   const videoRef = useRef(null)
@@ -23,6 +23,7 @@ export default function FaceEnrollment({ faceImage, onCapture }) {
     faceImage ? 'captured' : 'requesting',
   )
   const [errorKind, setErrorKind] = useState(null)
+  const [checkError, setCheckError] = useState(null)
   // Which camera to use: 'user' = front (selfie), 'environment' = back.
   const [facingMode, setFacingMode] = useState('user')
 
@@ -79,6 +80,7 @@ export default function FaceEnrollment({ faceImage, onCapture }) {
   // Camera permission is requested only when the employee enters this screen,
   // and the stream is released as soon as they leave it.
   useEffect(() => {
+    preloadFaceModels()
     if (!faceImage) {
       startCamera()
     }
@@ -86,20 +88,27 @@ export default function FaceEnrollment({ faceImage, onCapture }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const handleCapture = () => {
+  const handleCapture = async () => {
     const video = videoRef.current
     if (!video || !video.videoWidth) return
 
-    // Resized and compressed (≈30 KB instead of a full-size camera frame).
-    const imageDataUrl = captureVideoFrame(video)
-
-    stopStream()
-    onCapture(imageDataUrl)
-    setCameraState('captured')
+    const imageDataUrl = captureFrame(video)
+    setCheckError(null)
+    setCameraState('checking')
+    try {
+      const descriptor = await describeFace(imageDataUrl)
+      stopStream()
+      onCapture(imageDataUrl, descriptor)
+      setCameraState('captured')
+    } catch (error) {
+      setCheckError(error.message)
+      setCameraState('active')
+    }
   }
 
   const handleRetake = () => {
     onCapture(null)
+    setCheckError(null)
     startCamera()
   }
 
@@ -161,8 +170,14 @@ export default function FaceEnrollment({ faceImage, onCapture }) {
             ) : (
               <>
                 <video ref={videoRef} playsInline muted autoPlay />
-                {cameraState === 'active' && (
+                {(cameraState === 'active' || cameraState === 'checking') && (
                   <div className="face-guide-oval" aria-hidden="true" />
+                )}
+                {cameraState === 'checking' && (
+                  <div className="camera-placeholder">
+                    <span className="btn-spinner" aria-hidden="true" />
+                    Checking your face…
+                  </div>
                 )}
                 {cameraState === 'requesting' && (
                   <div className="camera-placeholder">
@@ -173,6 +188,10 @@ export default function FaceEnrollment({ faceImage, onCapture }) {
               </>
             )}
           </div>
+
+          {checkError && (
+            <div className="submit-error" role="alert" style={{ marginTop: 16 }}>{checkError}</div>
+          )}
 
           <div className="camera-controls">
             {cameraState === 'active' && (
@@ -268,8 +287,9 @@ export default function FaceEnrollment({ faceImage, onCapture }) {
         </svg>
         <span>
           <strong>Privacy notice:</strong> your face photo is used only for
-          attendance identity verification. It is stored securely and never
-          shared outside your company&apos;s workforce system.
+          attendance identity verification. This phone reads your face, and the
+          photo and face reading are stored privately on our servers, which may
+          be outside Ghana.
         </span>
       </div>
     </section>

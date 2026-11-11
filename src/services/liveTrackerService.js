@@ -16,9 +16,9 @@
  */
 
 import { listAttendanceRecords } from './attendanceRecordsService'
-import { FIELD_STATE, mockGetLiveFieldBoard } from './salesMonitoringService'
+import { FIELD_STATE, getLiveFieldBoard } from './salesMonitoringService'
 import { VISIT_RESULT, outletLabel } from './fieldVisitsService'
-import { mockGetShop } from './shopsService'
+import { getShop } from './shopsService'
 import { accraTodayKey } from '../utils/accraTime'
 import { LIVE_STALE_MINUTES, latestLocation, trackingStatus } from './locationTrackingService'
 
@@ -57,7 +57,7 @@ function visitPerson(r) {
     const v = r.visits[i]
     if (!withGps && v.location && Number.isFinite(v.location.latitude)) withGps = v
     if (!atOutlet && v.outlet?.shopId) {
-      const s = mockGetShop(v.outlet.shopId)
+      const s = getShop(v.outlet.shopId)
       if (s && s.latitude != null) { atOutlet = v; shop = s }
     }
   }
@@ -130,7 +130,7 @@ export function getLiveTracker(companyId, now = new Date()) {
       return tracked.reason === 'not-found' ? person : withLiveTracking(person, person.position, tracked, now)
     })
 
-  const board = mockGetLiveFieldBoard(companyId)
+  const board = getLiveFieldBoard(companyId)
   board.reps.forEach((rep) => {
     const shop = rep.shop
     const tracked = trackingStatus(rep.employeeId)

@@ -1,71 +1,31 @@
-/**
- * ============================================================================
- * MOCK SHOP ASSIGNMENT SERVICE — NOT A PRODUCTION BACKEND
- * ============================================================================
- * Tracks which shop a Merchandiser is
- * assigned to. The ACTIVE assignment is the employee's official workplace; every
- * change is recorded in an assignment history with an effective date — previous
- * assignments are preserved, never deleted.
- *
- * The employee record stores only the active shop ID. Shop details (name,
- * address, coordinates, geofence) are read from the shops service, which is the
- * source of truth.
- *
- * Replace these functions with real API calls once the backend contract is
- * defined. Do NOT invent endpoints here.
- * ============================================================================
- */
+/** Which shop each field employee works from, with the history of changes. */
 
-import { mockGetShop } from './shopsService'
-import { getSessionUser } from './permissionsService'
+import { submit } from './backend/client'
+import { refresh, rows } from './backend/cache'
+import { getShop } from './shopsService'
 
-const ASSIGNMENTS_KEY = 'mock-shop-assignments:active'
-const HISTORY_KEY = 'mock-shop-assignments:history'
+export { FIELD_POSITIONS, requiresShop } from '../../supabase/functions/_shared/rules/registration.js'
 
-function readJson(key, fallback) {
-  try {
-    return JSON.parse(window.localStorage.getItem(key)) ?? fallback
-  } catch {
-    return fallback
+function fromRow(row) {
+  return {
+    shopId: row.shop_id,
+    effectiveDate: row.effective_date,
+    status: row.active ? 'active' : 'ended',
+    assignedAt: row.assigned_at,
+    previousShopId: row.previous_shop_id,
+    assignedBy: row.assigned_by,
+    assignedByRole: row.assigned_by_role,
   }
 }
 
-function writeJson(key, value) {
-  try {
-    window.localStorage.setItem(key, JSON.stringify(value))
-  } catch {
-    // Ignore — mock persistence only.
-  }
+export function getActiveAssignment(employeeId) {
+  const row = rows('shop_assignments').find((r) => r.employee_id === employeeId && r.active)
+  return row ? fromRow(row) : null
 }
 
-/** Positions that require a sales shop assignment. */
-// Only Merchandisers work from one allocated shop. Sales Representatives and
-// Supervisors visit several outlets (see fieldVisitsService).
-export const FIELD_POSITIONS = ['merchandiser']
-
-/** Whether a job position requires an assigned shop. */
-export function requiresShop(position) {
-  const p = (position ?? '').trim().toLowerCase()
-  return FIELD_POSITIONS.includes(p)
-}
-
-/**
- * The active assignment for an employee, or null if none.
- * @returns {{ shopId: string, effectiveDate: string, status: string } | null}
- */
-export function mockGetActiveAssignment(employeeId) {
-  const active = readJson(ASSIGNMENTS_KEY, {})
-  return active[employeeId] ?? null
-}
-
-/**
- * The active assignment joined with the shop record (source of truth).
- * Returns null when there is no assignment.
- */
-export function mockGetAssignmentWithShop(employeeId) {
-  const assignment = mockGetActiveAssignment(employeeId)
-  if (!assignment) return null
-  const shop = mockGetShop(assignment.shopId)
+export function getAssignmentWithShop(employeeId) {
+  const assignment = getActiveAssignment(employeeId)
+  const shop = assignment && getShop(assignment.shopId)
   if (!shop) return null
   return {
     ...assignment,
@@ -78,44 +38,18 @@ export function mockGetAssignmentWithShop(employeeId) {
   }
 }
 
-/** Full assignment history for an employee, newest first. */
-export function mockGetAssignmentHistory(employeeId) {
-  const history = readJson(HISTORY_KEY, {})
-  return (history[employeeId] ?? []).slice().reverse()
+/** Newest first. */
+export function getAssignmentHistory(employeeId) {
+  return rows('shop_assignments')
+    .filter((r) => r.employee_id === employeeId)
+    .map(fromRow)
+    .sort((a, b) => String(b.assignedAt).localeCompare(String(a.assignedAt)))
 }
 
-/**
- * Assign (or reassign) a shop to an employee. Records the change in history
- * with an effective date and preserves the previous assignment.
- * @returns {object|null} the new active assignment, or null on bad input.
- */
-export function mockAssignShop(employeeId, shopId, { effectiveDate } = {}) {
-  const shop = mockGetShop(shopId)
-  if (!shop) return null
-  const active = readJson(ASSIGNMENTS_KEY, {})
-  const previous = active[employeeId] ?? null
-  const now = new Date().toISOString()
-  const assignment = {
-    shopId,
-    effectiveDate: effectiveDate ?? now,
-    status: 'active',
-    assignedAt: now,
-  }
-  active[employeeId] = assignment
-  writeJson(ASSIGNMENTS_KEY, active)
-
-  const history = readJson(HISTORY_KEY, {})
-  const list = history[employeeId] ?? []
-  list.push({
-    shopId,
-    effectiveDate: assignment.effectiveDate,
-    assignedAt: now,
-    previousShopId: previous?.shopId ?? null,
-    // Who made the change (demo session; empty for employee self-registration).
-    assignedBy: getSessionUser()?.name ?? null,
-    assignedByRole: getSessionUser()?.role ?? null,
-  })
-  history[employeeId] = list
-  writeJson(HISTORY_KEY, history)
-  return assignment
+/** @returns {Promise<{ ok: true } | { error: string }>} */
+export async function assignShop(employeeId, shopId) {
+  const result = await submit(`/hr/employees/${encodeURIComponent(employeeId)}/shop`, { method: 'POST', body: { shopId } })
+  if (result.errors) return result
+  await refresh('employees', 'shop_assignments', 'audit_events', 'notifications', 'notification_history')
+  return result
 }

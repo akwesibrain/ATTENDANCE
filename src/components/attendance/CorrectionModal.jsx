@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { CORRECTION_REASONS, sourceLabel } from '../../constants/attendanceLabels'
 import {
-  mockGetAttendanceRecord,
-  mockSaveAttendanceCorrection,
+  getAttendanceRecord,
+  saveAttendanceCorrection,
   previewCorrectionTimes,
   validateCorrection,
 } from '../../services/attendanceRecordsService'
@@ -44,7 +44,7 @@ function breakFields(record) {
 export default function CorrectionModal({ roster, initial, user, onClose, onSaved }) {
   const fixedRecord = Boolean(initial?.employeeId && initial?.date)
   const [form, setForm] = useState(() => {
-    const record = fixedRecord ? mockGetAttendanceRecord(initial.employeeId, initial.date) : null
+    const record = fixedRecord ? getAttendanceRecord(initial.employeeId, initial.date) : null
     return {
       employeeId: initial?.employeeId ?? '',
       date: initial?.date ?? accraTodayKey(),
@@ -68,7 +68,7 @@ export default function CorrectionModal({ roster, initial, user, onClose, onSave
   }, [onClose])
 
   const record = useMemo(
-    () => mockGetAttendanceRecord(form.employeeId, form.date),
+    () => getAttendanceRecord(form.employeeId, form.date),
     [form.employeeId, form.date],
   )
   const validation = validateCorrection(form, record)
@@ -83,7 +83,7 @@ export default function CorrectionModal({ roster, initial, user, onClose, onSave
   const selectEmployeeOrDate = (field, value) => {
     setForm((f) => {
       const next = { ...f, [field]: value }
-      const rec = mockGetAttendanceRecord(next.employeeId, next.date)
+      const rec = getAttendanceRecord(next.employeeId, next.date)
       next.clockInTime = toTimeInput(rec?.clockIn)
       next.clockOutTime = toTimeInput(rec?.clockOut)
       Object.assign(next, breakFields(rec))
@@ -101,8 +101,8 @@ export default function CorrectionModal({ roster, initial, user, onClose, onSave
     setStep('confirm')
   }
 
-  const handleConfirm = () => {
-    const result = mockSaveAttendanceCorrection(form, user)
+  const handleConfirm = async () => {
+    const result = await saveAttendanceCorrection(form)
     if (result.errors) {
       setSaveErrors(result.errors)
       setStep('form')

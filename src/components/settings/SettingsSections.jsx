@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { COMPANIES } from '../../constants/companies'
-import { authorisedCompanies, can } from '../../services/permissionsService'
+import { authorisedCompanies, can, smsConfigured, faceProvider } from '../../services/permissionsService'
 import {
   CHECKS_PER_SHIFT,
   CYCLE_END_DAY,
@@ -34,10 +34,10 @@ import {
   vatRateFor,
 } from '../../services/settingsService'
 import { formatCedis, formatOvertime, overtimePay } from '../../services/overtimeService'
-import { recordAuditEvent } from '../../services/auditStore'
+import { recordExport } from '../../services/auditStore'
 import { attendanceRecordsToCsv, listAttendanceRecords, listAttendanceRoster, recordOrigin } from '../../services/attendanceRecordsService'
-import { mockListAllShops } from '../../services/shopsService'
-import { mockGetAllEvents } from '../../services/attendanceService'
+import { listAllShops } from '../../services/shopsService'
+import { getAllEvents } from '../../services/attendanceService'
 import { elapsedPeriodDateKeys, periodForDateKey } from '../../utils/attendanceRules'
 import { accraTodayKey, formatAccraDate, formatAccraDateTime } from '../../utils/accraTime'
 import { ConfirmChange, Field, Locked, SectionCard, StatusRow, Toggle } from './SettingsKit'
@@ -105,8 +105,8 @@ export function GeneralSection({ user, onChanged }) {
   const [logoError, setLogoError] = useState('')
   const readOnly = !canEditSystemSettings(user)
   const f = s.form
-  const save = () => {
-    const r = saveGeneral(f, user)
+  const save = async () => {
+    const r = await saveGeneral(f)
     if (r.errors) return s.fail(r.errors)
     s.done('General settings saved.', r.settings.general)
     onChanged?.()
@@ -125,7 +125,7 @@ export function GeneralSection({ user, onChanged }) {
         <Field id="g-desc" label="System description" full error={s.errors.description}>
           <textarea id="g-desc" className="sh-form-input" rows={2} value={f.description} disabled={readOnly} onChange={(e) => s.set('description', e.target.value)} />
         </Field>
-        <Field id="g-lang" label="Default language" hint="Only English is available in this prototype." error={s.errors.language}>
+        <Field id="g-lang" label="Default language" hint="Only English is available." error={s.errors.language}>
           <select id="g-lang" className="sh-form-select" value={f.language} disabled={readOnly} onChange={(e) => s.set('language', e.target.value)}>
             <option value="en-GB">English (United Kingdom)</option>
           </select>
@@ -144,7 +144,7 @@ export function GeneralSection({ user, onChanged }) {
           </select>
         </Field>
         <Locked label="Default time zone" value={TIMEZONE} hint="All attendance calculations use Africa/Accra (UTC+0, no daylight saving)." />
-        <Field id="g-logo" label="System logo" hint="Kept in this browser only (mock upload)." error={logoError}>
+        <Field id="g-logo" label="System logo" hint="PNG, JPEG or WebP, under 500 KB." error={logoError}>
           <div className="st-logo-row">
             {f.logo ? <img src={f.logo} alt="System logo preview" className="st-logo" /> : <span className="st-logo st-logo-empty">No logo</span>}
             {!readOnly && <input id="g-logo" type="file" accept="image/*" onChange={(e) => readImage(e.target.files?.[0], 300 * 1024, (url) => { setLogoError(''); s.set('logo', url) }, setLogoError)} />}
@@ -166,8 +166,8 @@ function CompanyForm({ companyId, user, onChanged }) {
   const base = companySettings(companyId)
   const labels = { displayName: 'Display name', code: 'Company code', phone: 'Contact number', email: 'Email', address: 'Address', status: 'Status', logo: 'Logo' }
   const sensitive = f.status !== base.status || f.displayName !== base.displayName || f.code !== base.code
-  const save = () => {
-    const r = saveCompany(companyId, f, user)
+  const save = async () => {
+    const r = await saveCompany(companyId, f)
     if (r.errors) return s.fail(r.errors)
     s.done('Company settings saved. Employee IDs and attendance records are unchanged.', r.settings.companies[companyId])
     onChanged?.()
@@ -200,13 +200,13 @@ function CompanyForm({ companyId, user, onChanged }) {
         <Field id="c-address" label="Company address" full>
           <input id="c-address" className="sh-form-input" value={f.address} disabled={readOnly} onChange={(e) => s.set('address', e.target.value)} />
         </Field>
-        <Field id="c-status" label="Company status" applied={false} hint={canStatus ? 'Recorded only: an inactive company still appears in this demo.' : 'Your account cannot change a company’s status.'} error={s.errors.status}>
+        <Field id="c-status" label="Company status" applied={false} hint={canStatus ? 'Recorded only: an inactive company still appears everywhere.' : 'Your account cannot change a company’s status.'} error={s.errors.status}>
           <select id="c-status" className="sh-form-select" value={f.status} disabled={readOnly || !canStatus} onChange={(e) => s.set('status', e.target.value)}>
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
           </select>
         </Field>
-        <Field id="c-logo" label="Company logo" hint="Mock upload, kept in this browser." error={logoError}>
+        <Field id="c-logo" label="Company logo" hint="PNG, JPEG or WebP, under 500 KB." error={logoError}>
           <div className="st-logo-row">
             {f.logo ? <img src={f.logo} alt="Company logo preview" className="st-logo" /> : (
               <img src={COMPANIES.find((c) => c.id === companyId)?.logo} alt="Current company logo" className="st-logo" />
@@ -250,10 +250,10 @@ export function AttendanceSection({ user }) {
   const period = periodForDateKey(today)
   const opts = { day: 'numeric', month: 'short', year: 'numeric' }
   const versions = attendanceRuleVersions()
-  const labels = { graceMinutes: 'Late grace', clockOutWindowMinutes: 'Clock-out window', missingClockIn: 'Missing clock-in', incompleteHandling: 'Incomplete records', minCorrectionRemarks: 'Minimum remarks', correctionApproval: 'Correction approval', effectiveFrom: 'Effective from' }
-  const save = () => {
+  const labels = { clockOutWindowMinutes: 'Clock-out window', missingClockIn: 'Missing clock-in', incompleteHandling: 'Incomplete records', minCorrectionRemarks: 'Minimum remarks', correctionApproval: 'Correction approval', effectiveFrom: 'Effective from' }
+  const save = async () => {
     const { effectiveFrom, ...values } = f
-    const r = saveAttendanceRules(values, effectiveFrom, user)
+    const r = await saveAttendanceRules(values, effectiveFrom)
     if (r.errors) return s.fail(r.errors)
     s.done(`Attendance rules saved, effective ${formatAccraDate(effectiveFrom)}. Earlier days keep the rules in force at the time.`, { ...attendanceRulesFor(today), effectiveFrom: today })
   }
@@ -267,10 +267,10 @@ export function AttendanceSection({ user }) {
         <Locked label="Future dates" value="Never counted as absences" />
         <Locked label="Manual entry" value="Only dates HR enters — others are never marked absent by it" />
         <Locked label="Late arrival" value="Set per company" hint="Use the late-coming time in Working Hours & Timezone." />
-        <Field id="a-window" label="Missing clock-out: window after the end of the working day (minutes)" hint="After this, a clock-in without clock-out becomes Incomplete." error={s.errors.clockOutWindowMinutes}>
+        <Field id="a-window" label="Clock-out window after the end of the working day (minutes)" hint="Check-out stays open this long after the official clock-out time, so late work is recorded as overtime. It never stays open past midnight. After it closes, a clock-in without clock-out becomes Incomplete." error={s.errors.clockOutWindowMinutes}>
           <input id="a-window" type="number" min={15} max={360} className="sh-form-input" value={f.clockOutWindowMinutes} disabled={readOnly} onChange={(e) => s.set('clockOutWindowMinutes', e.target.value)} />
         </Field>
-        <Field id="a-missing" label="Missing clock-in handling" applied={f.missingClockIn === 'absent-after-shift-end'} hint="Nobody is ever absent before the working day has ended. A review-first workflow is not built in this prototype." error={s.errors.missingClockIn}>
+        <Field id="a-missing" label="Missing clock-in handling" applied={f.missingClockIn === 'absent-after-shift-end'} hint="Nobody is ever absent before the working day has ended. A review-first workflow is not built yet." error={s.errors.missingClockIn}>
           <select id="a-missing" className="sh-form-select" value={f.missingClockIn} disabled={readOnly} onChange={(e) => s.set('missingClockIn', e.target.value)}>
             <option value="absent-after-shift-end">Absent once the working day has ended (raise an exception)</option>
             <option value="review-before-absent">Hold for HR review before marking absent</option>
@@ -285,7 +285,7 @@ export function AttendanceSection({ user }) {
         <Field id="a-remarks" label="Manual correction: minimum remarks length" hint="A reason and remarks are always required; previous values are always kept." error={s.errors.minCorrectionRemarks}>
           <input id="a-remarks" type="number" min={10} max={200} className="sh-form-input" value={f.minCorrectionRemarks} disabled={readOnly} onChange={(e) => s.set('minCorrectionRemarks', e.target.value)} />
         </Field>
-        <Field id="a-approval" label="Attendance correction approval" applied={f.correctionApproval === 'not-required'} hint="A second-person approval workflow for corrections is not built in this prototype." error={s.errors.correctionApproval}>
+        <Field id="a-approval" label="Attendance correction approval" applied={f.correctionApproval === 'not-required'} hint="A second-person approval workflow for corrections is not built yet." error={s.errors.correctionApproval}>
           <select id="a-approval" className="sh-form-select" value={f.correctionApproval} disabled={readOnly} onChange={(e) => s.set('correctionApproval', e.target.value)}>
             <option value="not-required">Not required (audit trail only)</option>
             <option value="manager-approval">HR Manager approval required</option>
@@ -324,14 +324,14 @@ function VersionTable({ versions, render }) {
 function HoursForm({ companyId, user }) {
   const today = accraTodayKey()
   const current = defaultHoursFor(companyId, today)
-  const initial = { workingDays: current.workingDays, startTime: current.startTime, lateAfter: current.lateAfter, endTime: current.endTime, overtimeStart: current.overtimeStart, breakStart: current.breakStart, breakMinutes: current.breakMinutes, warehouseBreakSessions: current.warehouseBreakSessions ?? 1, effectiveFrom: today }
+  const initial = { workingDays: current.workingDays, startTime: current.startTime, lateAfter: current.lateAfter, endTime: current.endTime, overtimeStart: current.overtimeStart, breakStart: current.breakStart, breakMinutes: current.breakMinutes, effectiveFrom: today }
   const s = useSection(initial)
   const readOnly = !canEditCompanySettings(user, companyId)
   const f = s.form
-  const labels = { workingDays: 'Working days', startTime: 'Official clock-in', lateAfter: 'Late after', endTime: 'Official clock-out', overtimeStart: 'Overtime starts', breakStart: 'Break starts', breakMinutes: 'Break (min)', warehouseBreakSessions: 'Warehouse break sessions', effectiveFrom: 'Effective from' }
-  const save = () => {
+  const labels = { workingDays: 'Working days', startTime: 'Official clock-in', lateAfter: 'Late after', endTime: 'Official clock-out', overtimeStart: 'Overtime starts', breakStart: 'Break starts', breakMinutes: 'Break (min)', effectiveFrom: 'Effective from' }
+  const save = async () => {
     const { effectiveFrom, ...values } = f
-    const r = saveWorkingHours(companyId, values, effectiveFrom, user)
+    const r = await saveWorkingHours(companyId, values, effectiveFrom)
     if (r.errors) return s.fail(r.errors)
     s.done(`Default hours saved, effective ${formatAccraDate(effectiveFrom)}.`, initial)
   }
@@ -339,7 +339,7 @@ function HoursForm({ companyId, user }) {
   return (
     <SectionCard title={`Working Hours & Timezone — ${companySettings(companyId)?.displayName}`} description="The working hours every employee follows (no shifts). Default: Monday to Friday, 08:00 to 17:00." readOnly={readOnly} readOnlyReason={readOnly ? 'Editing needs Settings → Edit for this company.' : null} dirty={s.dirty} flash={s.flash} error={s.errors.form} onSave={() => s.setConfirming(true)} onCancel={s.reset}>
       <div className="st-grid">
-        <Locked label="System time zone" value={`${TIMEZONE} (UTC+0)`} hint="Changing the time zone is not supported by this prototype's calculations." />
+        <Locked label="System time zone" value={`${TIMEZONE} (UTC+0)`} hint="Attendance is always calculated in Accra time." />
         <Field id="w-days" label="Company working days" full error={s.errors.workingDays}>
           <div className="sh-days">
             {DAYS.map((d) => (
@@ -362,12 +362,7 @@ function HoursForm({ companyId, user }) {
         <Field id="w-bstart" label="Break starts" error={s.errors.breakStart}>
           <input id="w-bstart" type="time" className="sh-form-input" value={f.breakStart} disabled={readOnly} onChange={(e) => s.set('breakStart', e.target.value)} />
         </Field>
-        <Field id="w-wbs" label="Warehouse break sessions per day" hint="Warehouse Workers scan out for break and back in. Their working hours exclude the breaks they actually take." error={s.errors.warehouseBreakSessions}>
-          <select id="w-wbs" className="sh-form-select" value={f.warehouseBreakSessions} disabled={readOnly} onChange={(e) => s.set('warehouseBreakSessions', Number(e.target.value))}>
-            {[1, 2, 3].map((n) => <option key={n} value={n}>{n} {n === 1 ? 'break' : 'breaks'}</option>)}
-          </select>
-        </Field>
-        <Field id="w-bmin" label="Default break (minutes)" hint="For Merchandisers and office staff, deducted when the work spans the break. Sales Representatives and Supervisors have no scheduled break; Warehouse Workers use their scanned breaks." error={s.errors.breakMinutes}>
+        <Field id="w-bmin" label="Default break (minutes)" hint="Deducted from working hours when the work spans the break." error={s.errors.breakMinutes}>
           <input id="w-bmin" type="number" min={0} max={120} className="sh-form-input" value={f.breakMinutes} disabled={readOnly} onChange={(e) => s.set('breakMinutes', e.target.value)} />
         </Field>
         <Field id="w-eff" label="Effective from" hint="Today or later; earlier days keep the hours in force at the time." error={s.errors.effectiveFrom}>
@@ -391,16 +386,16 @@ function PayForm({ companyId, user }) {
   const name = companySettings(companyId)?.displayName
   const rate = Number(f.overtimeRate) || 0
   const examples = [30, 90, 120]
-  const save = () => {
+  const save = async () => {
     const errors = {}
     let message = []
     if (Number(f.overtimeRate) !== initial.overtimeRate || f.effectiveFrom !== initial.effectiveFrom) {
-      const r = saveOvertimeRate(companyId, f.overtimeRate, f.effectiveFrom, user)
+      const r = await saveOvertimeRate(companyId, f.overtimeRate, f.effectiveFrom)
       if (r.errors) Object.assign(errors, r.errors.form && /Nothing/.test(r.errors.form) ? {} : r.errors)
       else message.push(`Overtime rate ${formatCedis(Number(f.overtimeRate))}/h from ${formatAccraDate(f.effectiveFrom)}`)
     }
     if (Number(f.vatRate) !== initial.vatRate) {
-      const r = saveVatRate(companyId, f.vatRate, user)
+      const r = await saveVatRate(companyId, f.vatRate)
       if (r.errors) Object.assign(errors, r.errors)
       else message.push(`VAT ${Number(f.vatRate)}%`)
     }
@@ -408,7 +403,7 @@ function PayForm({ companyId, user }) {
     s.done(message.length ? `Saved: ${message.join(' · ')}.` : 'Nothing has changed.', { overtimeRate: overtimeRateFor(companyId, today), effectiveFrom: today, vatRate: vatRateFor(companyId) })
   }
   return (
-    <SectionCard title={`Overtime Pay & VAT — ${name}`} description="Hourly overtime rate in Ghana cedis and the company VAT percentage. Mock calculation for HR review; not production payroll." readOnly={readOnly} readOnlyReason={readOnly ? 'Editing needs Settings → Edit for this company.' : null} dirty={s.dirty} flash={s.flash} error={s.errors.form} onSave={() => s.setConfirming(true)} onCancel={s.reset}>
+    <SectionCard title={`Overtime Pay & VAT — ${name}`} description="Hourly overtime rate in Ghana cedis and the company VAT percentage." readOnly={readOnly} readOnlyReason={readOnly ? 'Editing needs Settings → Edit for this company.' : null} dirty={s.dirty} flash={s.flash} error={s.errors.form} onSave={() => s.setConfirming(true)} onCancel={s.reset}>
       <div className="st-grid">
         <Field id="p-rate" label="Overtime rate (GH₵ per hour)" hint="Overtime pay = (overtime minutes ÷ 60) × this rate." error={s.errors.overtimeRate}>
           <input id="p-rate" type="number" min={0} step="0.01" className="sh-form-input" value={f.overtimeRate} disabled={readOnly} onChange={(e) => s.set('overtimeRate', e.target.value)} />
@@ -468,15 +463,15 @@ export function MonitoringSection({ user }) {
   const s = useSection(monitoringSettings())
   const readOnly = !canEditSystemSettings(user)
   const f = s.form
-  const shops = mockListAllShops().filter((x) => authorisedCompanies(user).some((c) => c.id === x.companyId))
+  const shops = listAllShops().filter((x) => authorisedCompanies(user).some((c) => c.id === x.companyId))
   const labels = { locationProvider: 'Location services', defaultGeofenceRadius: 'Default geofence (m)', responseWindowMinutes: 'Response window (min)', faceRequired: 'Face verification', gpsRequired: 'GPS verification', smsEnabled: 'SMS verification', repeatedExceptionThreshold: 'Repeated-exception threshold' }
-  const save = () => {
-    const r = saveMonitoring(f, user)
+  const save = async () => {
+    const r = await saveMonitoring(f)
     if (r.errors) return s.fail(r.errors)
     s.done('Monitoring settings saved. No SMS provider or scheduler was changed.', r.settings.monitoring)
   }
   return (
-    <SectionCard title="Merchandiser Monitoring" description="Rules for the three random SMS verification checks per working day." readOnly={readOnly} readOnlyReason={readOnly ? SYSTEM_RO : null} dirty={s.dirty} flash={s.flash} error={s.errors.form} onSave={() => s.setConfirming(true)} onCancel={s.reset}>
+    <SectionCard title="Sales Representative Monitoring" description="Rules for the three random SMS verification checks per working day." readOnly={readOnly} readOnlyReason={readOnly ? SYSTEM_RO : null} dirty={s.dirty} flash={s.flash} error={s.errors.form} onSave={() => s.setConfirming(true)} onCancel={s.reset}>
       <p className="hu-warning">
         Future SMS check times are generated only by a secure backend scheduler and are never shown here. Saving these
         settings does not change any real SMS provider or scheduler. A missed verification is never treated as absence
@@ -487,7 +482,7 @@ export function MonitoringSection({ user }) {
         <Field id="m-radius" label="Default shop geofence radius (metres)" hint="Applied to newly added shops (e.g. added during registration). Existing shops keep their own radius." error={s.errors.defaultGeofenceRadius}>
           <input id="m-radius" type="number" min={50} max={1000} className="sh-form-input" value={f.defaultGeofenceRadius} disabled={readOnly} onChange={(e) => s.set('defaultGeofenceRadius', e.target.value)} />
         </Field>
-        <Field id="m-window" label="Verification response window (minutes)" applied={false} hint="Used by the backend scheduler in production." error={s.errors.responseWindowMinutes}>
+        <Field id="m-window" label="Verification response window (minutes)" hint="How long each SMS link stays open." error={s.errors.responseWindowMinutes}>
           <input id="m-window" type="number" min={5} max={60} className="sh-form-input" value={f.responseWindowMinutes} disabled={readOnly} onChange={(e) => s.set('responseWindowMinutes', e.target.value)} />
         </Field>
         <Field id="m-repeat" label="Repeated-exception review threshold" hint="Exceptions in one day that flag an employee for HR review (alerts and notifications)." error={s.errors.repeatedExceptionThreshold}>
@@ -496,13 +491,13 @@ export function MonitoringSection({ user }) {
             <option value={3}>3 of 3 checks</option>
           </select>
         </Field>
-        <Field id="m-face" label="Face verification" applied={false}>
+        <Field id="m-face" label="Face verification">
           <Toggle id="m-face" checked={f.faceRequired} disabled={readOnly} onChange={(v) => s.set('faceRequired', v)} label="Required on every check" />
         </Field>
-        <Field id="m-gps" label="GPS verification" applied={false}>
+        <Field id="m-gps" label="GPS verification">
           <Toggle id="m-gps" checked={f.gpsRequired} disabled={readOnly} onChange={(v) => s.set('gpsRequired', v)} label="Required on every check" />
         </Field>
-        <Field id="m-sms" label="SMS verification" applied={false} hint="Recorded preference; the simulated history in this demo is unaffected.">
+        <Field id="m-sms" label="SMS verification" hint={smsConfigured() ? 'Turns the three daily checks on or off from the next schedule.' : 'No SMS provider is connected yet, so no checks are being sent.'}>
           <Toggle id="m-sms" checked={f.smsEnabled} disabled={readOnly} onChange={(v) => s.set('smsEnabled', v)} label="Enabled" />
         </Field>
         <Locked label="Missed verification" value="Exception for HR review — never automatic absence or discipline" />
@@ -528,13 +523,13 @@ export function NotificationSection({ user }) {
   const readOnly = !canEditSystemSettings(user)
   const f = s.form
   const update = (key, patch) => s.set(key, { ...f[key], ...patch })
-  const save = () => {
-    const r = saveNotificationPrefs(f, user)
+  const save = async () => {
+    const r = await saveNotificationPrefs(f)
     if (r.errors) return s.fail({ form: Object.values(r.errors)[0] })
     s.done('Notification preferences saved. They apply to notifications raised from now on.', r.settings.notifications)
   }
   return (
-    <SectionCard title="Notification Settings" description="Which in-app notifications are raised, how severe they are and which roles see them. Demonstration only: no email, SMS or push messages are sent." readOnly={readOnly} readOnlyReason={readOnly ? SYSTEM_RO : null} dirty={s.dirty} flash={s.flash} error={s.errors.form} onSave={save} onCancel={s.reset}>
+    <SectionCard title="Notification Settings" description="Which in-app notifications are raised, how severe they are and which roles see them. These appear in the HR portal only; no email or push messages are sent." readOnly={readOnly} readOnlyReason={readOnly ? SYSTEM_RO : null} dirty={s.dirty} flash={s.flash} error={s.errors.form} onSave={save} onCancel={s.reset}>
       <div className="sm-table-wrap">
         <table className="sm-table st-notif-table">
           <thead><tr><th scope="col">Notification</th><th scope="col">Enabled</th><th scope="col">Severity</th></tr></thead>
@@ -568,32 +563,31 @@ export function SecuritySection({ user }) {
   const readOnly = !canEditSystemSettings(user)
   const f = s.form
   const labels = { sessionTimeoutMinutes: 'Session timeout (min)', loginAttemptLimit: 'Login attempt limit', passwordMinLength: 'Password minimum length', passwordRequireMixed: 'Mixed characters required' }
-  const save = () => {
-    const r = saveSecurity(f, user)
+  const save = async () => {
+    const r = await saveSecurity(f)
     if (r.errors) return s.fail(r.errors)
-    s.done('Security preferences saved (demonstration).', r.settings.security)
+    s.done('Security preferences saved.', r.settings.security)
   }
   return (
     <SectionCard title="Security Settings" description="Access and account policy for the private HR portal." readOnly={readOnly} readOnlyReason={readOnly ? SYSTEM_RO : null} dirty={s.dirty} flash={s.flash} error={s.errors.form} onSave={() => s.setConfirming(true)} onCancel={s.reset}>
-      <p className="hu-warning" role="note">
-        This prototype has no real authentication, MFA, session management or API authorisation, and is not secure.
-        In production all of these must be implemented and enforced by the backend.
-      </p>
       <div className="st-status-list">
-        <StatusRow label="HR portal access" value="Private portal · email/phone + password (demo)" tone="info" detail="Separate from the employee portal." />
+        {faceProvider() === 'rekognition'
+          ? <StatusRow label="Face check" value="AWS Rekognition" tone="ok" detail="Compares each scan with the enrolled face on AWS servers. It does not detect a printed photo." />
+          : <StatusRow label="Face check" value="face-api (open source)" tone="ok" detail="The phone reads the face and the server compares it with the enrolled one. It does not detect a printed photo." />}
+        <StatusRow label="HR portal access" value="Email, password and authenticator app" tone="ok" detail="Separate from the employee portal." />
         <StatusRow label="Public HR registration" value="Disabled" tone="ok" detail="Locked. There is one HR account (HR Manager); no others can be created." />
-        <StatusRow label="MFA policy" value="Not implemented" tone="warn" detail="Required in production." />
-        <StatusRow label="Permission enforcement" value="Frontend checks (demo)" tone="warn" detail="Backend enforcement on every API is required in production." />
-        <StatusRow label="Company data separation" value="Applied in every module (frontend)" tone="info" detail="Must also be enforced by the backend." />
+        <StatusRow label="MFA policy" value="Required" tone="ok" detail="Every HR account signs in with an authenticator app." />
+        <StatusRow label="Permission enforcement" value="Enforced on the server" tone="ok" detail="Every change is checked and audited on the server." />
+        <StatusRow label="Company data separation" value="Enforced by the database" tone="ok" detail="Each HR user can only read their own companies." />
       </div>
       <div className="st-grid">
-        <Field id="s-timeout" label="Session timeout (minutes)" hint="Applied to the demo session: it expires this long after sign-in." error={s.errors.sessionTimeoutMinutes}>
+        <Field id="s-timeout" label="Session timeout (minutes)" hint="You are signed out after this long without activity." error={s.errors.sessionTimeoutMinutes}>
           <input id="s-timeout" type="number" min={5} max={480} className="sh-form-input" value={f.sessionTimeoutMinutes} disabled={readOnly} onChange={(e) => s.set('sessionTimeoutMinutes', e.target.value)} />
         </Field>
-        <Field id="s-attempts" label="Login attempt limit" hint="Wrong passwords in a row before sign-in is locked for 5 minutes." error={s.errors.loginAttemptLimit}>
+        <Field id="s-attempts" label="Login attempt limit" applied={false} hint="Not enforced yet. Supabase limits repeated sign-in attempts." error={s.errors.loginAttemptLimit}>
           <input id="s-attempts" type="number" min={3} max={10} className="sh-form-input" value={f.loginAttemptLimit} disabled={readOnly} onChange={(e) => s.set('loginAttemptLimit', e.target.value)} />
         </Field>
-        <Field id="s-pw" label="Password policy: minimum length" applied={false} hint="Demonstration of the policy production should enforce." error={s.errors.passwordMinLength}>
+        <Field id="s-pw" label="Password policy: minimum length" applied={false} hint="Not enforced yet. Set the real minimum in the Supabase dashboard." error={s.errors.passwordMinLength}>
           <input id="s-pw" type="number" min={12} max={64} className="sh-form-input" value={f.passwordMinLength} disabled={readOnly} onChange={(e) => s.set('passwordMinLength', e.target.value)} />
         </Field>
         <Field id="s-mixed" label="Password policy: character mix" applied={false}>
@@ -619,11 +613,11 @@ export function DataSection({ user, onNavigate }) {
     return {
       roster,
       employees: roster.length,
-      digitalEvents: mockGetAllEvents().filter((e) => ids.has(e.staffId)).length,
+      digitalEvents: getAllEvents().filter((e) => ids.has(e.staffId)).length,
       periodRecords,
       attended: periodRecords.filter((r) => r.hasAttendance).length,
       manual,
-      shops: mockListAllShops().filter((s) => companies.includes(s.companyId)).length,
+      shops: listAllShops().filter((s) => companies.includes(s.companyId)).length,
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [version, companies.join(',')])
@@ -631,7 +625,7 @@ export function DataSection({ user, onNavigate }) {
   const scope = companies.length > 1 ? 'all-companies' : companies[0]
 
   const logExport = (what, count) => {
-    recordAuditEvent({ action: `${what} exported`, category: 'System Settings', source: 'Data Management', actor: { name: user.name, role: user.role }, companyIds: companies.length > 1 ? [] : companies, affected: what, description: `${count} rows exported to CSV (mock data).` })
+    recordExport({ action: `${what} exported`, category: 'System Settings', source: 'Data Management', companyIds: companies.length > 1 ? [] : companies, affected: what, description: `${count} rows exported to CSV.` })
     setFlash(`${what} exported (${count} rows).`)
     setVersion((v) => v + 1)
   }
@@ -649,17 +643,16 @@ export function DataSection({ user, onNavigate }) {
     download(`manual-attendance-${scope}-period-${periodForDateKey(today).key}.csv`, attendanceRecordsToCsv(stats.manual))
     logExport('Manual attendance entries', stats.manual.length)
   }
-  const exportConfig = () => {
-    const r = exportConfiguration(user)
+  const exportConfig = async () => {
+    const r = await exportConfiguration(user)
     if (r.error) { setFlash(r.error); return }
     download(`workforce-pro-configuration-${today}.json`, r.json, 'application/json')
-    setFlash('Configuration exported (demo file, not a backup).')
+    setFlash('Configuration exported. This file is not a database backup.')
     setVersion((v) => v + 1)
   }
 
   return (
-    <SectionCard title="Data Management" description="What mock data this browser holds, with demonstration exports. Nothing here deletes data." flash={flash}>
-      <p className="hu-warning" role="note">Data source: mock data stored in this browser. No server database is connected and no real backups exist.</p>
+    <SectionCard title="Data Management" description="What the system holds, with exports. Nothing here deletes data." flash={flash}>
       <div className="st-stat-grid">
         {[
           ['Employees', stats.employees],
@@ -671,8 +664,8 @@ export function DataSection({ user, onNavigate }) {
         ].map(([l, v]) => <div className="sm-stat" key={l}><span className="sm-stat-label">{l.trim()}</span><span className="sm-stat-value">{v}</span></div>)}
       </div>
       <div className="st-status-list">
-        <StatusRow label="Last configuration export (demo)" value={lastExport ? formatAccraDateTime(lastExport) : 'Never'} tone="muted" detail="A downloaded JSON file, not a database backup." />
-        <StatusRow label="Data source" value="Browser storage (mock)" tone="warn" detail="Clearing site data in the browser removes it." />
+        <StatusRow label="Last configuration export" value={lastExport ? formatAccraDateTime(lastExport) : 'Never'} tone="muted" detail="A downloaded JSON file, not a database backup." />
+        <StatusRow label="Data source" value="Supabase database" tone="ok" detail="The last 13 months are loaded into this page." />
       </div>
       <div className="st-actions">
         <button type="button" className="btn btn-secondary at-btn" onClick={exportEmployees} disabled={!can(user, 'employees', 'export')} title={can(user, 'employees', 'export') ? undefined : 'Needs Employees → Export'}>Export employees (CSV)</button>

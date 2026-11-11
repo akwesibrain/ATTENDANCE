@@ -1,11 +1,4 @@
-/**
- * Permission helpers used across the HR modules. They all delegate to the
- * shared mock permission service (services/permissionsService.js), so every
- * module applies the same role, permission and company-scope rules.
- *
- * Frontend prototype only: production must enforce the same rules on the
- * backend for every protected API and data operation.
- */
+/** Permission helpers used across the HR modules. */
 import {
   authorisedCompanies,
   can,
@@ -35,14 +28,4 @@ export function canViewCompany(user, companyId) {
 /** Active HR users who can be assigned an exception for a company. */
 export function hrUsersForCompany(companyId) {
   return listHrUsers().filter((u) => u.status === 'active' && canAccessCompany(u, companyId) && can(u, 'notifications', 'edit'))
-}
-
-/** Whether a user may create and submit historical import batches. */
-export function canImportHistorical(user = getSessionUser()) {
-  return can(user, 'historical-import', 'create')
-}
-
-/** Whether a user may approve or reject submitted historical import batches. */
-export function canReviewHistorical(user = getSessionUser()) {
-  return can(user, 'import-approval', 'approve')
 }

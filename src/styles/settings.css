@@ -222,3 +222,10 @@
   .hol-item { grid-template-columns: minmax(0, 1fr) auto; }
   .hol-name { grid-column: 1 / -1; grid-row: 2; }
 }
+
+/* Workplace displays */
+.wd-actions { display: inline-flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.wd-setup { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; margin: 16px 20px; padding: 16px; }
+.wd-setup > div { flex: 1 1 260px; min-width: 0; }
+.wd-setup-url { margin: 8px 0; overflow-wrap: anywhere; font-size: 13px; }
+.wd-setup-qr { flex: 0 0 auto; border-radius: 8px; background: #fff; padding: 6px; max-width: 100%; height: auto; }

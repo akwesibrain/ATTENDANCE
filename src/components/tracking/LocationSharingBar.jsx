@@ -2,10 +2,10 @@ import { useEffect, useState } from 'react'
 import {
   TRACKING_EVENT,
   deviceTrackedStaffId,
+  findEmployee,
   startLocationSharing,
   trackingStatus,
 } from '../../services/locationTrackingService'
-import { mockFindEmployeeByStaffId } from '../../services/registrationService'
 import { formatAccraTime } from '../../utils/accraTime'
 import './location-sharing.css'
 
@@ -52,7 +52,7 @@ export default function LocationSharingBar() {
 
   if (!active) return null
   const t = TEXT[state.status] ?? TEXT.starting
-  const name = mockFindEmployeeByStaffId(staffId)?.fullName ?? staffId
+  const name = findEmployee(staffId)?.fullName ?? staffId
   return (
     <div className={`ls-bar ls-${t.tone}`} role="status" aria-live="polite">
       <span className="ls-dot" aria-hidden="true" />

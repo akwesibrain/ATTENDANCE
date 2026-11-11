@@ -1,0 +1,5 @@
+project_id = "aiiglvsvrbtahihttwge"
+
+# The function checks HR sessions itself, because employee check-in has no login.
+[functions.api]
+verify_jwt = false

@@ -5,9 +5,9 @@ import { GHANA_MAP_H, GHANA_MAP_W, ghanaOutlinePath, makeGhanaProjection } from 
 import { formatAccraTime } from '../utils/accraTime'
 import StreetPlane from '../components/tracker/StreetPlane'
 import TrackingDailyReport from '../components/tracker/TrackingDailyReport'
-import { locationServiceStatus, searchMapPlace } from '../services/geocodingService'
+import { locationServiceStatus } from '../services/geocodingService'
+import { searchMapPlace } from '../services/mapSearch'
 import { monitoringSettings, saveMonitoring } from '../services/settingsService'
-import { getSessionUser } from '../services/permissionsService'
 import { pxToLatLng, worldPx } from '../utils/webMercator'
 
 // Field staff's phones send live locations, so refresh often.
@@ -335,9 +335,9 @@ export default function LiveFieldTracker({ company, user }) {
   }
   const flyTo = useCallback((lat, lng, z) => { setAutoSpin(false); setSview((v) => ({ ...v, lat, lng, z })) }, [])
 
-  const enableStreetMap = () => {
-    const r = saveMonitoring({ ...monitoringSettings(), locationProvider: 'nominatim' }, getSessionUser())
-    if (r.errors) { setEnableError(r.errors.form ?? 'Could not switch on the street map.'); return }
+  const enableStreetMap = async () => {
+    const r = await saveMonitoring({ ...monitoringSettings(), locationProvider: 'nominatim' })
+    if (r.errors) { setEnableError(r.errors.form ?? r.errors.locationProvider ?? 'Could not switch on the street map.'); return }
     setEnableError('')
     setSvc(locationServiceStatus())
     setMode('street')

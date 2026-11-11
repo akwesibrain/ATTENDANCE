@@ -1,13 +1,12 @@
 import { useEffect, useState } from 'react'
-import { getSessionUser } from '../../services/permissionsService'
-import { employeeJoinedOn, mockUpdateEmployeeDetails, validateEmployeeDetails } from '../../services/registrationService'
+import { employeeJoinedOn, setEmployeeActive, updateEmployeeDetails, validateEmployeeDetails } from '../../services/registrationService'
 import { accraTodayKey, formatAccraDate } from '../../utils/accraTime'
 import { formatTenure, tenureBetween } from '../../utils/tenure'
 
 /**
- * HR enters the date an employee joined the company and their emergency
- * contact — once. A review step shows what will be saved; after confirming,
- * the details are locked and can no longer be edited.
+ * HR edits the date an employee joined the company and their emergency
+ * contact, and deactivates leavers. Time with the company is calculated from
+ * the joining date.
  */
 export default function EmployeeDetailsModal({ employee, onClose, onSaved }) {
   const today = accraTodayKey()
@@ -18,7 +17,6 @@ export default function EmployeeDetailsModal({ employee, onClose, onSaved }) {
   })
   const [errors, setErrors] = useState({})
   const [touched, setTouched] = useState(false)
-  const [reviewing, setReviewing] = useState(false)
 
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape') onClose() }
@@ -32,19 +30,28 @@ export default function EmployeeDetailsModal({ employee, onClose, onSaved }) {
     if (touched) setErrors(validateEmployeeDetails(next, today))
   }
   const preview = tenureBetween(form.joinedOn, today)
+  const active = employee.status === 'ACTIVE'
+  const [leftOn, setLeftOn] = useState(today)
+  const [statusError, setStatusError] = useState(null)
+  const [statusBusy, setStatusBusy] = useState(false)
 
-  // Step 1: check the form, then show what will be locked.
-  const review = (e) => {
+  const changeStatus = async () => {
+    setStatusBusy(true)
+    setStatusError(null)
+    try {
+      const result = await setEmployeeActive(employee.staffId, !active, active ? leftOn : null)
+      if (result.errors) { setStatusError(result.errors.leftOn ?? result.errors.form ?? 'Could not change the status.'); return }
+      onSaved(result.employee)
+    } finally {
+      setStatusBusy(false)
+    }
+  }
+
+  const save = async (e) => {
     e.preventDefault()
     setTouched(true)
-    const errs = validateEmployeeDetails(form, today)
-    setErrors(errs)
-    if (!Object.keys(errs).length) setReviewing(true)
-  }
-  // Step 2: save and lock.
-  const confirm = () => {
-    const result = mockUpdateEmployeeDetails(employee.staffId, form, getSessionUser())
-    if (result.errors) { setErrors(result.errors); setReviewing(false); return }
+    const result = await updateEmployeeDetails(employee.staffId, form)
+    if (result.errors) { setErrors(result.errors); return }
     onSaved(result.employee)
   }
 
@@ -53,36 +60,15 @@ export default function EmployeeDetailsModal({ employee, onClose, onSaved }) {
       <div className="sm-modal" role="dialog" aria-modal="true" aria-labelledby="ed-title" style={{ maxWidth: 560 }}>
         <div className="sm-modal-head">
           <div>
-            <h3 id="ed-title">{reviewing ? 'Confirm employee details' : 'Employee details'}</h3>
+            <h3 id="ed-title">Employee details</h3>
             <p>{employee.fullName} · {employee.staffId}</p>
           </div>
           <button type="button" className="sm-modal-close" onClick={onClose} aria-label="Close">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
           </button>
         </div>
-        {reviewing ? (
-          <div className="sm-modal-body">
-            <p className="ed-lock-warning" role="note">
-              <strong>Check carefully.</strong> Once confirmed, these details are locked and can no longer be edited.
-            </p>
-            <section className="sm-section">
-              <h4 className="sm-section-title">You are about to save</h4>
-              <div className="sm-detail-grid">
-                <div className="sm-detail"><span className="sm-detail-label">Date joined</span><span className="sm-detail-value">{formatAccraDate(form.joinedOn)}</span></div>
-                <div className="sm-detail"><span className="sm-detail-label">Time with the company</span><span className="sm-detail-value">{formatTenure(preview)}</span></div>
-                <div className="sm-detail"><span className="sm-detail-label">Emergency contact name</span><span className="sm-detail-value">{form.emergencyContactName.trim()}</span></div>
-                <div className="sm-detail"><span className="sm-detail-label">Emergency contact phone</span><span className="sm-detail-value">{form.emergencyContactPhone.trim()}</span></div>
-              </div>
-            </section>
-            <div className="sm-alert-actions">
-              <button type="button" className="btn btn-primary" onClick={confirm}>Confirm and lock</button>
-              <button type="button" className="btn btn-secondary" onClick={() => setReviewing(false)}>Back to edit</button>
-            </div>
-          </div>
-        ) : (
-        <form className="sm-modal-body" onSubmit={review} noValidate>
+        <form className="sm-modal-body" onSubmit={save} noValidate>
           {errors.form && <p className="at-form-alert" role="alert">{errors.form}</p>}
-          <p className="ed-hint">These details can be entered once. You will see a summary to check before they are saved and locked.</p>
           <section className="sm-section">
             <h4 className="sm-section-title">Employment</h4>
             <div className="ed-fields">
@@ -115,12 +101,41 @@ export default function EmployeeDetailsModal({ employee, onClose, onSaved }) {
               </div>
             </div>
           </section>
+          <section className="sm-section">
+            <h4 className="sm-section-title">Employment status</h4>
+            {active ? (
+              <div className="ed-fields">
+                <div className="sh-form-field">
+                  <label className="sh-form-label" htmlFor="ed-left">Last working day</label>
+                  <input id="ed-left" type="date" className="sh-form-input" max={today} value={leftOn} onChange={(e) => setLeftOn(e.target.value)} aria-invalid={Boolean(statusError)} aria-describedby="ed-left-hint" />
+                  {statusError
+                    ? <span className="ed-error" role="alert">{statusError}</span>
+                    : <span id="ed-left-hint" className="ed-hint">For someone who has left. Their Staff ID stops working at the kiosk, and later days no longer count as absences.</span>}
+                </div>
+                <div className="sh-form-field">
+                  <span className="sh-form-label" aria-hidden="true">&nbsp;</span>
+                  <button type="button" className="btn btn-secondary" onClick={changeStatus} disabled={statusBusy}>Deactivate employee</button>
+                </div>
+              </div>
+            ) : (
+              <div className="ed-fields">
+                <div className="sh-form-field">
+                  <span className="sh-form-label">Deactivated</span>
+                  <span className="ed-hint">Last working day {employee.leftOn ? formatAccraDate(employee.leftOn) : 'not recorded'}. Reactivate only to undo a mistake: every day since then counts as an attendance day again.</span>
+                  {statusError && <span className="ed-error" role="alert">{statusError}</span>}
+                </div>
+                <div className="sh-form-field">
+                  <span className="sh-form-label" aria-hidden="true">&nbsp;</span>
+                  <button type="button" className="btn btn-secondary" onClick={changeStatus} disabled={statusBusy}>Reactivate employee</button>
+                </div>
+              </div>
+            )}
+          </section>
           <div className="sm-alert-actions">
-            <button type="submit" className="btn btn-primary">Review details</button>
+            <button type="submit" className="btn btn-primary">Save details</button>
             <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
           </div>
         </form>
-        )}
       </div>
     </div>
   )

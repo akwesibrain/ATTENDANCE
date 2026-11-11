@@ -26,11 +26,11 @@
  * ============================================================================
  */
 
-import { readJson, writeJson } from './mockStore'
-import { getDayState, isMarkedAbsent, mockListAttendanceEvents } from './attendanceService'
-import { mockFindEmployeeByStaffId } from './registrationService'
+import { readJson, writeJson } from '../utils/localStore'
+import { getAllEvents } from './attendanceService'
+import { listEmployees } from './registrationService'
 import { getVisitList, shopStays } from './visitListService'
-import { mockGetShop } from './shopsService'
+import { getShop } from './shopsService'
 import { categoryForPosition } from '../constants/employeeCategories'
 import { accraTodayKey } from '../utils/accraTime'
 
@@ -72,17 +72,34 @@ function readPings() {
 }
 
 /**
+ * A registered employee by Staff ID, from the backend's employee list (only
+ * loaded in the HR portal after sign-in; on a phone this returns null until
+ * the backend sends tracking details with the clock-in response).
+ */
+export function findEmployee(staffId) {
+  const id = String(staffId ?? '').trim().toUpperCase()
+  if (!id) return null
+  return listEmployees().find((e) => String(e.staffId).toUpperCase() === id) ?? null
+}
+
+/** Today's events for a Staff ID from the backend (oldest first). */
+function todayEvents(staffId) {
+  const today = accraTodayKey()
+  return getAllEvents().filter((e) => e.date === today && String(e.staffId).toUpperCase() === staffId.toUpperCase())
+}
+
+/**
  * Whether a Staff ID should be tracked right now.
  * @returns {{ active: boolean, reason: 'tracking'|'not-found'|'not-tracked-role'|'not-clocked-in'|'clocked-out'|'absent' }}
  */
 export function trackingStatus(staffId) {
-  const employee = mockFindEmployeeByStaffId(staffId)
+  const employee = findEmployee(staffId)
   if (!employee) return { active: false, reason: 'not-found' }
   if (!TRACKED_CATEGORIES.has(categoryForPosition(employee.position))) return { active: false, reason: 'not-tracked-role' }
-  if (isMarkedAbsent(employee.staffId)) return { active: false, reason: 'absent' }
-  const day = getDayState(employee.staffId)
-  if (day.checkedOut) return { active: false, reason: 'clocked-out' }
-  if (!day.checkedIn) return { active: false, reason: 'not-clocked-in' }
+  const events = todayEvents(employee.staffId)
+  if (events.some((e) => e.type === 'absent')) return { active: false, reason: 'absent' }
+  if (events.some((e) => e.type === 'check-out')) return { active: false, reason: 'clocked-out' }
+  if (!events.some((e) => e.type === 'check-in')) return { active: false, reason: 'not-clocked-in' }
   return { active: true, reason: 'tracking' }
 }
 
@@ -95,7 +112,7 @@ export function recordLocationPing(staffId, coords, at = new Date()) {
   if (!status.active) return { ok: false, reason: status.reason }
   if (!Number.isFinite(coords?.latitude) || !Number.isFinite(coords?.longitude)) return { ok: false, reason: 'bad-location' }
 
-  const id = mockFindEmployeeByStaffId(staffId).staffId
+  const id = findEmployee(staffId).staffId
   const today = accraTodayKey()
   const all = readPings()
   // Keep only today's trails: older days are summarised, then deleted.
@@ -176,7 +193,7 @@ export function summariseTrail(points, startIso, endIso) {
 }
 
 function dayEvents(staffId, dateKey) {
-  return mockListAttendanceEvents({ date: dateKey }).filter((e) => e.staffId.toUpperCase() === staffId.toUpperCase())
+  return getAllEvents().filter((e) => e.date === dateKey && String(e.staffId).toUpperCase() === staffId.toUpperCase())
 }
 
 function clockTimes(staffId, dateKey) {
@@ -190,7 +207,7 @@ function clockTimes(staffId, dateKey) {
 /** Shops whose stays are worth keeping for a day: the daily list plus any shop visited. */
 function stayShops(staffId, dateKey) {
   const visited = dayEvents(staffId, dateKey).filter((e) => e.type === 'visit' && e.outlet?.shopId).map((e) => e.outlet.shopId)
-  return [...new Set([...getVisitList(staffId), ...visited])].map((id) => mockGetShop(id)).filter(Boolean)
+  return [...new Set([...getVisitList(staffId), ...visited])].map((id) => getShop(id)).filter(Boolean)
 }
 
 /** Summarise and delete every trail that is not from `today` (mutates `all`). */

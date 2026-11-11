@@ -1,0 +1,102 @@
+/* Workplace QR display: one full-screen code, readable from a few steps away. */
+
+.wd-screen {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--ground);
+  color: var(--ink);
+}
+
+.wd-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 28px;
+  background: var(--brand);
+  color: var(--accent-ink);
+  font-weight: 600;
+  font-size: clamp(18px, 2.4vw, 26px);
+}
+
+.wd-clock {
+  font-variant-numeric: tabular-nums;
+}
+
+.wd-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px 16px 32px;
+  text-align: center;
+}
+
+.wd-title {
+  margin: 0;
+  font-size: clamp(26px, 4.2vw, 48px);
+  line-height: 1.15;
+}
+
+.wd-sub {
+  margin: 0 0 8px;
+  font-size: clamp(16px, 2vw, 22px);
+  color: var(--ink-2);
+}
+
+.wd-qr {
+  width: min(70vmin, 520px);
+  aspect-ratio: 1;
+  padding: 16px;
+  background: #ffffff;
+  border-radius: 16px;
+  border: 1px solid var(--rule);
+  box-shadow: 0 12px 32px rgba(14, 31, 61, 0.12);
+}
+
+.wd-qr svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.wd-timer {
+  width: min(70vmin, 520px);
+  height: 8px;
+  border-radius: 999px;
+  background: var(--rule);
+  overflow: hidden;
+}
+
+.wd-timer span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 1s linear;
+}
+
+.wd-note {
+  margin: 0;
+  font-size: clamp(14px, 1.6vw, 18px);
+  color: var(--ink-2);
+}
+
+/* The scanned-site banner on the check-in page. */
+.site-banner {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--accent-soft);
+  color: var(--ink);
+  font-size: 15px;
+}
+
+.site-banner.is-problem {
+  background: var(--crit-soft);
+  color: var(--crit);
+}

@@ -1,9 +1,9 @@
-import { mockHasRegistered } from '../services/registrationService'
 import InstallAppCard from '../components/common/InstallAppCard'
 // The landing page brings its own styles (it used to rely on the registration
 // screen loading them, which stopped once pages were loaded separately).
 import '../styles/registration.css'
 import '../styles/landing.css'
+import { hasRegisteredOnThisDevice } from '../services/registrationService'
 
 /**
  * Entry screen — choose between employee registration and attendance.
@@ -20,7 +20,7 @@ const POLICY_LINKS = [
 ]
 
 export default function Home({ onRegister, onAttendance, onHr, onPolicy }) {
-  const hasRegistered = mockHasRegistered()
+  const hasRegistered = hasRegisteredOnThisDevice()
   return (
     <main className="registration-page landing-page">
       <div className="registration-shell">

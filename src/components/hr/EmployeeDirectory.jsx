@@ -1,18 +1,18 @@
 import { useMemo, useState } from 'react'
 import { getPaymentMethodLabel } from '../../constants/paymentMethods'
 import {
-  mockGetAssignmentWithShop,
+  getAssignmentWithShop,
   requiresShop,
 } from '../../services/shopAssignmentService'
 import { formatClock } from '../../services/shiftsService'
 import { defaultHoursFor } from '../../services/settingsService'
-import { employeeDetailsLocked, employeeJoinedOn } from '../../services/registrationService'
+import { employeeJoinedOn } from '../../services/registrationService'
 import { accraTodayKey, formatAccraDate } from '../../utils/accraTime'
 import { formatTenure, tenureBetween } from '../../utils/tenure'
 import EmployeeDetailsModal from './EmployeeDetailsModal'
 import LeaveModal from './LeaveModal'
 import { CATEGORIES, categoryForPosition } from '../../constants/employeeCategories'
-import { currentOrNextLeave } from '../../services/leaveService'
+import { currentOrNextLeave } from '../../services/leaveView'
 
 const PAGE_SIZE = 8
 
@@ -88,7 +88,7 @@ function CardIcon({ name }) {
 
 function EmployeeCard({ emp, onAssignShop, onViewAttendance, onEditDetails, onLeave }) {
   const isField = requiresShop(emp.position)
-  const assignment = isField ? mockGetAssignmentWithShop(emp.staffId) : null
+  const assignment = isField ? getAssignmentWithShop(emp.staffId) : null
   const needsAssignment = isField && !assignment
   const joinedOn = employeeJoinedOn(emp)
   const tenure = tenureBetween(joinedOn, accraTodayKey())
@@ -205,13 +205,9 @@ function EmployeeCard({ emp, onAssignShop, onViewAttendance, onEditDetails, onLe
             </>
           ) : <span className="emp-card-note">Not provided</span>}
         </div>
-        {employeeDetailsLocked(emp) ? (
-          <p className="emp-card-locked">
-            <CardIcon name="lock" /> Confirmed by {emp.detailsUpdatedBy ?? 'HR'} on {formatAccraDate(emp.detailsUpdatedAt.slice(0, 10))}
-          </p>
-        ) : onEditDetails && (
+        {onEditDetails && (
           <button type="button" className="sm-actions-btn emp-card-edit" onClick={() => onEditDetails(emp)}>
-            Add date joined &amp; emergency contact
+            Edit date joined &amp; emergency contact
           </button>
         )}
         {onLeave && (

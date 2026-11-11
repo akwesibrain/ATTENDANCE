@@ -18,7 +18,7 @@
  * ============================================================================
  */
 
-import { mockGetShop, GEOFENCE_RADIUS_M } from './shopsService'
+import { getShop, GEOFENCE_RADIUS_M } from './shopsService'
 
 export const VISIT_RESULT = {
   inside: { label: 'Inside outlet geofence', short: 'Inside geofence', tone: 'ok' },
@@ -48,7 +48,7 @@ function validLocation(loc) {
  */
 export function verifyVisitLocation(outlet, location) {
   if (!validLocation(location)) return { status: 'location-unavailable', distance: null, radius: null }
-  const shop = outlet?.shopId ? mockGetShop(outlet.shopId) : null
+  const shop = outlet?.shopId ? getShop(outlet.shopId) : null
   if (!shop || shop.latitude == null || shop.longitude == null) return { status: 'unverified', distance: null, radius: null }
   const radius = shop.geofenceRadius ?? GEOFENCE_RADIUS_M
   const distance = distanceMeters(location, shop)
@@ -58,7 +58,7 @@ export function verifyVisitLocation(outlet, location) {
 /** Validate the outlet chosen or typed for a visit. */
 export function validateVisitOutlet(outlet) {
   if (!outlet) return 'Choose the outlet you are visiting.'
-  if (outlet.shopId) return mockGetShop(outlet.shopId) ? '' : 'That outlet is not in the Shop Directory.'
+  if (outlet.shopId) return getShop(outlet.shopId) ? '' : 'That outlet is not in the Shop Directory.'
   const name = String(outlet.name ?? '').trim()
   if (name.length < 2) return 'Enter the outlet name.'
   if (String(outlet.town ?? '').trim().length < 2) return 'Enter the town or area.'
@@ -68,6 +68,6 @@ export function validateVisitOutlet(outlet) {
 /** A visit's outlet as display text. */
 export function outletLabel(outlet) {
   if (!outlet) return '—'
-  if (outlet.shopId) return mockGetShop(outlet.shopId)?.shopName ?? outlet.name ?? outlet.shopId
+  if (outlet.shopId) return getShop(outlet.shopId)?.shopName ?? outlet.name ?? outlet.shopId
   return [outlet.name, outlet.town].filter(Boolean).join(', ')
 }

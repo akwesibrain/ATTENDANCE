@@ -11,6 +11,7 @@ import {
   WorkingHoursSection,
 } from '../components/settings/SettingsSections'
 import HolidaysSection from '../components/settings/HolidaysSection'
+import WorkplaceDisplaysSection from '../components/settings/WorkplaceDisplaysSection'
 import AuditLogs from './AuditLogs'
 import '../styles/sales-monitoring.css'
 import '../styles/shifts.css'
@@ -25,7 +26,8 @@ const SECTIONS = [
   { id: 'attendance', label: 'Attendance Settings', hint: 'Cycle and rules' },
   { id: 'hours', label: 'Working Hours & Timezone', hint: 'Default hours' },
   { id: 'holidays', label: 'Holidays', hint: 'Public and HR-set holidays' },
-  { id: 'monitoring', label: 'Merchandiser Monitoring', hint: 'Verification rules' },
+  { id: 'displays', label: 'Workplace displays', hint: 'QR check-in screens' },
+  { id: 'monitoring', label: 'Sales Rep Monitoring', hint: 'Verification rules' },
   { id: 'notifications', label: 'Notification Settings', hint: 'Alerts and roles' },
   { id: 'security', label: 'Security Settings', hint: 'Access policy' },
   { id: 'data', label: 'Data Management', hint: 'Counts and exports' },
@@ -46,7 +48,7 @@ export default function Settings({ user, company, initialSection = 'general', on
       <div className="sm-head">
         <div>
           <h2>Settings</h2>
-          <p>Configuration for the HR portal. Frontend demonstration: saving changes how this prototype behaves, not any real external service.</p>
+          <p>Configuration for the HR portal.</p>
         </div>
       </div>
       <div className="st-layout">
@@ -72,6 +74,7 @@ export default function Settings({ user, company, initialSection = 'general', on
           {section === 'attendance' && <AttendanceSection {...props} />}
           {section === 'hours' && <WorkingHoursSection {...props} />}
           {section === 'holidays' && <HolidaysSection {...props} />}
+          {section === 'displays' && <WorkplaceDisplaysSection {...props} />}
           {section === 'monitoring' && <MonitoringSection {...props} />}
           {section === 'notifications' && <NotificationSection {...props} />}
           {section === 'security' && <SecuritySection {...props} />}

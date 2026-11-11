@@ -12,6 +12,8 @@ const HrDashboard = lazy(() => import('./pages/HrDashboard'))
 const LocationSharingBar = lazy(() => import('./components/tracking/LocationSharingBar'))
 // Privacy, Tracking, Terms and Cookie policies.
 const LegalPage = lazy(() => import('./pages/LegalPage'))
+const VerifyCheck = lazy(() => import('./pages/VerifyCheck'))
+const WorkplaceDisplay = lazy(() => import('./pages/WorkplaceDisplay'))
 
 const VIEW = {
   home: 'home',
@@ -53,7 +55,23 @@ function viewFromLocation() {
   return PATH_TO_VIEW[window.location.pathname] ?? VIEW.home
 }
 
+const VERIFY_PATH = /^\/verify\/([^/]+)$/
+const DISPLAY_PATH = /^\/display(?:\/setup\/([^/]+))?\/?$/
+
 function App() {
+  const path = window.location.pathname
+  const verifyToken = path.match(VERIFY_PATH)?.[1]
+  if (verifyToken) {
+    return <Suspense fallback={<PageSkeleton label="Loading verification" />}><VerifyCheck token={verifyToken} /></Suspense>
+  }
+  const display = path.match(DISPLAY_PATH)
+  if (display) {
+    return <Suspense fallback={<PageSkeleton label="Loading the display" />}><WorkplaceDisplay setupToken={display[1] ?? null} /></Suspense>
+  }
+  return <Portal />
+}
+
+function Portal() {
   const [view, setView] = useState(viewFromLocation)
 
   // Keep the URL in sync so each page has a shareable link.

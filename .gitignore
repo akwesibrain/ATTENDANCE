@@ -10,7 +10,17 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+# Copied from node_modules by scripts/copy-face-models.mjs
+public/face-models
 *.local
+
+# Secrets and Supabase CLI state
+.env
+.env.*
+!.env.example
+supabase/.temp
+supabase/.branches
+deno.lock
 
 # Design-tooling output (web-designer screenshots/matrix)
 shots/

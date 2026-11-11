@@ -8,9 +8,9 @@
  * the app are listed as "Not using the app" rather than given invented data.
  */
 import { listAttendanceRecords } from './attendanceRecordsService'
-import { TRACKED_CATEGORIES, dayShopStays, daySummary } from './locationTrackingService'
+import { TRACKED_CATEGORIES, dayShopStays, daySummary, findEmployee } from './locationTrackingService'
 import { getVisitList, visitProof } from './visitListService'
-import { mockFindEmployeeByStaffId } from './registrationService'
+import { categoryForPosition } from '../constants/employeeCategories'
 import { formatAccraTime } from '../utils/accraTime'
 
 /** Report statuses, best first. `tone` drives the colour of the badge. */
@@ -53,9 +53,11 @@ export function visitProofForRecord(record, now = new Date()) {
  */
 export function trackingDailyReport(companyId, dateKey, now = new Date()) {
   const records = listAttendanceRecords({ companyId, dates: [dateKey] })
+    // The backend's records carry the position; the category comes from it.
+    .map((r) => ({ ...r, category: r.category ?? categoryForPosition(r.position), visits: r.visits ?? [] }))
     .filter((r) => TRACKED_CATEGORIES.has(r.category))
   const rows = records.map((r) => {
-    const usesApp = Boolean(mockFindEmployeeByStaffId(r.employeeId))
+    const usesApp = Boolean(findEmployee(r.employeeId))
     const s = usesApp && r.clockIn ? daySummary(r.employeeId, dateKey, r.clockIn, r.clockOut, now) : null
     const result = resultFor(r, usesApp, s)
     const proof = r.category === 'merchandiser' ? null : visitProofForRecord(r, now)

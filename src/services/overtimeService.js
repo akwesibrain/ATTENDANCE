@@ -1,15 +1,13 @@
 /**
  * ============================================================================
- * OVERTIME (mock calculation — not production payroll)
+ * OVERTIME
  * ============================================================================
  * Overtime is calculated from the shared attendance records, one record per
  * employee per day, so nothing is counted twice. Corrections are already
  * applied to those records.
  *
  *   Saturday, Sunday and holidays (public or set by HR): the whole time
- *     worked is overtime (clock-in to clock-out), for every employee. For
- *     Warehouse Workers, breaks they scanned are taken off; Sales Reps and
- *     Supervisors have no break.
+ *     worked is overtime (clock-in to clock-out), for every employee.
  *   Monday to Friday: overtime minutes = recorded clock-out − overtime start
  *     (only time AFTER the overtime start counts; never negative)
  *   Overtime start = the company's configured overtime start time
@@ -28,9 +26,18 @@
 import { listAttendanceRecords } from './attendanceRecordsService'
 import { defaultHoursFor, overtimeRateFor, vatRateFor, companyDisplayName } from './settingsService'
 import { scopeCompanyIds } from './permissionsService'
-import { timeToMinutes } from './shiftsService'
 import { elapsedPeriodDateKeys, holidayForKey } from '../utils/attendanceRules'
-import { accraTodayKey, dayOfWeekForKey } from '../utils/accraTime'
+import { accraTodayKey } from '../utils/accraTime'
+import {
+  OVERTIME_KINDS,
+  calculateRecordOvertime,
+  isWeekendKey,
+  overtimeKindFor as overtimeKindForDate,
+  overtimePay,
+  overtimeThreshold as overtimeThresholdFor,
+} from '../../supabase/functions/_shared/rules/overtime.js'
+
+export { OVERTIME_KINDS, isWeekendKey, overtimePay }
 
 /** Money in Ghana cedis, e.g. GH₵1,234.50. */
 export function formatCedis(amount) {
@@ -44,30 +51,14 @@ export function formatOvertime(minutes) {
   return `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`
 }
 
-/** Pay for minutes at an hourly rate, in pesewas-precise cedis. */
-export function overtimePay(minutes, hourlyRate) {
-  return Math.round(((minutes / 60) * hourlyRate) * 100) / 100
-}
-
-/** Saturday or Sunday (Africa/Accra date). */
-export function isWeekendKey(dateKey) {
-  return [0, 6].includes(dayOfWeekForKey(dateKey))
-}
-
-/** 'holiday' / 'weekend' (whole day is overtime) or 'after-hours' (after the overtime start). */
-export const OVERTIME_KINDS = { holiday: 'Holiday', weekend: 'Weekend', 'after-hours': 'After hours' }
-
 /** Which overtime rule applies to a date. */
 export function overtimeKindFor(dateKey) {
-  if (holidayForKey(dateKey)) return 'holiday'
-  return isWeekendKey(dateKey) ? 'weekend' : 'after-hours'
+  return overtimeKindForDate(dateKey, holidayForKey(dateKey))
 }
 
 /** The minute overtime starts for a record (ISO), from company settings. */
 export function overtimeThreshold(record) {
-  const h = defaultHoursFor(record.companyId, record.date)
-  const gap = Math.max(0, timeToMinutes(h.overtimeStart) - timeToMinutes(h.endTime))
-  return new Date(Date.parse(record.expectedEnd) + gap * 60000).toISOString()
+  return overtimeThresholdFor(record, defaultHoursFor(record.companyId, record.date))
 }
 
 /**
@@ -75,31 +66,11 @@ export function overtimeThreshold(record) {
  * @returns {{ status: 'counted'|'none'|'excluded'|'skip', reason?, kind, minutes, rate, pay, threshold }}
  */
 export function overtimeForRecord(record) {
-  const rate = overtimeRateFor(record.companyId, record.date)
-  const kind = overtimeKindFor(record.date)
-  const base = { kind, minutes: 0, rate, pay: 0, threshold: null }
-  if (record.status === 'on-leave') return { ...base, status: 'excluded', reason: 'Approved leave' }
-  if (!record.hasAttendance) return { ...base, status: 'skip' }
-  if (record.status === 'incomplete') return { ...base, status: 'excluded', reason: 'Incomplete record (no clock-out)' }
-  if (record.clockInUnknown || record.clockOutUnknown) return { ...base, status: 'excluded', reason: 'Unknown or unreadable time' }
-  if (!record.clockIn || !record.clockOut) {
-    // Still at work today: nothing to count yet.
-    return { ...base, status: 'skip' }
-  }
-  if (Date.parse(record.clockOut) <= Date.parse(record.clockIn)) return { ...base, status: 'excluded', reason: 'Invalid times (clock-out not after clock-in)' }
-  // Warehouse Workers: breaks they scanned are not working time. A missing
-  // break return means the hours are unknown, so it waits for HR review.
-  if (record.breakIssue) return { ...base, status: 'excluded', reason: 'Break return not scanned (needs HR review)' }
-  // Weekend or holiday: overtime runs from clock-in. Weekday: from the overtime start.
-  const threshold = kind === 'after-hours' ? overtimeThreshold(record) : record.clockIn
-  const breakAfter = (record.breaks ?? []).filter((b) => b.start && b.end).reduce((sum, b) => {
-    const from = Math.max(Date.parse(b.start), Date.parse(threshold))
-    const to = Math.min(Date.parse(b.end), Date.parse(record.clockOut))
-    return sum + Math.max(0, to - from)
-  }, 0) / 60000
-  const minutes = Math.max(0, Math.floor((Date.parse(record.clockOut) - Date.parse(threshold)) / 60000 - breakAfter))
-  if (!minutes) return { ...base, status: 'none', threshold }
-  return { status: 'counted', kind, minutes, rate, pay: overtimePay(minutes, rate), threshold }
+  return calculateRecordOvertime(record, {
+    rate: overtimeRateFor(record.companyId, record.date),
+    holidayName: holidayForKey(record.date),
+    hours: defaultHoursFor(record.companyId, record.date),
+  })
 }
 
 /**

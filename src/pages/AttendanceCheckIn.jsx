@@ -1,46 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import {
-  ACTIONS,
-  getAvailableActions,
-  getRemainingAttempts,
-  isMarkedAbsent,
-  lookupEmployee,
-  recordAttendance,
-} from '../services/attendanceService'
-import { evaluateAction } from '../constants/attendancePolicy'
-import { categoryForPosition, categoryLabel } from '../constants/employeeCategories'
-import { mockListShops } from '../services/shopsService'
-import { VISIT_RESULT, validateVisitOutlet } from '../services/fieldVisitsService'
-import { TRACKED_CATEGORIES, onAttendanceRecorded } from '../services/locationTrackingService'
-import { MIN_STAY_MINUTES, getVisitListShops } from '../services/visitListService'
+import { lookupEmployee, MAX_FACE_ATTEMPTS, recordAttendance } from '../services/attendanceService'
+import { describeFace, preloadFaceModels } from '../services/faceRecognition'
+import { clearPass, currentPass, passFromCode } from '../services/workplaceDisplayService'
+import '../styles/display.css'
+import { captureFrame } from '../utils/captureFrame'
 import '../styles/registration.css'
-import { captureVideoFrame } from '../utils/imageCompression'
 
 const STEP = {
   staffId: 0,
   scan: 1,
   success: 2,
-  choose: 3,
-  visit: 4,
 }
 
-const EMPTY_VISIT = { mode: 'directory', shopId: '', name: '', town: '' }
-
-/** Simulated face-scan duration (ms) before the mock verification resolves. */
-const SCAN_DURATION_MS = 2600
-
 /**
- * Attendance check-in / check-out (frontend, mock-backed).
- *
- * Flow: enter Staff ID -> live face scan -> verified result.
- * The live scanner captures a fresh photo and the mock service "verifies" it
- * against the enrolled image. Real biometric matching is a backend
- * responsibility — this only simulates the interaction.
- *
- * STRICT RULE: an employee completes at most one check-in and one check-out
- * per day. After a successful verification the flow ends; there is no way to
- * record another event until the next required action (check-out, or the next
- * day's check-in).
+ * Attendance check-in / check-out: enter a Staff ID, scan a face, see the result.
+ * The server decides what is allowed, compares the face and sets the time.
+ * An employee completes at most one check-in and one check-out per day.
  */
 export default function AttendanceCheckIn({ onBack }) {
   const [step, setStep] = useState(STEP.staffId)
@@ -51,14 +26,33 @@ export default function AttendanceCheckIn({ onBack }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [mismatch, setMismatch] = useState(false)
-  const [markedAbsent, setMarkedAbsent] = useState(false)
+  const [lockedOut, setLockedOut] = useState(false)
   const [attemptsLeft, setAttemptsLeft] = useState(null)
-  const [actions, setActions] = useState([])
-  const [visit, setVisit] = useState(EMPTY_VISIT)
-  const [visitError, setVisitError] = useState('')
-  // The phone's real location for an outlet visit. Never invented: if it
-  // cannot be read, the visit is recorded as "no location".
-  const [locating, setLocating] = useState({ status: 'idle', coords: null, message: '' })
+  const [capturedPhoto, setCapturedPhoto] = useState(null)
+  // The workplace display scanned to open this page, if any.
+  const [site, setSite] = useState(() => currentPass())
+  const [siteProblem, setSiteProblem] = useState(null)
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const code = params.get('site')
+    if (!code) return
+    // Keep the code out of the address bar, so a reload or a shared link cannot reuse it.
+    window.history.replaceState(null, '', window.location.pathname)
+    passFromCode(code)
+      .then((pass) => { setSite(pass); setSiteProblem(null) })
+      .catch((err) => { clearPass(); setSite(null); setSiteProblem(err?.message ?? 'This QR code could not be read.') })
+  }, [])
+
+  /** The server refused an expired pass: forget it and ask for a new scan. */
+  const passExpired = (err) => {
+    if (err?.data?.code !== 'site-expired') return false
+    clearPass()
+    setSite(null)
+    setSiteProblem(err.message)
+    setStep(STEP.staffId)
+    return true
+  }
 
   // Camera / scanner state
   const videoRef = useRef(null)
@@ -121,135 +115,64 @@ export default function AttendanceCheckIn({ onBack }) {
     setLoading(true)
     setError(null)
     try {
-      const found = await lookupEmployee(staffId)
-      // ANTI-CHEAT: an employee auto-marked absent today is blocked entirely.
-      if (isMarkedAbsent(found.staffId)) {
-        setError(
-          `${found.fullName} has been marked ABSENT for today after too many failed face-verification attempts. Please contact HR.`,
-        )
-        setLoading(false)
+      const found = await lookupEmployee(staffId, site?.pass ?? null)
+      if (found.blockedReason) {
+        setError(found.blockedReason)
         return
       }
-      const available = getAvailableActions(found.staffId)
-      if (!available.length) {
-        setError('You have already completed check-in and check-out for today.')
-        setLoading(false)
-        return
-      }
+      preloadFaceModels()
       setEmployee(found)
-      setActions(available)
-      setAttemptsLeft(getRemainingAttempts(found.staffId))
-      setMarkedAbsent(false)
+      setNextAction(found.nextAction)
+      setAttemptsLeft(found.attemptsLeft)
+      setLockedOut(false)
       setMismatch(false)
-      if (available.length === 1) {
-        if (!chooseAction(available[0])) setEmployee(null)
-      } else {
-        setStep(STEP.choose)
-      }
+      setStep(STEP.scan)
     } catch (err) {
-      setError(err?.message ?? 'Unable to find that Staff ID.')
+      if (!passExpired(err)) setError(err?.message ?? 'Unable to find that Staff ID.')
     } finally {
       setLoading(false)
     }
   }
 
-  // Pick what to scan for. Clock-in/out keep their time windows; break and
-  // visit scans happen during the working day.
-  const chooseAction = (action) => {
-    if (action === 'check-in' || action === 'check-out') {
-      const window = evaluateAction(action)
-      if (!window.allowed) {
-        setError(window.message)
-        return false
-      }
-    }
-    setError(null)
-    setNextAction(action)
-    if (action === 'visit') {
-      setVisit(EMPTY_VISIT)
-      setVisitError('')
-      readLocation()
-      setStep(STEP.visit)
-    } else {
-      setStep(STEP.scan)
-    }
-    return true
-  }
-
-  const readLocation = () => {
-    if (!navigator.geolocation) {
-      setLocating({ status: 'error', coords: null, message: 'This phone cannot share its location.' })
-      return
-    }
-    setLocating({ status: 'locating', coords: null, message: '' })
-    navigator.geolocation.getCurrentPosition(
-      (pos) => setLocating({ status: 'ok', coords: { latitude: pos.coords.latitude, longitude: pos.coords.longitude, accuracy: pos.coords.accuracy }, message: '' }),
-      (err) => setLocating({ status: 'error', coords: null, message: err?.code === 1 ? 'Location permission was denied.' : 'Location is not available right now.' }),
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
-    )
-  }
-
-  const visitOutlet = () => (visit.mode === 'directory'
-    ? (visit.shopId ? { shopId: visit.shopId } : null)
-    : { shopId: null, name: visit.name, town: visit.town })
-
-  const continueVisit = () => {
-    const problem = validateVisitOutlet(visitOutlet())
-    if (problem) { setVisitError(problem); return }
-    setVisitError('')
-    setStep(STEP.scan)
-  }
-
-  // Capture a frame and run the simulated verification.
+  // Capture a frame and send it to the server for verification.
   const handleScan = async () => {
     const video = videoRef.current
     if (!video || !video.videoWidth || loading) return
 
-    const captured = captureVideoFrame(video)
+    const captured = captureFrame(video)
 
     setCameraState('scanning')
     setError(null)
     setMismatch(false)
     setLoading(true)
     try {
-      // Simulate the scan/verification delay, then record via the mock service.
-      await new Promise((resolve) => setTimeout(resolve, SCAN_DURATION_MS))
+      // A photo without one clear face is turned away here and costs no attempt.
+      const faceDescriptor = await describeFace(captured)
       const event = await recordAttendance({
         staffId: employee.staffId,
         faceImage: captured,
-        action: nextAction,
-        visit: nextAction === 'visit'
-          ? { outlet: visitOutlet(), location: locating.coords, locationError: locating.status === 'ok' ? null : (locating.message || 'Location not provided') }
-          : null,
+        faceDescriptor,
+        sitePass: site?.pass ?? null,
       })
       stopStream()
-      // Supervisors, Sales Reps, Merchandisers: share location from clock-in to clock-out.
-      onAttendanceRecorded(event)
+      setCapturedPhoto(captured)
       setResult(event)
       setStep(STEP.success)
     } catch (err) {
       setCameraState('active')
+      if (passExpired(err)) return
       const message = err?.message ?? 'Verification failed. Please try again.'
       setError(message)
       // Surface an identity mismatch prominently so it cannot be missed.
-      setMismatch(/face does not match/i.test(message))
-      // Refresh the anti-cheat state: remaining attempts, and whether this
-      // scan pushed the employee over the limit into an ABSENT mark.
-      const nowAbsent = isMarkedAbsent(employee.staffId)
-      setMarkedAbsent(nowAbsent)
-      setAttemptsLeft(getRemainingAttempts(employee.staffId))
+      setMismatch(err?.data?.code === 'face-mismatch')
+      if (err?.data?.lockedOut) setLockedOut(true)
+      if (err?.data?.attemptsLeft != null) setAttemptsLeft(err.data.attemptsLeft)
     } finally {
       setLoading(false)
     }
   }
 
-  const actionLabel = ACTIONS[nextAction]?.label ?? 'Check In'
-  const category = categoryForPosition(employee?.position)
-  const directoryShops = employee ? mockListShops(employee.companyId) : []
-  // Sales Reps / Supervisors: the shops on their daily list come first.
-  const listShops = employee && category !== 'merchandiser' ? getVisitListShops(employee.staffId) : []
-  const listIds = new Set(listShops.map((sh) => sh.shopId))
-  const offList = listShops.length > 0 && (visit.mode === 'other' || (visit.shopId && !listIds.has(visit.shopId)))
+  const actionLabel = nextAction === 'check-in' ? 'Check In' : 'Check Out'
 
   return (
     <main className="registration-page">
@@ -269,6 +192,19 @@ export default function AttendanceCheckIn({ onBack }) {
               Enter the Staff ID you received at registration, then verify your
               face to check in or out.
             </p>
+
+            {site && (
+              <p className="site-banner" role="status">
+                <span aria-hidden="true">✓</span>
+                <span>Workplace QR code scanned: <strong>{site.siteName}</strong> ({site.companyName}).</span>
+              </p>
+            )}
+            {siteProblem && (
+              <p className="site-banner is-problem" role="alert">
+                <span aria-hidden="true">!</span>
+                <span>{siteProblem}</span>
+              </p>
+            )}
 
             <div className="form-field">
               <label className="form-label" htmlFor="field-staffId">
@@ -318,123 +254,7 @@ export default function AttendanceCheckIn({ onBack }) {
           </section>
         )}
 
-        {step === STEP.choose && employee && (
-          <section className="card">
-            <p className="step-eyebrow">Attendance — {categoryLabel(category, { single: true })}</p>
-            <h2 className="step-title">What are you scanning for?</h2>
-            <p className="step-description">
-              {employee.fullName} ({employee.staffId}). Choose one, then verify your face.
-            </p>
-            <div className="home-actions">
-              {actions.map((a) => (
-                <button key={a} type="button" className="home-option" onClick={() => chooseAction(a)}>
-                  <span className="home-option-text">
-                    <span className="home-option-title">{ACTIONS[a].label}</span>
-                    <span className="home-option-desc">
-                      {a === 'break-start' && 'Leaving for your break. Scan again when you come back.'}
-                      {a === 'break-end' && 'Returning from your break.'}
-                      {a === 'visit' && 'You have arrived at an outlet. Your location is checked against the outlet.'}
-                      {a === 'check-out' && 'Finishing work for the day.'}
-                      {a === 'check-in' && 'Starting work for the day.'}
-                    </span>
-                  </span>
-                  <span className="home-option-arrow" aria-hidden="true">→</span>
-                </button>
-              ))}
-            </div>
-            {error && <div className="submit-error" role="alert" style={{ marginTop: 16 }}><span>{error}</span></div>}
-            <div className="step-actions">
-              <button type="button" className="btn btn-secondary" onClick={() => { setError(null); setStep(STEP.staffId) }}>Back</button>
-            </div>
-          </section>
-        )}
-
-        {step === STEP.visit && employee && (
-          <section className="card">
-            <p className="step-eyebrow">Outlet visit — {categoryLabel(category, { single: true })}</p>
-            <h2 className="step-title">Which outlet are you at?</h2>
-            <p className="step-description">
-              {category === 'supervisor'
-                ? 'Choose the outlet from the list. If it is not listed, enter it yourself.'
-                : 'Enter the mini-market you are visiting, or choose it from the list if it is there.'}
-            </p>
-            {listShops.length > 0 && (
-              <div className="visit-today" role="group" aria-labelledby="visit-today-label">
-                <p id="visit-today-label" className="form-label">Your shops today</p>
-                <div className="visit-today-list">
-                  {listShops.map((sh) => (
-                    <button
-                      key={sh.shopId}
-                      type="button"
-                      className={`visit-today-shop${visit.mode === 'directory' && visit.shopId === sh.shopId ? ' is-selected' : ''}`}
-                      aria-pressed={visit.mode === 'directory' && visit.shopId === sh.shopId}
-                      onClick={() => setVisit((v) => ({ ...v, mode: 'directory', shopId: sh.shopId }))}
-                    >
-                      {sh.shopName}
-                    </button>
-                  ))}
-                </div>
-                <p className="visit-today-hint">Scan when you arrive and stay at least {MIN_STAY_MINUTES} minutes with this app open and Location on — that is how the visit is proven.</p>
-              </div>
-            )}
-            <div className="visit-mode" role="radiogroup" aria-label="How to choose the outlet">
-              <label className={`visit-mode-option${visit.mode === 'directory' ? ' is-selected' : ''}`}>
-                <input type="radio" name="visit-mode" checked={visit.mode === 'directory'} onChange={() => setVisit((v) => ({ ...v, mode: 'directory' }))} />
-                From the outlet list
-              </label>
-              <label className={`visit-mode-option${visit.mode === 'other' ? ' is-selected' : ''}`}>
-                <input type="radio" name="visit-mode" checked={visit.mode === 'other'} onChange={() => setVisit((v) => ({ ...v, mode: 'other' }))} />
-                Enter another outlet
-              </label>
-            </div>
-            {visit.mode === 'directory' ? (
-              <div className="form-field">
-                <label className="form-label" htmlFor="visit-shop">Outlet</label>
-                <select id="visit-shop" className="form-input" value={visit.shopId} onChange={(e) => setVisit((v) => ({ ...v, shopId: e.target.value }))}>
-                  <option value="">Choose an outlet…</option>
-                  {directoryShops.map((sh) => <option key={sh.shopId} value={sh.shopId}>{sh.shopName}</option>)}
-                </select>
-              </div>
-            ) : (
-              <div className="form-grid">
-                <div className="form-field">
-                  <label className="form-label" htmlFor="visit-name">Outlet name</label>
-                  <input id="visit-name" className="form-input" value={visit.name} placeholder="e.g. Adom Mini Mart" onChange={(e) => setVisit((v) => ({ ...v, name: e.target.value }))} />
-                </div>
-                <div className="form-field">
-                  <label className="form-label" htmlFor="visit-town">Town or area</label>
-                  <input id="visit-town" className="form-input" value={visit.town} placeholder="e.g. Madina" onChange={(e) => setVisit((v) => ({ ...v, town: e.target.value }))} />
-                </div>
-              </div>
-            )}
-            <div className={`visit-location is-${locating.status}`} role="status">
-              {locating.status === 'locating' && 'Reading your location…'}
-              {locating.status === 'ok' && `Location found (accurate to about ${Math.round(locating.coords.accuracy)} m).`}
-              {locating.status === 'error' && `${locating.message} The visit will be recorded without a location.`}
-              {locating.status !== 'locating' && (
-                <button type="button" className="btn btn-outline visit-location-retry" onClick={readLocation}>
-                  {locating.status === 'ok' ? 'Read again' : 'Try again'}
-                </button>
-              )}
-            </div>
-            {offList && (
-              <p className="late-notice" role="note">
-                <span>
-                  {visit.mode === 'other'
-                    ? 'Typed-in outlets have no saved location, so this visit cannot be verified and will be flagged for HR.'
-                    : 'This shop is not on your daily list. The visit will be recorded and flagged for HR.'}
-                </span>
-              </p>
-            )}
-            {visitError && <span className="field-error" role="alert">{visitError}</span>}
-            <div className="step-actions">
-              <button type="button" className="btn btn-secondary" onClick={() => setStep(actions.length > 1 ? STEP.choose : STEP.staffId)}>Back</button>
-              <button type="button" className="btn btn-primary" onClick={continueVisit} disabled={locating.status === 'locating'}>Continue to face scan</button>
-            </div>
-          </section>
-        )}
-
-        {step === STEP.scan && employee && markedAbsent && (
+        {step === STEP.scan && employee && lockedOut && (
           <section className="card">
             <div className="face-mismatch" role="alert" style={{ marginTop: 0 }}>
               <span className="face-mismatch-icon" aria-hidden="true">
@@ -444,12 +264,13 @@ export default function AttendanceCheckIn({ onBack }) {
                 </svg>
               </span>
               <div>
-                <h3>Marked ABSENT for today</h3>
+                <h3>Locked until tomorrow</h3>
                 <p>
-                  <strong>{employee.fullName}</strong> ({employee.staffId}) has
-                  been marked <strong>ABSENT</strong> after too many failed
-                  face-verification attempts. This looks like an attempt to
-                  cheat the system. Please contact HR.
+                  Face verification failed {MAX_FACE_ATTEMPTS} times for{' '}
+                  <strong>{employee.fullName}</strong> ({employee.staffId}), so
+                  this Staff ID cannot check in or out again today. HR has been
+                  alerted. If you are {employee.fullName}, ask HR to record your
+                  attendance.
                 </p>
               </div>
             </div>
@@ -461,7 +282,7 @@ export default function AttendanceCheckIn({ onBack }) {
           </section>
         )}
 
-        {step === STEP.scan && employee && !markedAbsent && (
+        {step === STEP.scan && employee && !lockedOut && (
           <section className="card">
             <p className="step-eyebrow">Attendance — {actionLabel}</p>
             <h2 className="step-title">Scan your face</h2>
@@ -470,7 +291,7 @@ export default function AttendanceCheckIn({ onBack }) {
               you to {actionLabel.toLowerCase()}.
             </p>
 
-            {attemptsLeft !== null && attemptsLeft < 5 && (
+            {attemptsLeft !== null && attemptsLeft < MAX_FACE_ATTEMPTS && (
               <div className="attempts-notice" role="note">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                   <path d="M12 9v4M12 17h.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
@@ -478,27 +299,13 @@ export default function AttendanceCheckIn({ onBack }) {
                 </svg>
                 <span>
                   <strong>{attemptsLeft}</strong> verification attempt
-                  {attemptsLeft === 1 ? '' : 's'} left. After 5 failed attempts
-                  this Staff ID is marked <strong>ABSENT</strong>.
+                  {attemptsLeft === 1 ? '' : 's'} left today. After {MAX_FACE_ATTEMPTS} failed attempts
+                  this Staff ID is locked until tomorrow and HR is alerted.
                 </span>
               </div>
             )}
 
-            {TRACKED_CATEGORIES.has(category) && nextAction === 'check-in' && (
-              <div className="late-notice" role="note">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  <path d="M12 22s7-6.1 7-12a7 7 0 1 0-14 0c0 5.9 7 12 7 12z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
-                  <circle cx="12" cy="10" r="2.5" stroke="currentColor" strokeWidth="2" />
-                </svg>
-                <span>
-                  When you clock in, this phone shares its <strong>location with HR</strong> while
-                  this page is open and mobile data is on. It stops when you clock out.{' '}
-                  <a href="/tracking-policy" target="_blank" rel="noopener">Read the Tracking Policy</a>
-                </span>
-              </div>
-            )}
-
-            {nextAction === 'check-in' && evaluateAction('check-in').status === 'late' && (
+            {nextAction === 'check-in' && employee.windowStatus === 'late' && (
               <div className="late-notice" role="note">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                   <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" />
@@ -588,7 +395,7 @@ export default function AttendanceCheckIn({ onBack }) {
                 onClick={() => {
                   setMismatch(false)
                   setError(null)
-                  setStep(nextAction === 'visit' ? STEP.visit : actions.length > 1 ? STEP.choose : STEP.staffId)
+                  setStep(STEP.staffId)
                 }}
                 disabled={loading}
               >
@@ -616,21 +423,19 @@ export default function AttendanceCheckIn({ onBack }) {
               </svg>
             </div>
             <h2 className="step-title">
-              {ACTIONS[result.type]?.past ?? 'Recorded'}
+              {result.type === 'check-in' ? 'Checked In' : 'Checked Out'}
             </h2>
             <p className="step-description" style={{ marginBottom: 0 }}>
-              {result.type === 'check-in' && 'Face verified. Have a great day at work.'}
-              {result.type === 'check-out' && 'Face verified. Thank you, see you next time.'}
-              {result.type === 'break-start' && 'Face verified. Enjoy your break — scan "Back from break" when you return.'}
-              {result.type === 'break-end' && 'Face verified. Welcome back.'}
-              {result.type === 'visit' && `Face verified. Visit recorded: ${VISIT_RESULT[result.verification?.status]?.label ?? ''}${result.verification?.distance != null ? ` (${result.verification.distance} m from the outlet)` : ''}.`}
+              {result.type === 'check-in'
+                ? 'Face verified. Have a great day at work.'
+                : 'Face verified. Thank you, see you next time.'}
             </p>
 
             <div className="verified-employee">
               <img
                 className="verified-photo"
-                src={employee.faceImage}
-                alt={`${employee.fullName} registered`}
+                src={capturedPhoto}
+                alt={`${employee.fullName} at this scan`}
               />
               <div className="success-details" style={{ margin: 0, flex: 1 }}>
                 <div className="success-row">
@@ -647,33 +452,29 @@ export default function AttendanceCheckIn({ onBack }) {
                 </div>
                 <div className="success-row">
                   <span className="review-label">Position</span>
-                  <span className="review-value">{employee.position}</span>
+                  <span className="review-value">{result.position}</span>
                 </div>
                 <div className="success-row">
                   <span className="review-label">Time</span>
                   <span className="review-value">{new Date(result.time).toLocaleString()}</span>
                 </div>
-                {(result.type === 'check-in' || result.type === 'check-out') && <div className="success-row">
+                <div className="success-row">
                   <span className="review-label">Status</span>
                   {result.status === 'late' ? (
                     <span className="status-badge status-late">LATE</span>
                   ) : (
                     <span className="status-badge">ON TIME</span>
                   )}
-                </div>}
+                </div>
               </div>
             </div>
 
             <p className="success-message">
-              {result.type === 'check-in' && (result.status === 'late'
-                ? 'You are checked in and marked as late coming (after 9:00 AM). You can check out between 5:00 and 7:00 PM.'
-                : 'You are checked in. You can check out between 5:00 and 7:00 PM.')}
-              {result.type === 'check-out' && 'You are checked out. Your attendance for today is complete.'}
-              {result.type === 'break-start' && 'Your break time is not counted as working time.'}
-              {result.type === 'break-end' && 'You can take another break if your company allows it, or clock out at the end of the day.'}
-              {result.type === 'visit' && 'Record a new visit at each outlet you go to. Clock out at the end of the day.'}
-              {TRACKED_CATEGORIES.has(category) && result.type === 'check-in' && ' Location sharing is now on — keep this page open with mobile data and Location turned on.'}
-              {TRACKED_CATEGORIES.has(category) && result.type === 'check-out' && ' Location sharing has stopped.'}
+              {result.type === 'check-in'
+                ? result.status === 'late'
+                  ? 'You are checked in and marked as late coming (after 9:00 AM). You can check out between 5:00 and 7:00 PM.'
+                  : 'You are checked in. You can check out between 5:00 and 7:00 PM.'
+                : 'You are checked out. Your attendance for today is complete.'}
             </p>
 
             <div className="success-actions">
@@ -681,11 +482,6 @@ export default function AttendanceCheckIn({ onBack }) {
                 Done
               </button>
             </div>
-
-            <p className="mock-banner">
-              Demo environment — attendance recorded by the mock service, not a
-              production backend.
-            </p>
           </section>
         )}
       </div>
