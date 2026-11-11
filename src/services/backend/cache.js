@@ -30,10 +30,11 @@ const TABLES = {
   notifications: { order: 'occurred_at' },
   notification_history: { order: 'at' },
   audit_events: { order: 'at', since: 'at' },
+  workplace_displays: { order: 'created_at' },
 }
 
 /** What can change without this browser doing anything. */
-const LIVE_TABLES = ['employees', 'attendance_events', 'verification_events', 'notifications', 'notification_history', 'audit_events']
+const LIVE_TABLES = ['employees', 'attendance_events', 'verification_events', 'notifications', 'notification_history', 'audit_events', 'workplace_displays']
 const LIVE_REFRESH_MS = 60000
 
 let store = {}

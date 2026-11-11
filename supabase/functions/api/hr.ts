@@ -31,7 +31,8 @@ import {
 } from '../_shared/rules/settings.js'
 import { assertAllCompanies, assertCompany, type HrEnv, type HrUser, requireHr } from './auth.ts'
 import { loadFacts, loadSettings, syncNotifications } from './facts.ts'
-import { ApiError, applyChange, db, found, invalid, later, must, rateLimit, readJson } from './lib.ts'
+import { ApiError, applyChange, db, found, invalid, later, must, rateLimit, readJson, sha256Hex } from './lib.ts'
+import { newDisplayId, randomToken } from '../_shared/rules/siteCode.js'
 
 export const hrRoutes = new Hono<HrEnv>()
 hrRoutes.use('*', requireHr)
@@ -518,6 +519,103 @@ hrRoutes.put('/settings/general', async (c) => {
   const change = diffValues(settings.general, next)
   if (!change.changed.length) throw invalid(NOTHING_CHANGED)
   await applyChange([sectionChange('general', next, hr)], settingsAudit(hr, 'General settings changed', [], 'General settings', `Changed: ${change.changed.join(', ')}`, change))
+  return c.json({ ok: true })
+})
+
+/* --------------------------------------------------------------------------
+ * Workplace QR displays
+ * ------------------------------------------------------------------------ */
+
+const SETUP_LINK_MINUTES = 60
+
+async function displayFor(c: Ctx, id: string) {
+  const display = /^dsp-[a-f0-9]{16}$/.test(id)
+    ? await must(db.from('workplace_displays').select('*').eq('id', id).maybeSingle())
+    : null
+  if (!display) throw new ApiError(404, 'Display not found.')
+  assertCompany(c, display.company_id)
+  return display
+}
+
+/** A one-time link that turns a device into this display, valid for an hour. */
+async function setupLink() {
+  const token = randomToken(24)
+  return { token, hash: await sha256Hex(token), expiresAt: new Date(Date.now() + SETUP_LINK_MINUTES * 60000).toISOString() }
+}
+
+const displayAudit = (hr: HrUser, display: { company_id: string; name: string }, action: string, description: string) =>
+  audit(hr, { source: 'Workplace displays', action, category: 'System Settings', companyIds: [display.company_id], affected: display.name, description })
+
+hrRoutes.post('/displays', async (c) => {
+  const hr = c.get('hr')
+  const body = await readJson(c)
+  const companyId = text(body.companyId, 40)
+  assertCompany(c, companyId)
+  const name = text(body.name, 60)
+  if (name.length < 2) throw invalid({ name: 'Name the display after its place, for example "Tema warehouse entrance".' })
+  const existing = await found(db.from('workplace_displays').select('name').eq('company_id', companyId).eq('status', 'active'))
+  if (existing.some((row) => row.name.toLowerCase() === name.toLowerCase())) throw invalid({ name: 'This company already has a display with that name.' })
+
+  const id = newDisplayId()
+  const link = await setupLink()
+  const row = { id, company_id: companyId, name, setup_token_hash: link.hash, setup_expires_at: link.expiresAt, created_by: hr.name }
+  await applyChange([{ table: 'workplace_displays', op: 'insert', row }], displayAudit(hr, row, 'Workplace display added', `Added the QR display "${name}". It works once a device is set up with its link.`))
+  return c.json({ id, setupToken: link.token, expiresAt: link.expiresAt })
+})
+
+hrRoutes.post('/displays/:id/setup-link', async (c) => {
+  const hr = c.get('hr')
+  const display = await displayFor(c, c.req.param('id'))
+  if (display.status !== 'active') throw new ApiError(409, 'This display was switched off. Add a new display instead.')
+  const link = await setupLink()
+  await applyChange([{
+    table: 'workplace_displays',
+    op: 'update',
+    match: { id: display.id },
+    row: { setup_token_hash: link.hash, setup_expires_at: link.expiresAt },
+  }], displayAudit(hr, display, 'Display setup link created', 'A new one-time setup link was created. The device in use keeps working until another device is set up with it.'))
+  return c.json({ id: display.id, setupToken: link.token, expiresAt: link.expiresAt })
+})
+
+hrRoutes.post('/displays/:id/revoke', async (c) => {
+  const hr = c.get('hr')
+  const display = await displayFor(c, c.req.param('id'))
+  if (display.status !== 'active') throw new ApiError(409, 'This display is already switched off.')
+  await applyChange([
+    { table: 'display_secrets', op: 'delete', match: { display_id: display.id } },
+    { table: 'workplace_displays', op: 'update', match: { id: display.id }, row: { status: 'revoked', setup_token_hash: null, setup_expires_at: null } },
+  ], displayAudit(hr, display, 'Workplace display switched off', 'Its QR codes stop working immediately. Past check-ins keep the display name.'))
+  return c.json({ ok: true })
+})
+
+hrRoutes.put('/displays/required/:companyId', async (c) => {
+  const hr = c.get('hr')
+  const companyId = c.req.param('companyId')
+  assertCompany(c, companyId, 'You are not authorised to change this company’s settings.')
+  const body = await readJson(c)
+  const required = body.required === true
+  const current = await must(db.from('settings_company').select('require_workplace_code').eq('company_id', companyId).maybeSingle())
+  if (!current) throw new ApiError(404, 'Company not found.')
+  if (current.require_workplace_code === required) throw invalid(NOTHING_CHANGED)
+  if (required) {
+    const ready = await found(db.from('workplace_displays').select('id, display_secrets(display_id)').eq('company_id', companyId).eq('status', 'active'))
+    if (!ready.some((row) => (Array.isArray(row.display_secrets) ? row.display_secrets.length : row.display_secrets))) {
+      throw invalid({ form: 'Set up at least one display for this company first, or nobody in the office could check in.' })
+    }
+  }
+  const label = (on: boolean) => ({ 'Workplace QR code': on ? 'Required for office staff' : 'Not required' })
+  await applyChange([{ table: 'settings_company', op: 'update', match: { company_id: companyId }, row: { require_workplace_code: required } }], audit(hr, {
+    source: 'Workplace displays',
+    action: required ? 'Workplace QR code required' : 'Workplace QR code no longer required',
+    category: 'System Settings',
+    companyIds: [companyId],
+    affected: companyId,
+    description: required
+      ? 'Office staff must scan the QR code on a workplace display to check in or out. Field staff are not affected.'
+      : 'Office staff can check in without scanning a workplace display.',
+    previous: label(!required),
+    next: label(required),
+  }))
   return c.json({ ok: true })
 })
 

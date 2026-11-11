@@ -370,7 +370,7 @@ export default function NotificationDrawer({ notification, user, onClose, onChan
             ) : record && record.face.status !== 'none' ? (
               <div className="sm-detail-grid">
                 <Detail label="Face verification">{record.face.label}</Detail>
-                <Detail label="GPS verification">{record.gps.label}</Detail>
+                <Detail label="Location check">{record.gps.label}</Detail>
               </div>
             ) : (
               <p className="sm-empty at-flush" style={{ padding: 14 }}>

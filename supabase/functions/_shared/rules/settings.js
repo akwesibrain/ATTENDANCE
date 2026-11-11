@@ -80,6 +80,8 @@ export function composeSettings({ general, companies, versions }) {
       updatedBy: row.vat_updated_by,
       updatedAt: row.vat_updated_at,
     })),
+    // Whether office staff must scan a workplace QR display to check in or out.
+    workplaceCodeRequired: forCompanies((row) => Boolean(row.require_workplace_code)),
     monitoring: section('monitoring'),
     notifications: Object.fromEntries(
       Object.keys(NOTIFICATION_GROUPS).map((key) => [key, { ...DEFAULT_NOTIFICATION_PREFERENCE, ...(saved[key] ?? {}) }]),

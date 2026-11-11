@@ -41,6 +41,7 @@ export function recordContext() {
         leaves: rows('leave_records'),
         shops: rows('shops'),
         verifications: rows('verification_events'),
+        displays: rows('workplace_displays'),
       }, getSettings(), new Date()),
     }
   }

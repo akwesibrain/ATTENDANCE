@@ -155,6 +155,8 @@ function emptyCapture() {
     clockOutUnknown: false,
     presentMarked: false,
     faceLockoutReason: null,
+    checkInSite: null,
+    checkOutSite: null,
     missingEntry: false,
     smsEvents: [],
     scanEvents: [],
@@ -176,9 +178,15 @@ function captureDigital(emp, dateKey, ctx) {
     c.clockIn = entry.checkIn.time
     c.clockOut = entry.checkOut?.time ?? null
     c.face = { status: 'passed', label: 'Matched at clock-in face scan' }
-    c.gps = { status: 'not-captured', label: 'Not captured — the check-in kiosk does not record location' }
-    c.scanEvents.push({ at: entry.checkIn.time, label: 'Clock-in face scan', outcome: 'Face matched' })
-    if (entry.checkOut) c.scanEvents.push({ at: entry.checkOut.time, label: 'Clock-out face scan', outcome: 'Face matched' })
+    const site = (event) => (event?.displayId ? ctx.displayNames?.get(event.displayId) ?? 'a workplace display' : null)
+    c.checkInSite = site(entry.checkIn)
+    c.checkOutSite = site(entry.checkOut)
+    c.gps = c.checkInSite
+      ? { status: 'passed', label: `At the workplace — scanned the QR code at ${c.checkInSite}` }
+      : { status: 'not-captured', label: 'Not captured — no workplace QR code was scanned' }
+    const outcome = (where) => (where ? `Face matched · QR code at ${where}` : 'Face matched')
+    c.scanEvents.push({ at: entry.checkIn.time, label: 'Clock-in face scan', outcome: outcome(c.checkInSite) })
+    if (entry.checkOut) c.scanEvents.push({ at: entry.checkOut.time, label: 'Clock-out face scan', outcome: outcome(c.checkOutSite) })
   }
   if (entry.lockout) {
     c.faceLockoutReason = entry.lockout.reason
@@ -428,6 +436,8 @@ export function buildRecord(emp, dateKey, ctx) {
     leave,
     pendingLeave,
     faceLockoutReason: captured.faceLockoutReason,
+    checkInSite: captured.checkInSite ?? null,
+    checkOutSite: captured.checkOutSite ?? null,
     historical: null,
     notes,
   }

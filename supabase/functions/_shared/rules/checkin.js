@@ -36,7 +36,13 @@ export function nextAttendanceAction(eventTypes) {
  * Runs before the face scan, so a refused action never costs an attempt.
  * @returns {{ nextAction: string|null, windowStatus: string|null, blockedReason: string|null }}
  */
-export function attendanceGate({ fullName, status, eventTypes, now = new Date(), holiday = false, hours, rules }) {
+export const SCAN_WORKPLACE_CODE = 'Scan the QR code on the screen at your workplace to check in or out.'
+export const OTHER_COMPANY_CODE = 'This QR code belongs to another company’s workplace. Scan the code at your own workplace.'
+
+// `site` is the workplace display scanned, if any ({ companyId, name }),
+// `companyId` the employee's company, and `siteRequired` whether this
+// employee must scan a workplace display.
+export function attendanceGate({ fullName, status, eventTypes, now = new Date(), holiday = false, hours, rules, site, companyId, siteRequired = false }) {
   if (status !== 'ACTIVE') {
     return { nextAction: null, windowStatus: null, blockedReason: 'This Staff ID is not active. Please contact HR.' }
   }
@@ -47,6 +53,10 @@ export function attendanceGate({ fullName, status, eventTypes, now = new Date(),
   if (nextAction === null) {
     return { nextAction: null, windowStatus: null, blockedReason: 'You have already completed check-in and check-out for today.' }
   }
+  if (site && companyId && site.companyId !== companyId) {
+    return { nextAction, windowStatus: null, blockedReason: OTHER_COMPANY_CODE }
+  }
+  if (siteRequired && !site) return { nextAction, windowStatus: null, blockedReason: SCAN_WORKPLACE_CODE }
   const window = evaluateAction(nextAction, now, { holiday, hours, rules })
   if (!window.allowed) return { nextAction, windowStatus: null, blockedReason: window.message }
   return { nextAction, windowStatus: window.status, blockedReason: null }

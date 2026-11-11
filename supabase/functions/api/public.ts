@@ -10,7 +10,9 @@ import { parseJpegDataUrl } from '../_shared/rules/facePhoto.js'
 import { holidayNameFor } from '../_shared/rules/holidays.js'
 import { checkGeofence, verificationResult } from '../_shared/rules/monitoring.js'
 import { isWorkingDay, overtimeHours } from '../_shared/rules/policy.js'
-import { parseRegistration } from '../_shared/rules/registration.js'
+import { parseRegistration, requiresShop } from '../_shared/rules/registration.js'
+import { checkSiteCode, makeSitePass, parseSiteCode, randomToken } from '../_shared/rules/siteCode.js'
+import { activeDisplay, type Site, siteFromPass } from './sites.ts'
 import { attendanceRulesInForce, hoursInForce } from '../_shared/rules/settings.js'
 import { loadSettings, syncNotifications } from './facts.ts'
 import { ApiError, applyChange, clientIp, db, discardPhoto, found, invalid, later, must, rateLimit, readJson, rpc, sha256Hex, storePhoto } from './lib.ts'
@@ -27,6 +29,8 @@ const LIMITS = {
   eventsByIp: [120, 60],
   eventsByStaff: [15, 600],
   verify: [60, 60],
+  sitePass: [240, 60],
+  displayClaim: [20, 3600],
 } as const
 
 export const publicRoutes = new Hono()
@@ -65,6 +69,54 @@ async function loadEnrolledPhoto(path: string) {
 function slug(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 }
+
+/** The server clock, so a workplace display can correct its own. */
+publicRoutes.get('/public/time', (c) => c.json({ now: new Date().toISOString() }))
+
+/**
+ * Turn a device into a workplace display with the one-time link HR created.
+ * Each use issues a new secret, so a display set up again replaces the old one.
+ */
+publicRoutes.post('/displays/claim', async (c) => {
+  await rateLimit(`display-claim:ip:${clientIp(c)}`, ...LIMITS.displayClaim)
+  const body = await readJson(c)
+  const token = typeof body.token === 'string' && /^[A-Za-z0-9_-]{20,100}$/.test(body.token) ? body.token : null
+  const display = token
+    ? await must(db.from('workplace_displays').select('*').eq('setup_token_hash', await sha256Hex(token)).maybeSingle())
+    : null
+  if (!display || display.status !== 'active' || !display.setup_expires_at || Date.parse(display.setup_expires_at) <= Date.now()) {
+    throw new ApiError(410, 'This setup link has expired or was already used. Ask HR for a new one.')
+  }
+  const secret = randomToken()
+  const now = new Date().toISOString()
+  await applyChange([
+    { table: 'display_secrets', op: 'upsert', conflict: ['display_id'], row: { display_id: display.id, secret, created_at: now } },
+    { table: 'workplace_displays', op: 'update', match: { id: display.id }, row: { setup_token_hash: null, setup_expires_at: null, paired_at: now } },
+  ], {
+    source: 'Workplace displays',
+    action: 'Workplace display set up',
+    category: 'System Settings',
+    actorName: 'Display device',
+    companyIds: [display.company_id],
+    affected: display.name,
+    description: `A device was set up as the QR display "${display.name}". Any device set up for it before stops working.`,
+  })
+  const ready = await activeDisplay(display.id)
+  return c.json({ displayId: display.id, name: display.name, companyId: display.company_id, companyName: ready?.companyName ?? '', secret })
+})
+
+/** Swap a fresh code from a workplace display for a pass the check-in page keeps. */
+publicRoutes.post('/attendance/site-pass', async (c) => {
+  await rateLimit(`site-pass:ip:${clientIp(c)}`, ...LIMITS.sitePass)
+  const body = await readJson(c)
+  const code = parseSiteCode(body.code)
+  const display = code ? await activeDisplay(code.displayId) : null
+  const result = display ? await checkSiteCode(body.code, display.secret) : 'invalid'
+  if (!display || result === 'invalid') throw new ApiError(400, 'This QR code is not a workplace check-in code.', { code: 'site-invalid' })
+  if (result === 'expired') throw new ApiError(410, 'This QR code has expired. Scan the code on the screen again.', { code: 'site-expired' })
+  const { pass, expiresAt } = await makeSitePass(display.id, display.secret)
+  return c.json({ pass, expiresAt, siteName: display.name, companyId: display.companyId, companyName: display.companyName })
+})
 
 /** Active shops for the registration form. Locations stay with HR. */
 publicRoutes.get('/public/shops', async (c) => {
@@ -177,7 +229,11 @@ async function failedAttemptsToday(staffId: string, date: string) {
 }
 
 /** Where an employee stands at the kiosk today, under the hours and rules in Settings. */
-async function kioskDay(employee: { staff_id: string; full_name: string; status: string; company_id: string }, now: Date) {
+async function kioskDay(
+  employee: { staff_id: string; full_name: string; status: string; company_id: string; position: string },
+  now: Date,
+  site: Site | null,
+) {
   const date = accraDateKey(now)
   const [events, failed, holiday, settings] = await Promise.all([
     eventsToday(employee.staff_id, date),
@@ -194,6 +250,10 @@ async function kioskDay(employee: { staff_id: string; full_name: string; status:
     holiday,
     hours,
     rules: attendanceRulesInForce(settings, date),
+    site,
+    companyId: employee.company_id,
+    // Field staff work at shops, which have no display; SMS checks cover them.
+    siteRequired: Boolean(settings.workplaceCodeRequired[employee.company_id]) && !requiresShop(employee.position),
   })
   return { date, events, failed, gate, dayOff: !isWorkingDay(now, { holiday, hours }) }
 }
@@ -204,8 +264,10 @@ publicRoutes.get('/attendance/lookup/:staffId', async (c) => {
   const employee = await findEmployee(normalizeStaffId(c.req.param('staffId')))
   if (!employee) throw new ApiError(404, NOT_FOUND)
 
-  const { failed, gate } = await kioskDay(employee, new Date())
+  const site = await siteFromPass(c.req.query('pass'))
+  const { failed, gate } = await kioskDay(employee, new Date(), site)
   return c.json({
+    siteName: site?.name ?? null,
     staffId: employee.staff_id,
     fullName: employee.full_name,
     companyName: employee.company_name,
@@ -311,7 +373,8 @@ publicRoutes.post('/attendance/events', async (c) => {
   if (!employee) throw new ApiError(404, 'Staff ID not found. Please register first.')
 
   const now = new Date()
-  const { date, events, gate, dayOff } = await kioskDay(employee, now)
+  const site = await siteFromPass(body.sitePass)
+  const { date, events, gate, dayOff } = await kioskDay(employee, now, site)
   if (gate.blockedReason) throw new ApiError(409, gate.blockedReason, { code: 'blocked' })
 
   const face = faceSample(body)
@@ -352,6 +415,7 @@ publicRoutes.post('/attendance/events', async (c) => {
       p_photo_path: photoPath,
       p_weekend: dayOff,
       p_overtime_hours: overtime,
+      p_display_id: site?.displayId ?? null,
     })
   } catch (error) {
     await discardPhoto(ATTENDANCE_BUCKET, photoPath)

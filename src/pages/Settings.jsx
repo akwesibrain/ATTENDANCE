@@ -11,6 +11,7 @@ import {
   WorkingHoursSection,
 } from '../components/settings/SettingsSections'
 import HolidaysSection from '../components/settings/HolidaysSection'
+import WorkplaceDisplaysSection from '../components/settings/WorkplaceDisplaysSection'
 import AuditLogs from './AuditLogs'
 import '../styles/sales-monitoring.css'
 import '../styles/shifts.css'
@@ -25,6 +26,7 @@ const SECTIONS = [
   { id: 'attendance', label: 'Attendance Settings', hint: 'Cycle and rules' },
   { id: 'hours', label: 'Working Hours & Timezone', hint: 'Default hours' },
   { id: 'holidays', label: 'Holidays', hint: 'Public and HR-set holidays' },
+  { id: 'displays', label: 'Workplace displays', hint: 'QR check-in screens' },
   { id: 'monitoring', label: 'Sales Rep Monitoring', hint: 'Verification rules' },
   { id: 'notifications', label: 'Notification Settings', hint: 'Alerts and roles' },
   { id: 'security', label: 'Security Settings', hint: 'Access policy' },
@@ -72,6 +74,7 @@ export default function Settings({ user, company, initialSection = 'general', on
           {section === 'attendance' && <AttendanceSection {...props} />}
           {section === 'hours' && <WorkingHoursSection {...props} />}
           {section === 'holidays' && <HolidaysSection {...props} />}
+          {section === 'displays' && <WorkplaceDisplaysSection {...props} />}
           {section === 'monitoring' && <MonitoringSection {...props} />}
           {section === 'notifications' && <NotificationSection {...props} />}
           {section === 'security' && <SecuritySection {...props} />}
