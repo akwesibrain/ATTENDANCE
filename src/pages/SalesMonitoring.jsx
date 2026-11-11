@@ -4,7 +4,6 @@ import RepProfileModal from '../components/sales-monitoring/RepProfileModal'
 import AlertsPanel from '../components/sales-monitoring/AlertsPanel'
 import ShopsPanel from '../components/sales-monitoring/ShopsPanel'
 import ShopModal from '../components/sales-monitoring/ShopModal'
-import LiveFieldBoard from '../components/sales-monitoring/LiveFieldBoard'
 import '../styles/attendance.css'
 import { REP_STATUS } from '../components/sales-monitoring/labels'
 import {
@@ -131,15 +130,6 @@ export default function SalesMonitoring({ company, user }) {
         <button
           type="button"
           role="tab"
-          aria-selected={tab === 'live'}
-          className={`sm-tab${tab === 'live' ? ' is-active' : ''}`}
-          onClick={() => setTab('live')}
-        >
-          Live field board
-        </button>
-        <button
-          type="button"
-          role="tab"
           aria-selected={tab === 'reps'}
           className={`sm-tab${tab === 'reps' ? ' is-active' : ''}`}
           onClick={() => setTab('reps')}
@@ -167,14 +157,7 @@ export default function SalesMonitoring({ company, user }) {
         </button>}
       </div>
 
-      {tab === 'live' && (
-        <LiveFieldBoard
-          company={company}
-          onViewRep={(r) => setProfile({ detail: mockGetRepresentativeDetail(r.employeeId, todayKey()), section: 'history' })}
-        />
-      )}
-
-      {tab !== 'live' && <div className="sm-controls">
+      <div className="sm-controls">
         <input
           type="date"
           className="form-input"
@@ -222,7 +205,7 @@ export default function SalesMonitoring({ company, user }) {
             </select>
           </>
         )}
-      </div>}
+      </div>
 
       {tab === 'reps' && (
         <>

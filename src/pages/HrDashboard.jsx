@@ -883,13 +883,13 @@ function HrDashboardContent({ onBack, user, onSessionChange }) {
             <SalesMonitoring key={company.id} company={company} user={user} />
           )}
           {permitted && !isCombined && activeNav === 'live-tracker' && (
-            <LiveFieldTracker key={`lt-${company.id}`} company={company} />
+            <LiveFieldTracker key={`lt-${company.id}`} company={company} user={user} />
           )}
           {permitted && !isCombined && activeNav === 'sales-rep-monitoring' && (
-            <FieldVisitsMonitoring key={`sr-${company.id}`} company={company} category="sales-rep" onOpenAttendance={can(user, 'attendance', 'view') ? openAttendanceHistory : null} />
+            <FieldVisitsMonitoring key={`sr-${company.id}`} company={company} category="sales-rep" user={user} onOpenAttendance={can(user, 'attendance', 'view') ? openAttendanceHistory : null} />
           )}
           {permitted && !isCombined && activeNav === 'supervisor-monitoring' && (
-            <FieldVisitsMonitoring key={`sv-${company.id}`} company={company} category="supervisor" onOpenAttendance={can(user, 'attendance', 'view') ? openAttendanceHistory : null} />
+            <FieldVisitsMonitoring key={`sv-${company.id}`} company={company} category="supervisor" user={user} onOpenAttendance={can(user, 'attendance', 'view') ? openAttendanceHistory : null} />
           )}
 
           {permitted && !isCombined && activeNav === 'reports' && (

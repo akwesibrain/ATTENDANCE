@@ -1,15 +1,17 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { GHANA_CITIES } from '../constants/ghanaMap'
 import { POSITION_SOURCE, TRACKER_GROUPS, getLiveTracker } from '../services/liveTrackerService'
 import { GHANA_MAP_H, GHANA_MAP_W, ghanaOutlinePath, makeGhanaProjection } from '../utils/ghanaProjection'
 import { formatAccraTime } from '../utils/accraTime'
 import StreetPlane from '../components/tracker/StreetPlane'
+import TrackingDailyReport from '../components/tracker/TrackingDailyReport'
 import { locationServiceStatus, searchMapPlace } from '../services/geocodingService'
 import { monitoringSettings, saveMonitoring } from '../services/settingsService'
 import { getSessionUser } from '../services/permissionsService'
 import { pxToLatLng, worldPx } from '../utils/webMercator'
 
-const REFRESH_SECONDS = 30
+// Field staff's phones send live locations, so refresh often.
+const REFRESH_SECONDS = 15
 const STALE_MINUTES = 60
 const VIEWS = {
   '3d': { tilt: 54, spin: -16, zoom: 1 },
@@ -18,9 +20,14 @@ const VIEWS = {
 const BADGE = { supervisor: 'S', 'sales-rep': 'R', merchandiser: 'M' }
 // Extruded edge of the 3D outline: a few stacked copies of the border.
 const SLAB_LAYERS = [5, 4, 3, 2, 1]
-const ringColor = (category) => (category === 'merchandiser' ? '#e5edf9' : TRACKER_GROUPS[category].color)
+const ringColor = (category) => TRACKER_GROUPS[category].color
 // Street map: whole of Ghana at zoom 7; street level (markets, shops) from ~15.
 const STREET_HOME = { lat: 7.95, lng: -1.03, z: 7, tilt: 48, spin: -10 }
+const MIN_Z = 6
+const MAX_Z = 19 // OpenStreetMap's closest level: individual shop names and buildings.
+const SHOP_Z = 18 // Where selecting a person or shop takes you.
+// Mouse-wheel distance per zoom level (one notch on most mice is ~100).
+const WHEEL_PER_LEVEL = 50
 const PLACES = [
   { name: 'Accra', lat: 5.6037, lng: -0.187, z: 13 },
   { name: 'Kumasi', lat: 6.6885, lng: -1.6244, z: 13 },
@@ -28,6 +35,25 @@ const PLACES = [
   { name: 'Tamale', lat: 9.4008, lng: -0.8393, z: 13 },
 ]
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v))
+
+/** A screen offset from the stage centre as an offset on the tilted, rotated map plane. */
+function screenToPlane(dx, dy, cam) {
+  const t = (cam.tilt * Math.PI) / 180
+  const s = (-cam.spin * Math.PI) / 180
+  const vy = dy / Math.max(0.35, Math.cos(t))
+  return [dx * Math.cos(s) - vy * Math.sin(s), dx * Math.sin(s) + vy * Math.cos(s)]
+}
+
+/** Zoom the street camera by `step` levels, keeping the map point under (dx, dy) in place. */
+function zoomCamera(cam, step, dx = 0, dy = 0) {
+  const z = clamp(cam.z + step, MIN_Z, MAX_Z)
+  if (z === cam.z) return cam
+  const [mx, my] = screenToPlane(dx, dy, cam)
+  const k = 2 ** (z - cam.z)
+  const [cx, cy] = worldPx(cam.lat, cam.lng, cam.z)
+  const [lat, lng] = pxToLatLng((cx + mx) * k - mx, (cy + my) * k - my, z)
+  return { ...cam, z, lat: clamp(lat, 4.2, 11.6), lng: clamp(lng, -3.8, 1.7) }
+}
 const initials = (name) => name.split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase()
 
 function prefersReducedMotion() {
@@ -48,28 +74,74 @@ function agoText(m) {
   return `${Math.floor(m / 60)} h ${m % 60} min ago`
 }
 
+/** Mix a #rrggbb colour towards white (amt > 0) or black (amt < 0). */
+function shade(hex, amt) {
+  const n = parseInt(hex.slice(1), 16)
+  const target = amt > 0 ? 255 : 0
+  const t = Math.abs(amt)
+  const ch = (v) => Math.round(v + (target - v) * t).toString(16).padStart(2, '0')
+  return `#${ch((n >> 16) & 255)}${ch((n >> 8) & 255)}${ch(n & 255)}`
+}
+
+// Standing human silhouette (arms at the sides, legs apart), viewBox 40 × 72.
+const BODY_PATH =
+  'M17.6 13C17.8 15.6 17 16.2 15 16.8C11.4 17.6 9.8 18.6 9.4 22.5L8.4 33C8.2 37 8 40 8.4 42.6' +
+  'C8.7 44.4 10.6 44.4 10.8 42.6L11.6 33.5L12.4 27C12.8 30 13.2 33 13.1 38C13 44 13.6 52 14.4 60' +
+  'L14.6 66C13.6 67.4 13.8 68.8 16 68.8C17.6 68.8 18.4 68.2 18.3 66.2L18.9 52C19.1 46 19.4 43.5 20 43.5' +
+  'C20.6 43.5 20.9 46 21.1 52L21.7 66.2C21.6 68.2 22.4 68.8 24 68.8C26.2 68.8 26.4 67.4 25.4 66' +
+  'L25.6 60C26.4 52 27 44 26.9 38C26.8 33 27.2 30 27.6 27L28.4 33.5L29.2 42.6C29.4 44.4 31.3 44.4 31.6 42.6' +
+  'C32 40 31.8 37 31.6 33L30.6 22.5C30.2 18.6 28.6 17.6 25 16.8C23 16.2 22.2 15.6 22.4 13Z'
+
 /**
- * A person figure in the category colour, with a letter badge (S / R / M) so
- * colour is never the only cue: Supervisors green, Sales Reps red,
- * Merchandisers black.
+ * A 3D-shaded human figure in the category colour, with a letter badge
+ * (S / R / M) so colour is never the only cue: Supervisors green, Sales Reps
+ * red, Merchandisers black.
  */
-export const PersonFigure = memo(function PersonFigure({ category, size = 44 }) {
+export const PersonFigure = memo(function PersonFigure({ category, size = 52 }) {
   const g = TRACKER_GROUPS[category]
+  const id = useId().replace(/:/g, '')
+  const dark = category === 'merchandiser'
+  const hi = shade(g.color, dark ? 0.42 : 0.45)
+  const lo = shade(g.color, -0.5)
   return (
-    <svg width={size * 0.72} height={size} viewBox="0 0 36 50" aria-hidden="true" className={`lt-person lt-person-${category}`}>
-      <ellipse cx="18" cy="47" rx="11" ry="2.6" className="lt-person-shadow" />
-      <circle cx="18" cy="9" r="7" fill={g.color} stroke="#fff" strokeWidth="2" />
-      <path d="M6 44V29c0-7.2 5.4-12 12-12s12 4.8 12 12v15H6Z" fill={g.color} stroke="#fff" strokeWidth="2" strokeLinejoin="round" />
-      <path d="M12 44V33M24 44V33" stroke="rgba(255,255,255,0.45)" strokeWidth="1.6" strokeLinecap="round" />
-      <circle cx="18" cy="31" r="6.4" fill="#fff" />
-      <text x="18" y="35" textAnchor="middle" className="lt-person-badge" fill={g.color}>{BADGE[category]}</text>
+    <svg width={size * (40 / 72)} height={size} viewBox="0 0 40 72" aria-hidden="true" className={`lt-person lt-person-${category}`}>
+      <defs>
+        {/* Cylinder-style light from the upper left: rim dark, highlight, base, core shadow. */}
+        <linearGradient id={`${id}b`} x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stopColor={lo} />
+          <stop offset="0.3" stopColor={hi} />
+          <stop offset="0.55" stopColor={g.color} />
+          <stop offset="1" stopColor={lo} />
+        </linearGradient>
+        <linearGradient id={`${id}d`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#000" stopOpacity="0" />
+          <stop offset="0.55" stopColor="#000" stopOpacity="0" />
+          <stop offset="1" stopColor="#000" stopOpacity="0.32" />
+        </linearGradient>
+        <radialGradient id={`${id}h`} cx="0.36" cy="0.32" r="0.75">
+          <stop offset="0" stopColor={shade(g.color, 0.62)} />
+          <stop offset="0.45" stopColor={g.color} />
+          <stop offset="1" stopColor={lo} />
+        </radialGradient>
+        <radialGradient id={`${id}s`} cx="0.5" cy="0.5" r="0.5">
+          <stop offset="0" stopColor="#000" stopOpacity="0.55" />
+          <stop offset="1" stopColor="#000" stopOpacity="0" />
+        </radialGradient>
+      </defs>
+      <ellipse cx="20" cy="69.4" rx="12" ry="2.6" fill={`url(#${id}s)`} />
+      <path d={BODY_PATH} fill={`url(#${id}b)`} stroke="#fff" strokeWidth="1.3" strokeLinejoin="round" />
+      <path d={BODY_PATH} fill={`url(#${id}d)`} />
+      <ellipse cx="20" cy="8" rx="5.2" ry="6.2" fill={`url(#${id}h)`} stroke="#fff" strokeWidth="1.3" />
+      <ellipse cx="18.2" cy="5.6" rx="1.6" ry="1.1" fill="#fff" opacity="0.45" />
+      <circle cx="20" cy="31" r="5" fill="#fff" />
+      <text x="20" y="33.6" textAnchor="middle" className="lt-person-badge" fill={g.color}>{BADGE[category]}</text>
     </svg>
   )
 })
 
 /** Small legend version of the figure. */
 export function LegendKey({ category }) {
-  return <PersonFigure category={category} size={22} />
+  return <PersonFigure category={category} size={30} />
 }
 
 /** The 3D outline's static drawing (land, extrusion, cities) — never redrawn on camera moves. */
@@ -87,8 +159,8 @@ const SlabMap = memo(function SlabMap({ project }) {
       <svg className="lt-layer" viewBox={viewBox} aria-hidden="true">
         <defs>
           <linearGradient id="lt-land-grad" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="#1f56a8" />
-            <stop offset="100%" stopColor="#0f3471" />
+            <stop offset="0%" stopColor="#ffffff" />
+            <stop offset="100%" stopColor="#dbe7f8" />
           </linearGradient>
         </defs>
         <path d={outline} className="lt-land" />
@@ -141,7 +213,7 @@ const StaffTable = memo(function StaffTable({ companyName, visible, placedCount,
  * buttons or keyboard) and switch to full screen. People are placed only from
  * recorded positions — see liveTrackerService.
  */
-export default function LiveFieldTracker({ company }) {
+export default function LiveFieldTracker({ company, user }) {
   const reduced = prefersReducedMotion()
   const [tick, setTick] = useState(0)
   const [paused, setPaused] = useState(false)
@@ -158,13 +230,10 @@ export default function LiveFieldTracker({ company }) {
   const [svc, setSvc] = useState(() => locationServiceStatus())
   const [mode, setMode] = useState(() => (locationServiceStatus().tiles ? 'street' : 'slab'))
   const [sview, setSview] = useState(STREET_HOME)
-  // null = automatic: dark at country scale, light from city zoom (easier to read streets).
-  const [darkPref, setDarkPref] = useState(null)
   const [size, setSize] = useState({ w: 1100, h: 680 })
   const [search, setSearch] = useState({ q: '', status: 'idle', results: [], message: '' })
   const [enableError, setEnableError] = useState('')
   const street = mode === 'street' && svc.tiles
-  const darkMap = darkPref ?? sview.z < 13
 
   // The street map needs the stage's size in pixels.
   useEffect(() => {
@@ -179,7 +248,7 @@ export default function LiveFieldTracker({ company }) {
     return () => ro.disconnect()
   }, [])
 
-  // Refresh every 30 s, but not while paused or while the tab is hidden.
+  // Refresh every REFRESH_SECONDS, but not while paused or while the tab is hidden.
   useEffect(() => {
     const onVis = () => setHidden(document.visibilityState === 'hidden')
     document.addEventListener('visibilitychange', onVis)
@@ -255,15 +324,11 @@ export default function LiveFieldTracker({ company }) {
   const setStreet = (patch) => { setAutoSpin(false); setSview((v) => ({ ...v, ...patch })) }
   const rotateBy = (deg) => (street ? setStreet({ spin: sview.spin + deg }) : set({ spin: view.spin + deg }))
   const tiltBy = (deg) => (street ? setStreet({ tilt: clamp(sview.tilt + deg, 0, 65) }) : set({ tilt: clamp(view.tilt + deg, 0, 70) }))
-  const zoomBy = (step) => (street ? setStreet({ z: clamp(sview.z + step, 6, 18) }) : set({ zoom: clamp(view.zoom + step * 0.15, 0.6, 2) }))
+  const zoomAt = (step, dx = 0, dy = 0) => { setAutoSpin(false); setSview((v) => zoomCamera(v, step, dx, dy)) }
+  const zoomBy = (step) => (street ? zoomAt(step) : set({ zoom: clamp(view.zoom + step * 0.15, 0.6, 2) }))
   // Move the street map by a screen-space amount (undoing the 3D tilt and spin).
   const panBy = (dx, dy, base = sview) => {
-    const t = (base.tilt * Math.PI) / 180
-    const s = (-base.spin * Math.PI) / 180
-    const vx = dx
-    const vy = dy / Math.max(0.35, Math.cos(t))
-    const mx = vx * Math.cos(s) - vy * Math.sin(s)
-    const my = vx * Math.sin(s) + vy * Math.cos(s)
+    const [mx, my] = screenToPlane(dx, dy, base)
     const [cx, cy] = worldPx(base.lat, base.lng, base.z)
     const [lat, lng] = pxToLatLng(cx - mx, cy - my, base.z)
     setSview({ ...base, lat: clamp(lat, 4.2, 11.6), lng: clamp(lng, -3.8, 1.7) })
@@ -282,7 +347,7 @@ export default function LiveFieldTracker({ company }) {
     setSearch((st) => ({ ...st, status: 'loading', results: [], message: '' }))
     const r = await searchMapPlace(search.q)
     setSearch((st) => ({ ...st, ...r, status: r.status }))
-    if (r.status === 'ok' && r.results.length === 1) flyTo(r.results[0].latitude, r.results[0].longitude, 17)
+    if (r.status === 'ok' && r.results.length === 1) flyTo(r.results[0].latitude, r.results[0].longitude, SHOP_Z)
   }
   const onDuty = data.people.filter((p) => p.onDuty).length
 
@@ -315,6 +380,12 @@ export default function LiveFieldTracker({ company }) {
     if (d.frame) { cancelAnimationFrame(d.frame); applyDrag() }
     drag.current = null
     setDragging(false)
+  }
+  // Double-click zooms in two levels on that spot (Shift + double-click zooms out).
+  const onDoubleClick = (e) => {
+    if (!street || e.target.closest('.lt-marker, .lt-hud, .lt-dock, .lt-panel')) return
+    const r = e.currentTarget.getBoundingClientRect()
+    zoomAt(e.shiftKey ? -2 : 2, e.clientX - r.left - r.width / 2, e.clientY - r.top - r.height / 2)
   }
   const onKeyDown = (e) => {
     const keys = street ? {
@@ -351,34 +422,46 @@ export default function LiveFieldTracker({ company }) {
     if (!el || !street) return undefined
     const onWheel = (e) => {
       e.preventDefault()
-      wheelRef.current.acc += e.deltaY
-      if (Math.abs(wheelRef.current.acc) >= 100) {
-        const step = wheelRef.current.acc > 0 ? -1 : 1
-        wheelRef.current.acc = 0
-        setAutoSpin(false)
-        setSview((v) => ({ ...v, z: clamp(v.z + step, 6, 18) }))
-      }
+      // Line-based wheels (Firefox) report ~3 per notch; pixel wheels ~100.
+      wheelRef.current.acc += e.deltaMode === 1 ? e.deltaY * 33 : e.deltaY
+      const levels = Math.trunc(wheelRef.current.acc / WHEEL_PER_LEVEL)
+      if (!levels) return
+      wheelRef.current.acc -= levels * WHEEL_PER_LEVEL
+      // Zoom towards the pointer, like other map apps.
+      const r = el.getBoundingClientRect()
+      const dx = e.clientX - r.left - r.width / 2
+      const dy = e.clientY - r.top - r.height / 2
+      setAutoSpin(false)
+      setSview((v) => zoomCamera(v, -levels, dx, dy))
     }
     el.addEventListener('wheel', onWheel, { passive: false })
     return () => el.removeEventListener('wheel', onWheel)
   }, [street])
 
+  // Markers stand upright via the stage's --spin/--tilt CSS variables, so a
+  // camera move doesn't have to re-render every marker.
   const cam = street ? sview : view
-  const billboard = `translate(-50%, -100%) rotateZ(${-cam.spin}deg) rotateX(${-cam.tilt}deg)`
-  const toggleSelected = useCallback((id) => setSelected((cur) => (cur === id ? null : id)), [])
+  // Selecting someone on the street map flies straight to their shop/outlet.
+  const markerClickRef = useRef(null)
+  markerClickRef.current = (p) => {
+    const opening = selected !== p.employeeId
+    setSelected(opening ? p.employeeId : null)
+    if (opening && street) flyTo(p.position.latitude, p.position.longitude, Math.max(sview.z, SHOP_Z))
+  }
+  const onMarkerClick = useCallback((p) => markerClickRef.current(p), [])
   const renderMarker = useCallback((p, pos) => (
     <button
       key={p.employeeId}
       type="button"
       className={`lt-marker${selected === p.employeeId ? ' is-selected' : ''}${staleIds.has(p.employeeId) ? ' is-stale' : ''}`}
-      style={{ ...pos, transform: billboard }}
-      onClick={() => toggleSelected(p.employeeId)}
+      style={pos}
+      onClick={() => onMarkerClick(p)}
       aria-label={`${p.fullName}, ${TRACKER_GROUPS[p.category].single}, ${p.duty}, last seen ${agoText(lastSeen(p, nowMs))}. ${POSITION_SOURCE[p.position.source]}${p.position.place ? ` — ${p.position.place}` : ''}.`}
     >
       <span className="lt-tag">{initials(p.fullName)}</span>
       <PersonFigure category={p.category} />
     </button>
-  ), [selected, staleIds, billboard, nowMs, toggleSelected])
+  ), [selected, staleIds, nowMs, onMarkerClick])
   // Pulsing ring on the ground: an HTML element so the pulse runs on the GPU
   // without repainting the map.
   const renderRing = useCallback((p, pos) => (
@@ -394,7 +477,7 @@ export default function LiveFieldTracker({ company }) {
   const pickRef = useRef(null)
   pickRef.current = (p) => {
     setSelected(p.employeeId)
-    if (street) flyTo(p.position.latitude, p.position.longitude, 16)
+    if (street) flyTo(p.position.latitude, p.position.longitude, SHOP_Z)
     shellRef.current?.scrollIntoView?.({ behavior: reduced ? 'auto' : 'smooth', block: 'start' })
   }
   const onPick = useCallback((p) => pickRef.current(p), [])
@@ -419,13 +502,14 @@ export default function LiveFieldTracker({ company }) {
           onPointerUp={onPointerUp}
           onPointerCancel={onPointerUp}
           onKeyDown={onKeyDown}
+          onDoubleClick={onDoubleClick}
+          style={{ '--spin': cam.spin, '--tilt': cam.tilt }}
         >
           {street ? (
             <StreetPlane
               size={size}
               view={sview}
               tileUrl={svc.tileUrl}
-              dark={darkMap}
               people={placed}
               renderMarker={renderMarker}
               renderRing={renderRing}
@@ -452,7 +536,6 @@ export default function LiveFieldTracker({ company }) {
             <div className="lt-mode" role="group" aria-label="Map type">
               <button type="button" className={`lt-btn${street ? ' is-on' : ''}`} aria-pressed={street} onClick={() => (svc.tiles ? setMode('street') : enableStreetMap())}>Street map</button>
               <button type="button" className={`lt-btn${!street ? ' is-on' : ''}`} aria-pressed={!street} onClick={() => setMode('slab')}>3D outline</button>
-              {street && <button type="button" className="lt-btn" onClick={() => setDarkPref(!darkMap)}>{darkMap ? 'Light map' : 'Dark map'}</button>}
             </div>
             {!svc.tiles && (
               <p className="lt-note">
@@ -473,7 +556,7 @@ export default function LiveFieldTracker({ company }) {
                 {search.status === 'ok' ? (
                   <ul>
                     {search.results.map((r) => (
-                      <li key={r.id}><button type="button" className="lt-result" onClick={() => flyTo(r.latitude, r.longitude, 17)}>{r.label}{r.kind && <span> · {r.kind}</span>}</button></li>
+                      <li key={r.id}><button type="button" className="lt-result" onClick={() => flyTo(r.latitude, r.longitude, SHOP_Z)}>{r.label}{r.kind && <span> · {r.kind}</span>}</button></li>
                     ))}
                   </ul>
                 ) : <p>{search.status === 'no-results' ? `Nothing found for “${search.query}”.` : search.message}</p>}
@@ -538,7 +621,7 @@ export default function LiveFieldTracker({ company }) {
                   {sel.lastEvent && <><dt>Latest</dt><dd>{sel.lastEvent}</dd></>}
                 </dl>
                 {street && sel.position && (
-                  <button type="button" className="lt-btn lt-btn-primary lt-focus" onClick={() => flyTo(sel.position.latitude, sel.position.longitude, 17)}>Zoom to street level</button>
+                  <button type="button" className="lt-btn lt-btn-primary lt-focus" onClick={() => flyTo(sel.position.latitude, sel.position.longitude, SHOP_Z)}>Zoom to street level</button>
                 )}
               </>
             ) : (
@@ -547,8 +630,8 @@ export default function LiveFieldTracker({ company }) {
                 <ul className="lt-legend">
                   {Object.entries(TRACKER_GROUPS).map(([id, g]) => <li key={id}><LegendKey category={id} /> {g.label} <span className="lt-legend-badge">{BADGE[id]}</span></li>)}
                 </ul>
-                <p>Select a person for details. Faded figures were last seen over an hour ago. Positions come only from recorded events — the phone’s GPS at an outlet visit, the visited outlet, or a merchandiser’s shop — not continuous tracking.</p>
-                <p className="lt-help">{street ? 'Drag to move · wheel or + − to zoom · Shift-drag to rotate · zoom in to see roads, markets and shops' : 'Drag to rotate · arrow keys rotate and tilt · + − zoom · 0 resets'}</p>
+                <p>Select a person for details. Faded figures were last seen over an hour ago. Everyone is tracked live from their phone between clock-in and clock-out (while mobile data and Location are on); tracking stops when they clock out. Until a live location arrives, Supervisors and Sales Reps show at their latest outlet visit and Merchandisers at their shop.</p>
+                <p className="lt-help">{street ? 'Drag to move · wheel, double-click or + − to zoom · select a person to jump to their shop · Shift-drag to rotate' : 'Drag to rotate · arrow keys rotate and tilt · + − zoom · 0 resets'}</p>
               </>
             )}
           </aside>
@@ -556,6 +639,7 @@ export default function LiveFieldTracker({ company }) {
       </div>
 
       <StaffTable companyName={company.name} visible={visible} placedCount={placed.length} selected={selected} nowMs={nowMs} onPick={onPick} />
+      <TrackingDailyReport company={company} user={user} refreshKey={tick} />
       <p className="mock-banner" style={{ textAlign: 'center', margin: 0 }}>Demo data — merchandiser check results are simulated. Visit locations come from the employee’s phone.</p>
     </div>
   )

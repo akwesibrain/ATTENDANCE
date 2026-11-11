@@ -108,3 +108,25 @@
     background-size: 150vw auto;
   }
 }
+
+/* "Install the app" card on the home screen (phones). */
+.install-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 20px 0 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--rule);
+  border-radius: 14px;
+  background: var(--accent-soft);
+  color: var(--ink);
+}
+.install-card-icon { flex: none; border-radius: 10px; }
+.install-card-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; font-size: 14px; line-height: 1.4; }
+.install-card-text span { color: var(--ink-2); font-size: 13px; }
+.install-card-btn { flex: none; min-height: 44px; }
+
+/* Policy links under the home screen and elsewhere. */
+.legal-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 16px; margin: 16px 0 0; font-size: 13px; }
+.legal-links a { color: var(--ink-2); min-height: 32px; display: inline-flex; align-items: center; }
+.legal-links a:hover { color: var(--accent); }

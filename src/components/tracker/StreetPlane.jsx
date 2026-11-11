@@ -1,10 +1,13 @@
-import { memo, useMemo } from 'react'
+import { memo, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { GHANA_OUTLINE } from '../../constants/ghanaMap'
 import { TILE, tilesFor, worldPx } from '../../utils/webMercator'
 
 /** How much bigger than the stage the tilted map plane is (so the horizon is covered). */
 const PLANE_SCALE = { x: 1.7, y: 2.3 }
-const ORIGIN = { lat: 11.6, lng: -3.8 }
+/** Size of the grid the local origin snaps to (a whole number of tiles). */
+const ANCHOR_GRID = TILE * 32
+/** Keep the old zoom level on screen while new tiles load, for jumps up to this many levels. */
+const BACKDROP_MAX_LEVELS = 3
 
 /**
  * The street map plane for the Live Tracker: real OpenStreetMap tiles laid on
@@ -16,16 +19,21 @@ const ORIGIN = { lat: 11.6, lng: -3.8 }
  *
  * view: { lat, lng, z, tilt, spin }  size: { w, h } of the stage in px
  */
-function StreetPlane({ size, view, tileUrl, dark, people, renderMarker, renderRing }) {
+function StreetPlane({ size, view, tileUrl, people, renderMarker, renderRing }) {
   const { z } = view
   const PW = Math.round(size.w * PLANE_SCALE.x)
   const PH = Math.round(size.h * PLANE_SCALE.y)
   const [cx, cy] = worldPx(view.lat, view.lng, z)
   const left = Math.round(cx - PW / 2)
   const top = Math.round(cy - PH / 2)
-  // Fixed origin (north-west of Ghana, on a tile corner) so CSS/SVG numbers
-  // stay small even at street zoom, where world pixels run into the millions.
-  const origin = useMemo(() => worldPx(ORIGIN.lat, ORIGIN.lng, z).map((v) => Math.floor(v / TILE) * TILE), [z])
+  // Local origin near the camera, snapped to a coarse grid, so every CSS/SVG
+  // number stays within a few thousand pixels. At street zoom world pixels run
+  // into the millions, and the tilted 3D plane loses precision on numbers that
+  // large: the whole map rendered blank (white) when zoomed in deep. The origin
+  // only moves when the camera crosses a grid cell, so panning stays cheap.
+  const ax = Math.floor(cx / ANCHOR_GRID)
+  const ay = Math.floor(cy / ANCHOR_GRID)
+  const origin = useMemo(() => [(ax - 1) * ANCHOR_GRID, (ay - 1) * ANCHOR_GRID], [ax, ay])
   const ox = left - origin[0]
   const oy = top - origin[1]
 
@@ -38,6 +46,17 @@ function StreetPlane({ size, view, tileUrl, dark, people, renderMarker, renderRi
     () => tilesFor(tx0 * TILE, ty0 * TILE, (tx1 - tx0) * TILE, (ty1 - ty0) * TILE, z),
     [tx0, ty0, tx1, ty1, z],
   )
+
+  // When the zoom level changes, the last level's tiles stay underneath
+  // (scaled to match) so the map never goes blank while new tiles download.
+  const shown = useRef(null)
+  const [backdrop, setBackdrop] = useState(null)
+  useLayoutEffect(() => {
+    const last = shown.current
+    if (last && last.z !== z) setBackdrop(Math.abs(last.z - z) <= BACKDROP_MAX_LEVELS ? last : null)
+    shown.current = { z, origin, tiles }
+  }, [z, origin, tiles])
+  const backK = backdrop ? 2 ** (z - backdrop.z) : 1
 
   // Ghana border in world pixels, once per zoom level.
   const border = useMemo(() => GHANA_OUTLINE.map(([lng, lat], i) => {
@@ -65,16 +84,57 @@ function StreetPlane({ size, view, tileUrl, dark, people, renderMarker, renderRi
     })).sort((a, b) => a.y - b.y)
   }, [people, z, origin])
 
-  const onScreen = groupedPeople.filter((m) => m.x - ox > -60 && m.y - oy > -60 && m.x - ox < PW + 60 && m.y - oy < PH + 60)
+  // Border, rings and people live in fixed world coordinates (relative to
+  // `origin`) inside one layer that is only translated while panning, so a
+  // drag is a single GPU transform. They are rebuilt only when a new tile
+  // row/column comes into view, not on every frame.
+  const gx = tx0 * TILE - origin[0]
+  const gy = ty0 * TILE - origin[1]
+  const gw = (tx1 - tx0 + 1) * TILE
+  const gh = (ty1 - ty0 + 1) * TILE
+  const overlay = useMemo(() => (
+    <svg className="lt-plane-svg" style={{ left: gx, top: gy }} width={gw} height={gh} aria-hidden="true">
+      <g transform={`translate(${-gx} ${-gy})`}>
+        <path d={`M${gx} ${gy}h${gw}v${gh}h${-gw}Z ${border}`} className="lt-outside" fillRule="evenodd" />
+        <path d={border} className="lt-border-glow" />
+        <path d={border} className="lt-border" />
+      </g>
+    </svg>
+  ), [gx, gy, gw, gh, border])
+  const people3d = useMemo(() => {
+    const near = groupedPeople.filter((m) => m.x > gx - 60 && m.y > gy - 60 && m.x < gx + gw + 60 && m.y < gy + gh + 60)
+    return [
+      ...near.map((m) => renderRing(m.p, { left: m.bx, top: m.by })),
+      ...near.map((m) => renderMarker(m.p, { left: m.x, top: m.y })),
+    ]
+  }, [groupedPeople, gx, gy, gw, gh, renderMarker, renderRing])
   const shift = `translate(${-ox}px, ${-oy}px)`
 
   return (
     <div
-      className={`lt-plane${dark ? ' is-dark' : ''}`}
+      className="lt-plane"
       style={{ width: PW, height: PH, marginLeft: -PW / 2, marginTop: -PH / 2, transform: `rotateX(${view.tilt}deg) rotateZ(${view.spin}deg)` }}
     >
       <div className="lt-tiles" aria-hidden="true">
         <div className="lt-tiles-world" style={{ transform: shift }}>
+          {backdrop && backdrop.z !== z && (
+            <div
+              className="lt-tiles-back"
+              style={{ transform: `translate(${backdrop.origin[0] * backK - origin[0]}px, ${backdrop.origin[1] * backK - origin[1]}px) scale(${backK})` }}
+            >
+              {backdrop.tiles.map((t) => (
+                <img
+                  key={`${backdrop.z}/${t.tx}/${t.ty}`}
+                  src={tileUrl.replace('{z}', backdrop.z).replace('{x}', t.x).replace('{y}', t.ty)}
+                  alt=""
+                  draggable={false}
+                  width={TILE}
+                  height={TILE}
+                  style={{ left: t.tx * TILE - backdrop.origin[0], top: t.ty * TILE - backdrop.origin[1] }}
+                />
+              ))}
+            </div>
+          )}
           {tiles.map((t) => (
             <img
               key={`${z}/${t.tx}/${t.ty}`}
@@ -89,15 +149,10 @@ function StreetPlane({ size, view, tileUrl, dark, people, renderMarker, renderRi
           ))}
         </div>
       </div>
-      <svg className="lt-plane-svg" width={PW} height={PH} aria-hidden="true">
-        <g transform={`translate(${-ox} ${-oy})`}>
-          <path d={`M${ox} ${oy}h${PW}v${PH}h${-PW}Z ${border}`} className="lt-outside" fillRule="evenodd" />
-          <path d={border} className="lt-border-glow" />
-          <path d={border} className="lt-border" />
-        </g>
-      </svg>
-      {onScreen.map((m) => renderRing(m.p, { left: m.bx - ox, top: m.by - oy }))}
-      {onScreen.map((m) => renderMarker(m.p, { left: m.x - ox, top: m.y - oy }))}
+      <div className="lt-world" style={{ transform: shift }}>
+        {overlay}
+        {people3d}
+      </div>
     </div>
   )
 }

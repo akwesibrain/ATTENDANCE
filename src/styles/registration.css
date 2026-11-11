@@ -1753,3 +1753,16 @@
 .visit-location.is-ok { background: var(--ok-soft); color: var(--ok); font-weight: 600; }
 .visit-location.is-error { background: var(--warn-soft); color: var(--warn); font-weight: 600; }
 .visit-location-retry { margin-left: auto; min-height: 36px; padding: 6px 12px; }
+
+/* Outlet visit: the employee's daily shop list as quick choices */
+.visit-today { margin-bottom: 16px; }
+.visit-today-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.visit-today-shop {
+  min-height: 44px; padding: 8px 14px; border-radius: 12px;
+  border: 1px solid var(--rule-strong); background: var(--surface); color: var(--ink);
+  font: inherit; font-weight: 600; cursor: pointer;
+}
+.visit-today-shop:hover { border-color: var(--accent); }
+.visit-today-shop.is-selected { border-color: var(--accent); background: var(--accent-soft); color: var(--brand); }
+.visit-today-shop:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.visit-today-hint { margin: 8px 0 0; font-size: 13px; color: var(--ink-2); }

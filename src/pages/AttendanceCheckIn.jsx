@@ -11,6 +11,8 @@ import { evaluateAction } from '../constants/attendancePolicy'
 import { categoryForPosition, categoryLabel } from '../constants/employeeCategories'
 import { mockListShops } from '../services/shopsService'
 import { VISIT_RESULT, validateVisitOutlet } from '../services/fieldVisitsService'
+import { TRACKED_CATEGORIES, onAttendanceRecorded } from '../services/locationTrackingService'
+import { MIN_STAY_MINUTES, getVisitListShops } from '../services/visitListService'
 import '../styles/registration.css'
 import { captureVideoFrame } from '../utils/imageCompression'
 
@@ -221,6 +223,8 @@ export default function AttendanceCheckIn({ onBack }) {
           : null,
       })
       stopStream()
+      // Supervisors, Sales Reps, Merchandisers: share location from clock-in to clock-out.
+      onAttendanceRecorded(event)
       setResult(event)
       setStep(STEP.success)
     } catch (err) {
@@ -242,6 +246,10 @@ export default function AttendanceCheckIn({ onBack }) {
   const actionLabel = ACTIONS[nextAction]?.label ?? 'Check In'
   const category = categoryForPosition(employee?.position)
   const directoryShops = employee ? mockListShops(employee.companyId) : []
+  // Sales Reps / Supervisors: the shops on their daily list come first.
+  const listShops = employee && category !== 'merchandiser' ? getVisitListShops(employee.staffId) : []
+  const listIds = new Set(listShops.map((sh) => sh.shopId))
+  const offList = listShops.length > 0 && (visit.mode === 'other' || (visit.shopId && !listIds.has(visit.shopId)))
 
   return (
     <main className="registration-page">
@@ -350,6 +358,25 @@ export default function AttendanceCheckIn({ onBack }) {
                 ? 'Choose the outlet from the list. If it is not listed, enter it yourself.'
                 : 'Enter the mini-market you are visiting, or choose it from the list if it is there.'}
             </p>
+            {listShops.length > 0 && (
+              <div className="visit-today" role="group" aria-labelledby="visit-today-label">
+                <p id="visit-today-label" className="form-label">Your shops today</p>
+                <div className="visit-today-list">
+                  {listShops.map((sh) => (
+                    <button
+                      key={sh.shopId}
+                      type="button"
+                      className={`visit-today-shop${visit.mode === 'directory' && visit.shopId === sh.shopId ? ' is-selected' : ''}`}
+                      aria-pressed={visit.mode === 'directory' && visit.shopId === sh.shopId}
+                      onClick={() => setVisit((v) => ({ ...v, mode: 'directory', shopId: sh.shopId }))}
+                    >
+                      {sh.shopName}
+                    </button>
+                  ))}
+                </div>
+                <p className="visit-today-hint">Scan when you arrive and stay at least {MIN_STAY_MINUTES} minutes with this app open and Location on — that is how the visit is proven.</p>
+              </div>
+            )}
             <div className="visit-mode" role="radiogroup" aria-label="How to choose the outlet">
               <label className={`visit-mode-option${visit.mode === 'directory' ? ' is-selected' : ''}`}>
                 <input type="radio" name="visit-mode" checked={visit.mode === 'directory'} onChange={() => setVisit((v) => ({ ...v, mode: 'directory' }))} />
@@ -390,6 +417,15 @@ export default function AttendanceCheckIn({ onBack }) {
                 </button>
               )}
             </div>
+            {offList && (
+              <p className="late-notice" role="note">
+                <span>
+                  {visit.mode === 'other'
+                    ? 'Typed-in outlets have no saved location, so this visit cannot be verified and will be flagged for HR.'
+                    : 'This shop is not on your daily list. The visit will be recorded and flagged for HR.'}
+                </span>
+              </p>
+            )}
             {visitError && <span className="field-error" role="alert">{visitError}</span>}
             <div className="step-actions">
               <button type="button" className="btn btn-secondary" onClick={() => setStep(actions.length > 1 ? STEP.choose : STEP.staffId)}>Back</button>
@@ -444,6 +480,20 @@ export default function AttendanceCheckIn({ onBack }) {
                   <strong>{attemptsLeft}</strong> verification attempt
                   {attemptsLeft === 1 ? '' : 's'} left. After 5 failed attempts
                   this Staff ID is marked <strong>ABSENT</strong>.
+                </span>
+              </div>
+            )}
+
+            {TRACKED_CATEGORIES.has(category) && nextAction === 'check-in' && (
+              <div className="late-notice" role="note">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M12 22s7-6.1 7-12a7 7 0 1 0-14 0c0 5.9 7 12 7 12z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+                  <circle cx="12" cy="10" r="2.5" stroke="currentColor" strokeWidth="2" />
+                </svg>
+                <span>
+                  When you clock in, this phone shares its <strong>location with HR</strong> while
+                  this page is open and mobile data is on. It stops when you clock out.{' '}
+                  <a href="/tracking-policy" target="_blank" rel="noopener">Read the Tracking Policy</a>
                 </span>
               </div>
             )}
@@ -622,6 +672,8 @@ export default function AttendanceCheckIn({ onBack }) {
               {result.type === 'break-start' && 'Your break time is not counted as working time.'}
               {result.type === 'break-end' && 'You can take another break if your company allows it, or clock out at the end of the day.'}
               {result.type === 'visit' && 'Record a new visit at each outlet you go to. Clock out at the end of the day.'}
+              {TRACKED_CATEGORIES.has(category) && result.type === 'check-in' && ' Location sharing is now on — keep this page open with mobile data and Location turned on.'}
+              {TRACKED_CATEGORIES.has(category) && result.type === 'check-out' && ' Location sharing has stopped.'}
             </p>
 
             <div className="success-actions">

@@ -2,16 +2,17 @@
  * Live Field Tracker — where Supervisors, Sales Representatives and
  * Merchandisers were last recorded today.
  *
- * Positions are never invented. A person is placed on the map only from a
- * recorded position:
+ * Positions are never invented. Supervisors, Sales Reps and Merchandisers who
+ * use the attendance app are tracked LIVE from their phone between clock-in
+ * and clock-out ("live", see locationTrackingService); tracking stops at
+ * clock-out and they leave the map. Until a live location arrives they are
+ * shown at a recorded position, flagged:
  *   Supervisors / Sales Reps  the phone's GPS at their latest outlet visit
- *                             ("gps"); if that visit had no GPS but the outlet
- *                             has saved coordinates, the outlet's location
- *                             ("outlet").
- *   Merchandisers             their allocated shop ("shop"), with the result of
- *                             their latest verification check.
- * Everyone else is listed as "no position yet". Between recorded events the
- * real position is unknown — this is not continuous tracking.
+ *                             ("gps"), or the visited outlet ("outlet").
+ *   Merchandisers             their allocated shop ("shop").
+ * Demo staff without the app keep those recorded positions (demo
+ * merchandisers also show their latest verification check).
+ * Anyone else is listed as "no position yet".
  */
 
 import { listAttendanceRecords } from './attendanceRecordsService'
@@ -19,6 +20,7 @@ import { FIELD_STATE, mockGetLiveFieldBoard } from './salesMonitoringService'
 import { VISIT_RESULT, outletLabel } from './fieldVisitsService'
 import { mockGetShop } from './shopsService'
 import { accraTodayKey } from '../utils/accraTime'
+import { LIVE_STALE_MINUTES, latestLocation, trackingStatus } from './locationTrackingService'
 
 /** Marker colours (the map also shows a letter badge, so colour is not the only cue). */
 export const TRACKER_GROUPS = {
@@ -32,6 +34,7 @@ const MERCH_ON_DUTY = new Set(['inside', 'outside', 'face-failed', 'location-unk
 export const POSITION_SOURCE = {
   gps: 'Phone GPS at last outlet visit',
   outlet: 'Outlet location (visit had no GPS)',
+  live: 'Live phone location',
   shop: 'Allocated shop',
 }
 
@@ -82,16 +85,63 @@ function visitPerson(r) {
  * @returns {{ asOf, people: object[], counts: object }}
  *   counts[category] = { total, placed, onDuty }
  */
+/**
+ * Live tracking for anyone who uses the attendance app (Supervisors, Sales
+ * Reps, Merchandisers): placed by their phone's latest location between
+ * clock-in and clock-out, and taken off the map after clock-out. If no live
+ * location has arrived yet, `fallback` (latest visit or allocated shop) is
+ * shown and flagged.
+ */
+function withLiveTracking(person, fallback, tracked, now) {
+  if (!tracked.active) {
+    const duty = { 'clocked-out': 'Clocked out — tracking stopped', 'not-clocked-in': 'Not clocked in', absent: 'Marked absent' }[tracked.reason] ?? person.duty
+    return { ...person, duty, onDuty: false, position: null }
+  }
+  const live = latestLocation(person.employeeId)
+  if (!live) {
+    return {
+      ...person,
+      duty: 'Clocked in — no live location yet',
+      onDuty: true,
+      lastEvent: 'Phone has not sent a location (mobile data, Location or the page may be off)',
+      position: fallback,
+    }
+  }
+  const mins = Math.max(0, Math.round((now.getTime() - Date.parse(live.at)) / 60000))
+  const lost = mins > LIVE_STALE_MINUTES
+  return {
+    ...person,
+    duty: lost ? `Clocked in — signal lost ${mins} min ago` : 'Clocked in — live',
+    onDuty: true,
+    lastEvent: lost ? 'No location for a while (mobile data or Location may be off, or the page closed)' : person.lastEvent ?? 'Live location',
+    lastEventAt: live.at,
+    position: { latitude: live.latitude, longitude: live.longitude, accuracy: live.accuracy, source: 'live', at: live.at, place: null },
+  }
+}
+
 export function getLiveTracker(companyId, now = new Date()) {
   const today = accraTodayKey()
   const records = listAttendanceRecords({ companyId, dates: [today] })
   const people = records
     .filter((r) => r.category === 'supervisor' || r.category === 'sales-rep')
-    .map(visitPerson)
+    .map((r) => {
+      const person = visitPerson(r)
+      const tracked = trackingStatus(r.employeeId)
+      return tracked.reason === 'not-found' ? person : withLiveTracking(person, person.position, tracked, now)
+    })
 
   const board = mockGetLiveFieldBoard(companyId)
   board.reps.forEach((rep) => {
     const shop = rep.shop
+    const tracked = trackingStatus(rep.employeeId)
+    if (tracked.reason !== 'not-found') {
+      const person = { employeeId: rep.employeeId, fullName: rep.fullName, category: 'merchandiser', duty: '—', onDuty: false, visitsToday: null, lastEvent: null, lastEventAt: null, position: null }
+      const atShop = shop && shop.latitude != null
+        ? { latitude: shop.latitude, longitude: shop.longitude, accuracy: null, source: 'shop', at: null, place: shop.shopName }
+        : null
+      people.push(withLiveTracking(person, atShop, tracked, now))
+      return
+    }
     people.push({
       employeeId: rep.employeeId,
       fullName: rep.fullName,

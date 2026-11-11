@@ -2,8 +2,9 @@
  * Live Tracker — full-screen 3D map of Ghana
  * Real-time operations pattern (UI/UX Pro Max): a large immersive stage with
  * glass heads-up overlays — live status with update time, category filters,
- * a control dock and a details panel. Blue palette; white/pale-blue text on
- * deep navy (≥ 7:1). Motion stops under prefers-reduced-motion.
+ * a control dock and a details panel. LIGHT THEME ONLY: dark ink on white
+ * glass over a light map (text at least 4.5:1). Motion stops under
+ * prefers-reduced-motion.
  * ========================================================================== */
 
 .lt-page { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
@@ -14,17 +15,18 @@
   position: fixed;
   inset: 0;
   z-index: 300;
-  background: #050c1a;
+  background: #eef3fa;
 }
 .lt-shell:fullscreen .lt-stage,
 .lt-shell.is-full .lt-stage { height: 100vh; height: 100dvh; border-radius: 0; }
 
 /* ---------- Stage ---------- */
 .lt-stage {
-  --hud-bg: rgba(8, 20, 44, 0.9);
-  --hud-border: rgba(148, 197, 255, 0.22);
-  --hud-text: #ffffff;
-  --hud-muted: #b9cdec;
+  --hud-bg: rgba(255, 255, 255, 0.94);
+  --hud-border: rgba(14, 31, 61, 0.14);
+  --hud-text: #0e1f3d;
+  --hud-muted: #4a5d7a;
+  --hud-accent: #1864cc;
   position: relative;
   height: max(560px, calc(100vh - 150px));
   height: max(560px, calc(100dvh - 150px));
@@ -38,14 +40,13 @@
   touch-action: none;
   user-select: none;
   background:
-    radial-gradient(60% 55% at 50% 45%, rgba(37, 99, 235, 0.32), transparent 70%),
-    radial-gradient(35% 30% at 88% 8%, rgba(96, 165, 250, 0.18), transparent 70%),
-    linear-gradient(180deg, #0a1730 0%, #050c1a 100%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 24px 48px -20px rgba(5, 12, 26, 0.7);
+    radial-gradient(60% 55% at 50% 45%, rgba(24, 100, 204, 0.10), transparent 70%),
+    linear-gradient(180deg, #f6f9fd 0%, #e4ecf7 100%);
+  box-shadow: inset 0 0 0 1px rgba(14, 31, 61, 0.08), 0 24px 48px -24px rgba(14, 31, 61, 0.35);
   color: var(--hud-text);
 }
 .lt-stage:active { cursor: grabbing; }
-.lt-stage:focus-visible { outline: 3px solid #93c5fd; outline-offset: -3px; }
+.lt-stage:focus-visible { outline: 3px solid var(--hud-accent); outline-offset: -3px; }
 
 .lt-scene {
   position: relative;
@@ -61,24 +62,24 @@
   inset: -55%;
   transform: translateZ(-28px);
   background-image:
-    linear-gradient(rgba(147, 197, 253, 0.15) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(147, 197, 253, 0.15) 1px, transparent 1px);
+    linear-gradient(rgba(24, 100, 204, 0.10) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(24, 100, 204, 0.10) 1px, transparent 1px);
   background-size: 36px 36px;
   mask-image: radial-gradient(closest-side, #000 50%, transparent 100%);
   -webkit-mask-image: radial-gradient(closest-side, #000 50%, transparent 100%);
 }
 .lt-layer { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
-.lt-land-side { fill: #0b2652; stroke: #2563eb; stroke-width: 1; }
+.lt-land-side { fill: #c3d5ee; stroke: #8fb0de; stroke-width: 1; }
 .lt-land {
   fill: url(#lt-land-grad);
-  stroke: #93c5fd;
+  stroke: #1864cc;
   stroke-width: 2.6;
   stroke-linejoin: round;
-  filter: drop-shadow(0 0 8px rgba(147, 197, 253, 0.6));
+  filter: drop-shadow(0 4px 10px rgba(24, 100, 204, 0.22));
 }
-.lt-city { fill: #bfdbfe; }
-.lt-city-label { font-size: 13px; fill: #dbeafe; font-weight: 500; }
-.lt-city-label.is-capital { font-weight: 800; fill: #ffffff; }
+.lt-city { fill: #1864cc; }
+.lt-city-label { font-size: 13px; fill: #33507a; font-weight: 500; }
+.lt-city-label.is-capital { font-weight: 800; fill: #0e1f3d; }
 .lt-ring {
   position: absolute;
   width: 18px;
@@ -102,31 +103,36 @@
   cursor: pointer;
   transform-origin: 50% 100%;
   transform-style: preserve-3d;
+  /* Stand upright facing the camera; --spin/--tilt are set on the stage. */
+  transform: translate(-50%, -100%) rotateZ(calc(var(--spin, 0) * -1deg)) rotateX(calc(var(--tilt, 0) * -1deg));
   min-width: 44px;
   min-height: 44px;
   justify-content: flex-end;
   color: inherit;
   font: inherit;
 }
-.lt-person { overflow: visible; filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.55)); }
+/* No drop-shadow filter: the figure draws its own ground shadow, and a filter
+   on every marker is re-rasterised on each camera move. */
+.lt-person { overflow: visible; }
 .lt-person-shadow { fill: rgba(0, 0, 0, 0.45); }
-.lt-person-badge { font: 900 9.5px/1 var(--font-family); }
+.lt-person-badge { font: 900 7.4px/1 var(--font-family); }
 .lt-tag {
   padding: 1px 7px;
   border-radius: 999px;
-  background: rgba(8, 20, 44, 0.85);
-  border: 1px solid var(--hud-border);
-  color: #ffffff;
+  background: #ffffff;
+  border: 1px solid rgba(14, 31, 61, 0.2);
+  color: #0e1f3d;
+  box-shadow: 0 2px 6px -2px rgba(14, 31, 61, 0.3);
   font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.02em;
   white-space: nowrap;
 }
-.lt-marker.is-selected .lt-tag { background: #2563eb; border-color: #93c5fd; }
-.lt-marker.is-selected .lt-person { filter: drop-shadow(0 0 8px #ffffff); }
+.lt-marker.is-selected .lt-tag { background: #1864cc; border-color: #1864cc; color: #ffffff; }
+.lt-marker.is-selected .lt-person { filter: drop-shadow(0 0 6px rgba(24, 100, 204, 0.9)); }
 .lt-marker.is-stale { opacity: 0.55; }
-.lt-marker:focus-visible { outline: 3px solid #ffffff; outline-offset: 2px; border-radius: 10px; }
-.lt-ring.is-stale { opacity: 0.35; }
+.lt-marker:focus-visible { outline: 3px solid var(--hud-accent); outline-offset: 2px; border-radius: 10px; }
+.lt-ring.is-stale { opacity: 0.35; animation: none; }
 
 /* ---------- Heads-up overlays (glass) ---------- */
 .lt-hud,
@@ -136,16 +142,16 @@
   background: var(--hud-bg);
   border: 1px solid var(--hud-border);
   border-radius: 16px;
-  box-shadow: 0 12px 30px -12px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 12px 30px -14px rgba(14, 31, 61, 0.3);
   cursor: default;
   z-index: 2;
 }
 .lt-hud-top { top: 16px; left: 16px; padding: 12px 16px; max-width: min(520px, calc(100% - 32px)); }
-.lt-title h2 { margin: 0; font-size: 20px; font-weight: 800; color: #ffffff; letter-spacing: -0.01em; }
+.lt-title h2 { margin: 0; font-size: 20px; font-weight: 800; color: #0b3d91; letter-spacing: -0.01em; }
 .lt-sub { font-size: 13px; color: var(--hud-muted); }
 .lt-status { margin: 8px 0 0; display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--hud-muted); flex-wrap: wrap; }
-.lt-status-dot { width: 9px; height: 9px; border-radius: 50%; background: #4ade80; box-shadow: 0 0 0 4px rgba(74, 222, 128, 0.18); }
-.lt-status.is-paused .lt-status-dot { background: #fbbf24; box-shadow: 0 0 0 4px rgba(251, 191, 36, 0.18); }
+.lt-status-dot { width: 9px; height: 9px; border-radius: 50%; background: #16a34a; box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.16); }
+.lt-status.is-paused .lt-status-dot { background: #d97706; box-shadow: 0 0 0 4px rgba(217, 119, 6, 0.16); }
 
 .lt-chips { top: 16px; right: 16px; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
 .lt-chip {
@@ -153,15 +159,15 @@
   border-radius: 12px; border: 1px solid transparent; background: transparent; color: var(--hud-muted);
   font: inherit; text-align: left; cursor: pointer; opacity: 0.55;
 }
-.lt-chip.is-on { opacity: 1; background: rgba(147, 197, 253, 0.1); border-color: var(--hud-border); }
-.lt-chip:hover { background: rgba(147, 197, 253, 0.16); }
+.lt-chip.is-on { opacity: 1; background: #f1f6fd; border-color: var(--hud-border); }
+.lt-chip:hover { background: #e8f0fb; }
 .lt-chip-text { display: flex; flex-direction: column; line-height: 1.25; }
-.lt-chip-text strong { color: #ffffff; font-size: 14px; }
+.lt-chip-text strong { color: var(--hud-text); font-size: 14px; }
 .lt-chip-text span { font-size: 12px; }
 .lt-chip .lt-person { filter: none; }
 
-.lt-panel { right: 16px; top: 50%; transform: translateY(-30%); width: 300px; max-width: calc(100% - 32px); padding: 16px; color: #ffffff; }
-.lt-panel h3 { margin: 0; font-size: 17px; color: #ffffff; overflow-wrap: anywhere; }
+.lt-panel { right: 16px; top: 50%; transform: translateY(-30%); width: 300px; max-width: calc(100% - 32px); padding: 16px; color: var(--hud-text); }
+.lt-panel h3 { margin: 0; font-size: 17px; color: #0b3d91; overflow-wrap: anywhere; }
 .lt-panel p { margin: 10px 0 0; font-size: 13px; line-height: 1.5; color: var(--hud-muted); }
 .lt-help { font-size: 12px !important; }
 .lt-panel-head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; }
@@ -169,12 +175,12 @@
 .lt-panel .lt-person { filter: none; }
 .lt-close {
   width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--hud-border);
-  background: rgba(147, 197, 253, 0.08); color: #ffffff; font-size: 22px; line-height: 1; cursor: pointer;
+  background: #f1f6fd; color: var(--hud-text); font-size: 22px; line-height: 1; cursor: pointer;
 }
-.lt-close:hover { background: rgba(147, 197, 253, 0.18); }
+.lt-close:hover { background: #e3edfb; }
 .lt-panel dl { margin: 12px 0 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px 12px; font-size: 13.5px; }
 .lt-panel dt { color: var(--hud-muted); font-weight: 600; }
-.lt-panel dd { margin: 0; color: #ffffff; overflow-wrap: anywhere; }
+.lt-panel dd { margin: 0; color: var(--hud-text); overflow-wrap: anywhere; }
 .lt-legend { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; font-weight: 600; font-size: 14px; }
 .lt-legend li { display: flex; align-items: center; gap: 8px; }
 .lt-legend-badge { margin-left: auto; font-size: 12px; color: var(--hud-muted); border: 1px solid var(--hud-border); border-radius: 6px; padding: 0 6px; }
@@ -186,15 +192,15 @@
 }
 .lt-btn {
   min-height: 44px; min-width: 44px; padding: 0 14px; border-radius: 12px;
-  border: 1px solid var(--hud-border); background: rgba(147, 197, 253, 0.08);
-  color: #ffffff; font: inherit; font-weight: 700; font-size: 14px; cursor: pointer;
+  border: 1px solid rgba(14, 31, 61, 0.16); background: #ffffff;
+  color: var(--hud-text); font: inherit; font-weight: 700; font-size: 14px; cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease;
 }
-.lt-btn:hover { background: rgba(147, 197, 253, 0.2); }
-.lt-btn.is-on { background: rgba(37, 99, 235, 0.55); border-color: #93c5fd; }
-.lt-btn-primary { background: #2563eb; border-color: #60a5fa; }
-.lt-btn-primary:hover { background: #1d4ed8; }
-.lt-btn:focus-visible, .lt-chip:focus-visible, .lt-close:focus-visible { outline: 3px solid #ffffff; outline-offset: 2px; }
+.lt-btn:hover { background: #eef4fd; border-color: rgba(24, 100, 204, 0.4); }
+.lt-btn.is-on { background: #e3edfb; border-color: #1864cc; color: #0b3d91; }
+.lt-btn-primary { background: #1864cc; border-color: #1864cc; color: #ffffff; }
+.lt-btn-primary:hover { background: #1452a8; border-color: #1452a8; }
+.lt-btn:focus-visible, .lt-chip:focus-visible, .lt-close:focus-visible { outline: 3px solid var(--hud-accent); outline-offset: 2px; }
 .lt-sep { width: 1px; height: 26px; background: var(--hud-border); margin: 0 2px; }
 
 /* ---------- Table under the stage ---------- */
@@ -228,8 +234,10 @@
 
 .lt-hud-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .lt-dock { flex-wrap: nowrap; overflow-x: auto; }
-/* Black figures need a light halo to stand out on the navy map. */
-.lt-marker .lt-person-merchandiser { filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.95)); }
+/* Black figures get a thicker white outline so they read on busy map areas
+   (a stroke, not a blur filter, so it costs nothing while the map moves). */
+.lt-marker .lt-person-merchandiser path:first-of-type,
+.lt-marker .lt-person-merchandiser ellipse[stroke] { stroke-width: 2.2; }
 .lt-btn { white-space: nowrap; }
 
 /* ==========================================================================
@@ -244,51 +252,68 @@
   transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
   will-change: transform;
 }
-.lt-tiles { position: absolute; inset: 0; overflow: hidden; background: #dfe7f1; }
+.lt-tiles { position: absolute; inset: 0; overflow: hidden; background: #e8eef6; }
 .lt-tiles-world { position: absolute; left: 0; top: 0; will-change: transform; }
 .lt-tiles img { position: absolute; width: 256px; height: 256px; max-width: none; user-select: none; -webkit-user-drag: none; }
-/* Dark command-centre look: the same map, inverted (labels stay readable). */
-.lt-plane.is-dark .lt-tiles { background: #0d1a30; }
-.lt-plane.is-dark .lt-tiles img { filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.92) saturate(0.85); }
-.lt-plane-svg { position: absolute; inset: 0; overflow: visible; pointer-events: none; }
-.lt-outside { fill: rgba(5, 12, 26, 0.5); }
-.lt-plane:not(.is-dark) .lt-outside { fill: rgba(10, 23, 48, 0.28); }
-.lt-border { fill: none; stroke: #60a5fa; stroke-width: 3; stroke-linejoin: round; }
+/* The previous zoom level, scaled, shown under the new tiles while they load. */
+.lt-tiles-back { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+/* Border, rings and people: one layer that only slides while panning.
+   preserve-3d so the markers can still stand upright towards the camera. */
+.lt-world { position: absolute; left: 0; top: 0; transform-style: preserve-3d; will-change: transform; }
+.lt-plane-svg { position: absolute; overflow: visible; pointer-events: none; }
+/* Outside Ghana: a light wash so the country stands out. */
+.lt-outside { fill: rgba(14, 31, 61, 0.14); }
+.lt-border { fill: none; stroke: #1864cc; stroke-width: 3; stroke-linejoin: round; }
 /* Cheap glow: a wide translucent stroke instead of a blur filter. */
-.lt-border-glow { fill: none; stroke: rgba(96, 165, 250, 0.35); stroke-width: 10; stroke-linejoin: round; }
-.lt-stage.is-street { background: #050c1a; }
+.lt-border-glow { fill: none; stroke: rgba(24, 100, 204, 0.22); stroke-width: 10; stroke-linejoin: round; }
+.lt-stage.is-street { background: #e8eef6; }
 .lt-attribution {
   position: absolute; left: 12px; bottom: 12px; margin: 0; z-index: 2;
-  padding: 3px 8px; border-radius: 8px; font-size: 12px; color: #dbeafe;
-  background: rgba(8, 20, 44, 0.78); border: 1px solid var(--hud-border);
+  padding: 3px 8px; border-radius: 8px; font-size: 12px; color: #33507a;
+  background: rgba(255, 255, 255, 0.9); border: 1px solid var(--hud-border);
 }
 
 .lt-mode, .lt-places, .lt-hud-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .lt-note { margin: 10px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--hud-muted); max-width: 460px; }
-.lt-note strong { color: #fecaca; }
+.lt-note strong { color: #b33434; }
 .lt-search { display: flex; gap: 6px; margin-top: 10px; }
 .lt-input {
   flex: 1; min-width: 0; min-height: 44px; padding: 0 12px; border-radius: 12px;
-  border: 1px solid #93c5fd; background: rgba(5, 12, 26, 0.6); color: #ffffff; font: inherit; font-size: 14px;
+  border: 1px solid rgba(14, 31, 61, 0.24); background: #ffffff; color: var(--hud-text); font: inherit; font-size: 14px;
 }
-.lt-input::placeholder { color: #9fb6d8; }
-.lt-input:focus-visible { outline: 3px solid #ffffff; outline-offset: 1px; }
+.lt-input::placeholder { color: #6b7d99; }
+.lt-input:focus-visible { outline: 3px solid var(--hud-accent); outline-offset: 1px; }
 .lt-results { margin-top: 8px; max-height: 200px; overflow: auto; }
 .lt-results ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .lt-results p { margin: 0; font-size: 13px; color: var(--hud-muted); }
 .lt-result {
   width: 100%; text-align: left; min-height: 44px; padding: 8px 10px; border-radius: 10px;
-  border: 1px solid var(--hud-border); background: rgba(147, 197, 253, 0.06); color: #ffffff;
+  border: 1px solid var(--hud-border); background: #f6f9fd; color: var(--hud-text);
   font: inherit; font-size: 13px; cursor: pointer; overflow-wrap: anywhere;
 }
 .lt-result span { color: var(--hud-muted); }
-.lt-result:hover { background: rgba(147, 197, 253, 0.16); }
+.lt-result:hover { background: #eef4fd; }
 .lt-focus { width: 100%; margin-top: 12px; }
 @media (prefers-reduced-motion: reduce) { .lt-plane { transition: none; } }
 /* While dragging or auto-rotating, follow the pointer directly — a transition
    on every frame only adds lag. */
 .lt-stage.is-moving .lt-scene,
 .lt-stage.is-moving .lt-plane { transition: none; }
+/* Pause the pulsing rings while the map moves so frames go to the camera. */
+.lt-stage.is-moving .lt-ring { animation-play-state: paused; }
 @media (max-width: 760px) {
   .lt-hud-top { max-height: 46%; overflow: auto; }
 }
+
+/* ---------- Daily tracking report (under the map) ---------- */
+.lt-report { display: flex; flex-direction: column; gap: 16px; }
+.lt-report-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.lt-report-head h3 { margin: 0; }
+.lt-report-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.lt-report-controls .form-input { width: auto; min-height: 44px; }
+.lt-report-controls .btn { min-height: 44px; }
+.lt-cover { display: inline-flex; align-items: center; gap: 8px; font-variant-numeric: tabular-nums; }
+.lt-cover-bar { width: 64px; height: 6px; border-radius: 999px; background: var(--rule); overflow: hidden; }
+.lt-cover-bar > span { display: block; height: 100%; background: var(--ok); border-radius: inherit; }
+.lt-report-stats { padding: 0 18px; }
+.lt-report-note { margin: 0; padding: 0 18px 16px; font-size: 12.5px; line-height: 1.5; color: var(--ink-2); }

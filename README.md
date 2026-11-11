@@ -4,10 +4,13 @@ Workforce management and attendance for two companies, **Box For Less** and
 **Double A**. It has two parts:
 
 - **Employee portal** (`/`) — self-registration and daily check-in / check-out
-  with face capture.
+  with face capture. Installable on phones (Add to Home Screen). Field staff
+  share their location from clock-in to clock-out.
 - **HR portal** (`/hr`) — one HR account (HR Manager) that runs both companies:
-  employees, attendance, sales reps, reports, overtime, holidays, settings and
-  audit logs.
+  employees, attendance, the **Live Tracker**, field monitoring, reports,
+  overtime, holidays, settings and audit logs.
+- **Policies** — Privacy Policy, Location Tracking Policy, Terms and Conditions
+  and Cookie Policy at `/privacy`, `/tracking-policy`, `/terms`, `/cookies`.
 
 > **Status: frontend prototype.** There is no backend yet. Every "server"
 > behaviour is simulated by mock services in `src/services/` that store data in
@@ -28,8 +31,14 @@ npm run preview  # preview the production build
 npm run lint     # oxlint
 ```
 
-Camera capture needs a secure context; `localhost` works out of the box.
-To reset all demo data, clear the site's `localStorage` in the browser.
+Camera capture, location and app installation need a secure context:
+`localhost` works out of the box; anywhere else the app must be served over
+**https**. To reset all demo data, clear the site's `localStorage` in the
+browser.
+
+The service worker (offline support for the installed app) is registered in
+**production builds only** — use `npm run build && npm run preview` to test
+installing the app.
 
 ## What the frontend does
 
@@ -43,6 +52,17 @@ To reset all demo data, clear the site's `localStorage` in the browser.
   One check-in and one check-out per day. Check-in 06:00–09:00 (later is
   **late**), check-out 17:00–19:00 (after 19:00 nothing is recorded). Weekend
   work is allowed and is overtime.
+- **Location sharing (field staff)**: when a Supervisor, Sales Rep or
+  Merchandiser clocks in, the phone starts sending its location; it stops at
+  clock-out. They are told before scanning, and a "Location sharing is on" bar
+  shows the status (sending / no mobile data / Location off / permission
+  blocked). **Web limitation:** the browser only sends location while the app
+  is open on screen — background tracking needs the planned phone app.
+- **Install the app**: the home screen offers "Install" on Android and Share →
+  Add to Home Screen steps on iPhone. The installed app opens full screen at
+  `/attendance` and still opens on a weak connection.
+- **Policies**: links at the bottom of the home screen, in the location notice
+  and in the location-sharing bar.
 
 ### HR portal (`/hr`)
 
@@ -51,7 +71,8 @@ To reset all demo data, clear the site's `localStorage` in the browser.
 | Dashboard | Today's figures per company and combined; today's register |
 | Employees | Directory cards with emergency contact; HR sets the **date joined** and the time with the company is calculated (years, months, days); shop assignment for field staff |
 | Attendance | One record per employee per day (from check-ins, SMS verification, or HR manual entry); corrections with full history; manual entry for paper records |
-| Field Monitoring | **Merchandiser Monitoring** (allocated shop, 3 random SMS verification checks per working day, 150 m geofence, alerts, shop directory with map locations, live field board on a map of Ghana); **Sales Rep Monitoring** and **Supervisor Monitoring** (outlet visits with face scan and the phone's location) |
+| Live Tracker | Supervisors, Sales Reps and Merchandisers as 3D figures (green S / red R / black M) on a tiltable street map (OpenStreetMap) or a 3D outline of Ghana; live phone location between clock-in and clock-out, "signal lost" after 5 minutes without an update, off the map after clock-out; field-staff table; **daily tracking report** (time tracked, live coverage, signal lost, distance, visits; any past day; CSV export) |
+| Field Monitoring | **Merchandiser Monitoring** (allocated shop, 3 random SMS verification checks per working day, 150 m geofence, alerts, shop directory with map locations); **Sales Rep Monitoring** and **Supervisor Monitoring**: each person's **daily shop list** (HR edits it), per-shop **visit proof** (proven / no stay shown / scanned outside / missed / not on the list / cannot be verified) and every outlet visit. The old "Live field board" tab was removed — the Live Tracker replaces it |
 | Reports | Monthly report (26th–25th) per employee category — Warehouse Workers, Sales Representatives, Merchandisers, Supervisors, office staff — or combined; summary and daily records (incl. break times); separate CSV exports; **Overtime** tab |
 | Settings | General, company profiles, attendance rules, working hours, **holidays**, sales-rep monitoring, notifications, security, data export, **Audit Logs** tab |
 | Notifications | Exceptions (late, absent, missing clock-out, failed verifications, missing shop…) with assign / review / resolve / dismiss |
@@ -110,20 +131,39 @@ display what the server returns.
   review — no time is filled in — and its hours/overtime wait until HR enters
   the return time. Break scans are never treated as clock-in/out.
 - **Sales Representatives** (mini-markets) and **Supervisors** (larger outlets,
-  several a day): company hours, **no scheduled break**, not tied to one shop.
-  Each outlet visit is a face scan plus the phone's real location, checked
-  against the outlet's geofence when the outlet has saved coordinates.
+  several a day): company hours, **no scheduled break**. Each has a **fixed
+  list of shops to visit every working day**, set by HR. Each outlet visit is
+  a face scan plus the phone's real location, checked against the outlet's
+  geofence when the outlet has saved coordinates. A visit to a listed shop is
+  **proven** only by a scan inside the shop area **and** a stay of at least
+  **10 minutes** on live tracking; anything else (no stay, scanned outside,
+  missed, shop not on the list, typed-in outlet) is flagged for HR review.
 - **Merchandisers:** one allocated shop and the monitoring below.
 - **Office & other staff:** company hours and the default break.
 
 **Merchandisers**
 - Must have an allocated shop belonging to their own company; assignment history
   is kept.
-- Three verification checks at random times inside working hours; **future
-  check times must never be sent to the client**.
 - GPS check against a **150 m** geofence around the shop. Shop coordinates come
   only from a confirmed lookup, a pin placed by HR, or typed coordinates —
   never invented.
+
+**Field staff: live tracking and SMS verification** (Supervisors, Sales Reps
+and Merchandisers — full spec in
+[docs/backend-live-tracker-and-sms-verification.md](docs/backend-live-tracker-and-sms-verification.md))
+- Location is tracked **only between clock-in and clock-out**; anything sent
+  after clock-out is refused. Other roles are never tracked.
+- A point is kept when 20 s have passed or the phone moved 15 m (max 2,000 per
+  person per day). No update for 5 minutes = "signal lost".
+- The detailed trail is kept **until the end of the day**, then replaced by a
+  daily summary with **no positions** (time tracked, coverage, signal lost,
+  distance).
+- **Three SMS verification checks** at random times inside working hours, for
+  **all field staff** (the prototype simulates them for Merchandisers only);
+  **future check times must never be sent to the client**. Each check is a
+  face + liveness scan and a GPS check; replies after 15 minutes are missed.
+- A lost signal or a missed check is an exception for HR — never an automatic
+  absence or misconduct.
 
 **Companies and access**
 - Box For Less and Double A data are always kept separate (every list, report
@@ -159,7 +199,11 @@ display what the server returns.
 | `geocodingService.js` | Shop location lookup — **proxy it through the server** (see §4) | `GET /geocode?shop&area&town` |
 | `fieldVisitsService.js` | Sales Rep / Supervisor outlet visits: store each visit with the device location and the server-side geofence result | `POST /attendance/visits`, `GET /monitoring/visits?company&category&date` |
 | `categoryReportService.js` | Monthly reports per employee category and combined, using the same calculations as attendance and overtime | `GET /reports/monthly?company&period&category&employee` |
-| `salesMonitoringService.js` | Merchandiser monitoring: SMS verification schedule and results, GPS/geofence checks, alerts, live board | `GET /monitoring/reps`, `GET /monitoring/reps/:id?date`, `GET /monitoring/alerts`, `PATCH /monitoring/alerts/:id` |
+| `salesMonitoringService.js` | SMS verification for **all field staff** (schedule kept on the server, results, GPS/geofence checks), alerts | `GET /monitoring/reps`, `GET /monitoring/reps/:id?date`, `GET /monitoring/alerts`, `PATCH /monitoring/alerts/:id`, `POST /verifications/:token` |
+| `locationTrackingService.js` | Live tracking sessions (open at clock-in, closed at clock-out), location points, end-of-day summaries | `POST /tracking/points` (token from the clock-in response) |
+| `liveTrackerService.js` | Live map: latest position and status per field employee | `GET /tracking/live?company` |
+| `trackingReportService.js` | Daily tracking report and CSV; shop visit proof per employee-day | `GET /tracking/reports/daily?company&date&role`, `GET /tracking/reports/daily/export`, `GET /monitoring/visits` |
+| `visitListService.js` | Daily shop list per Sales Rep / Supervisor (with history), stay calculation, visit proof rules | `GET/PUT /employees/:staffId/visit-list` |
 | `notificationsService.js` | Generate exceptions **on the server** (scheduled job / on events), no duplicates per source; read/assign/resolve/dismiss with history | `GET /notifications`, `PATCH /notifications/:id`, `POST /notifications/:id/comments` |
 | `leaveService.js` | Leave records (approved leave is never absence). Demo data only — a leave module is not built yet | `GET /leave?employee&from&to` |
 | `auditService.js`, `auditStore.js` | **Append-only** audit log written by the server for every change | `GET /audit?company&from&to`, `GET /audit/export` |
@@ -184,7 +228,9 @@ company), `src/utils/payPeriod.js` (26th–25th periods).
 - **Shop**: id, companyId, name, town, area, address, latitude, longitude,
   locationSource, geofenceRadius (150), status. **ShopAssignment** with history.
 - **VerificationEvent** (field staff): staffId, dispatchedAt, respondedAt,
-  result, distance, accuracy.
+  result, distance, accuracy. **VerificationSchedule** is server-only.
+- **TrackingSession**, **LocationPoint** (deleted at the end of the day) and
+  **TrackingDaySummary** (no positions) — see the field-staff spec.
 - **Holiday**: date, name, kind (public / HR), createdBy.
 - **Settings versions**: working hours, attendance rules, overtime rate — each
   with `effectiveFrom`.
@@ -200,8 +246,10 @@ company), `src/utils/payPeriod.js` (26th–25th periods).
 | Integration | Today (mock) | What to build |
 |---|---|---|
 | Face verification | Photo is captured; match is simulated | Server-side face matching against the enrolled template; liveness check; attempt limits |
-| SMS verification | Results generated for past times only | SMS provider, random schedule generated and **kept on the server**, reply handling, delivery failures |
+| SMS verification | Results generated for past times only (Merchandisers) | SMS provider, random schedule for all field staff **kept on the server**, one-time reply links, delivery reports, reply window |
 | GPS / geofence | Distances simulated | Location capture on the device at verification time; distance check on the server |
+| Live tracking | Points stored in the browser (`localStorage`), so HR only sees phones in the same browser | `POST /tracking/points` + `GET /tracking/live`; end-of-day summary job. **Needed before tracking works across devices** |
+| Phone app | Installable web app (manifest + service worker); location pauses when the app is off screen | Native wrapper (e.g. Capacitor) with background location for Android and iPhone, using the same endpoints |
 | Shop location lookup | Optional OpenStreetMap Nominatim call **from the browser**, off by default | Call the geocoder from the server (respect the provider's usage policy, add caching, or use a paid provider with a server-side key). Never put API keys in the frontend |
 | Map tiles | OpenStreetMap tiles from the browser when lookup is on | Choose a tile provider suitable for production use |
 | File storage | Photos as data URLs in `localStorage` | Object storage for registration and check-in photos, with access control |
@@ -222,6 +270,12 @@ company), `src/utils/payPeriod.js` (26th–25th periods).
 - Emergency contacts and phone numbers are personal data — only HR should see
   them.
 - Do not expose future SMS schedules or other employees' data through any API.
+- Location: accept points only inside the employee's clock-in–clock-out window;
+  delete the detailed trail at the end of the day; never put positions in
+  reports. The backend must keep the promises made in the in-app policies
+  (`src/content/legalDocs.js`). Company details and retention periods for those
+  policies are in `src/constants/legal.js` and are **not filled in yet** — the
+  pages show a "Draft" banner until they are.
 
 ### 6. Demo data to remove
 
@@ -243,7 +297,9 @@ The mock services seed demo data. None of it should reach production:
 reset): `mock-registration:*`, `mock-attendance:*`, `mock-settings:v1`,
 `mock-audit:events`, `mock-notifications:*`, `mock-shops:*`,
 `mock-shop-assignments:*`, `mock-holidays:v1`, `mock-hr-users:v5`,
-`mock-hr-session`, `mock-sales-monitoring:alert-state`.
+`mock-hr-session`, `mock-sales-monitoring:alert-state`, `mock-tracking:pings`,
+`mock-tracking:day-summaries`, `mock-tracking:device-staff`, `mock-visit-lists:v1`,
+`mock-visit-lists:history`.
 
 ### 7. Acceptance checks for the backend
 
@@ -259,6 +315,8 @@ reset): `mock-registration:*`, `mock-attendance:*`, `mock-settings:v1`,
 - Box For Less never sees Double A data and vice versa (except the HR Manager,
   with each record labelled).
 - No API returns a future SMS check time.
+- No location is accepted before clock-in or after clock-out; other roles are
+  never tracked (full list in the field-staff spec, §7).
 - Every change appears in the audit log with who, when, company, previous and
   new values.
 
@@ -276,17 +334,73 @@ those are moved.)
 ## Project structure
 
 ```
+docs/
+  backend-live-tracker-and-sms-verification.md   # spec for the backend developer
+public/
+  manifest.webmanifest, sw.js, icons/            # installable app
 src/
   pages/
     Home.jsx, EmployeeRegistration.jsx, AttendanceCheckIn.jsx   # employee portal
+    LegalPage.jsx                                                # the four policies
     HrDashboard.jsx                                              # HR portal shell + dashboard, employees, reports
+    LiveFieldTracker.jsx                                         # Live Tracker (map, staff table, daily report)
     AttendanceManagement.jsx, SalesMonitoring.jsx, Overtime.jsx,
     NotificationsCenter.jsx, Settings.jsx, AuditLogs.jsx         # HR modules
   components/
     registration/    attendance/    hr/    sales-monitoring/    shops/
     notifications/   settings/      reports/    assistant/    access/
+    tracker/         # StreetPlane (3D street map), TrackingDailyReport
+    tracking/        # LocationSharingBar (phone side)
+    common/          # skeletons, InstallAppCard
+  content/           # legalDocs.js: text of the policies
   services/          # MOCK backend services (see the table above)
-  constants/         # companies, labels, notification types, holidays
-  utils/             # Accra time, attendance rules, pay periods, tenure, validation
+  constants/         # companies, labels, notification types, holidays, legal.js (policy details)
+  utils/             # Accra time, attendance rules, pay periods, tenure, validation, installPrompt
   styles/            # per-area CSS; hr-soft3d.css is the HR portal theme (3D Soft Realism)
 ```
+
+## Changes — 11 November 2026
+
+**Live Tracker**
+- People are drawn as 3D-shaded standing figures (S / R / M badge kept, so
+  colour is never the only cue).
+- Faster map: border, rings and figures move as one layer while dragging (no
+  per-frame repaint); the dark-map filter is applied once instead of per tile;
+  old tiles stay visible while new ones load.
+- Fixed: the map went **white when zoomed in to street level** (very large
+  coordinates lost precision in the 3D tilt). The map now uses a local origin
+  near the camera.
+- Live tracking from clock-in to clock-out for **Supervisors, Sales Reps and
+  Merchandisers** (before, positions came only from recorded visits and shops).
+- **Light theme only**: light map tiles, white panels and buttons, light 3D outline; the dark-map option was removed.
+- New **daily tracking report** under the map, with past days, role filter and
+  CSV export (audit-logged).
+- The duplicate "Live field board" tab was removed from Merchandiser Monitoring
+  (`LiveFieldBoard.jsx` and `GhanaFieldMap.jsx` deleted).
+
+**Employee app**
+- Location-sharing notice before clock-in and a status bar while sharing.
+- Installable app: manifest, icons (brand blue "WA"), service worker, install
+  card on the home screen.
+
+**Policies**
+- Privacy Policy, Location Tracking Policy, Terms and Conditions, Cookie Policy
+  (`/privacy`, `/tracking-policy`, `/terms`, `/cookies`). **Drafts** until the
+  company details in `src/constants/legal.js` are filled in and a lawyer has
+  reviewed them.
+
+**Shop visit proof (Sales Reps and Supervisors)**
+- Some staff claimed visits to their shops without going there. Each Sales Rep
+  and Supervisor now has a fixed daily shop list (HR: Field Monitoring →
+  *Edit shop list*). A visit is proven only by a face scan inside the shop area
+  **and** at least 10 minutes near the shop on live tracking.
+- The monitoring pages show per-shop results; the Live Tracker daily report
+  shows "2 of 4 proven · 1 flagged"; the visit screen shows the employee's
+  shops first and warns when a shop is not on the list or typed in.
+- Stay minutes per shop are kept in the daily summary (no positions), so past
+  days can still be checked after the trail is deleted.
+
+**Documentation**
+- [Backend spec for the Live Tracker and SMS verification](docs/backend-live-tracker-and-sms-verification.md).
+  SMS verification applies to **all field staff**, the same people as live
+  tracking.
