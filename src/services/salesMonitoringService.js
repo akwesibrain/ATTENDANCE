@@ -13,7 +13,7 @@ import { submit } from './backend/client'
 import { refresh, rows } from './backend/cache'
 import { listAttendanceRoster, recordContext } from './attendanceRecordsService'
 import { defaultHoursFor, monitoringSettings } from './settingsService'
-import { getShop, GEOFENCE_RADIUS_M } from './shopsService'
+import { getShop, GEOFENCE_RADIUS_M, listShops } from './shopsService'
 
 export { GEOFENCE_RADIUS_M, VERIFICATIONS_PER_SHIFT }
 

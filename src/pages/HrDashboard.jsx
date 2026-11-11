@@ -692,10 +692,7 @@ function HrDashboardContent({ onBack, user }) {
               user={user}
               company={isCombined ? myCompanies[0] : company}
               onNavigate={goTo}
-              onChanged={() => {
-                setSettingsVersion((v) => v + 1)
-                onSessionChange()
-              }}
+              onChanged={() => setSettingsVersion((v) => v + 1)}
             />
           )}
 
