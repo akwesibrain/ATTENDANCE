@@ -214,7 +214,9 @@ pg_cron + pg_net ─────────> `api` /jobs/* (secret header)
 | `REKOGNITION_REGION` | AWS region, e.g. `eu-west-1` |
 | `REKOGNITION_ACCESS_KEY_ID` | Key for the AWS user described in setup |
 | `REKOGNITION_SECRET_ACCESS_KEY` | Secret for that user |
-| `SMS_PROVIDER` | `none` (default) sends no checks; `log` prints them for testing |
+| `SMS_PROVIDER` | `none` (default) sends no checks; `log` prints them for testing; `txtconnect` sends real SMS |
+| `TXTCONNECT_API_KEY` | TxtConnect API key, needed when `SMS_PROVIDER` is `txtconnect` |
+| `TXTCONNECT_SENDER_ID` | Sender name registered with TxtConnect (at most 11 characters) |
 | `APP_URL` | Base address used in SMS links, e.g. `https://attendance.example.com` |
 | `ALLOWED_ORIGINS` | Sites allowed to call the API. Defaults to localhost |
 
@@ -242,8 +244,10 @@ SUPABASE_ACCESS_TOKEN=<token> node scripts/smoke-hr.mjs   # removes what it crea
 ### Swapping in real services
 
 - **Face matching:** all of it is in `supabase/functions/_shared/faceMatcher.ts`.
-- **SMS:** add a provider in `supabase/functions/_shared/smsSender.ts` and set
-  `SMS_PROVIDER`. Checks start the next day.
+- **SMS:** TxtConnect is built in (`SMS_PROVIDER=txtconnect`). Other providers go in
+  `supabase/functions/_shared/smsSender.ts`. Phone numbers are turned into
+  international form first, so `024 123 4567` is sent as `233241234567`.
+  Checks start the next day.
 
 ### Limits to accept before go-live
 
