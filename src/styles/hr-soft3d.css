@@ -437,3 +437,11 @@
 @media print {
   .ac-shell::before { display: none; }
 }
+
+/* HR sign-in and authenticator screens: the submit button sits in the
+   centre of the card (frontend styling only; the screens are unchanged). */
+.ac-card form button[type="submit"] {
+  display: block;
+  min-width: 200px;
+  margin: 18px auto 0;
+}

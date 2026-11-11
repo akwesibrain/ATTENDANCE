@@ -21,6 +21,8 @@ import { VISIT_RESULT, outletLabel } from './fieldVisitsService'
 import { getShop } from './shopsService'
 import { accraTodayKey } from '../utils/accraTime'
 import { LIVE_STALE_MINUTES, latestLocation, trackingStatus } from './locationTrackingService'
+import { getVisitListShops } from './visitListService'
+import { categoryForPosition } from '../constants/employeeCategories'
 
 /** Marker colours (the map also shows a letter badge, so colour is not the only cue). */
 export const TRACKER_GROUPS = {
@@ -123,9 +125,11 @@ export function getLiveTracker(companyId, now = new Date()) {
   const today = accraTodayKey()
   const records = listAttendanceRecords({ companyId, dates: [today] })
   const people = records
+    // The backend's records carry the position (not the category) and no visits yet.
+    .map((r) => ({ ...r, category: r.category ?? categoryForPosition(r.position), visits: r.visits ?? [] }))
     .filter((r) => r.category === 'supervisor' || r.category === 'sales-rep')
     .map((r) => {
-      const person = visitPerson(r)
+      const person = { ...visitPerson(r), shops: getVisitListShops(r.employeeId) }
       const tracked = trackingStatus(r.employeeId)
       return tracked.reason === 'not-found' ? person : withLiveTracking(person, person.position, tracked, now)
     })
@@ -135,7 +139,7 @@ export function getLiveTracker(companyId, now = new Date()) {
     const shop = rep.shop
     const tracked = trackingStatus(rep.employeeId)
     if (tracked.reason !== 'not-found') {
-      const person = { employeeId: rep.employeeId, fullName: rep.fullName, category: 'merchandiser', duty: '—', onDuty: false, visitsToday: null, lastEvent: null, lastEventAt: null, position: null }
+      const person = { employeeId: rep.employeeId, fullName: rep.fullName, category: 'merchandiser', duty: '—', onDuty: false, visitsToday: null, lastEvent: null, lastEventAt: null, position: null, shops: shop ? [shop] : [] }
       const atShop = shop && shop.latitude != null
         ? { latitude: shop.latitude, longitude: shop.longitude, accuracy: null, source: 'shop', at: null, place: shop.shopName }
         : null
@@ -151,6 +155,7 @@ export function getLiveTracker(companyId, now = new Date()) {
       visitsToday: null,
       lastEvent: rep.lastCheck ? `Last check: ${FIELD_STATE[rep.state]?.short ?? ''}` : null,
       lastEventAt: rep.lastCheckAt ?? rep.checkInTime ?? null,
+      shops: shop ? [shop] : [],
       position: shop && shop.latitude != null
         ? { latitude: shop.latitude, longitude: shop.longitude, accuracy: null, source: 'shop', at: rep.lastCheckAt ?? null, place: shop.shopName }
         : null,

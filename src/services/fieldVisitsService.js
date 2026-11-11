@@ -1,58 +1,52 @@
 /**
  * ============================================================================
- * MOCK FIELD VISITS SERVICE — NOT A PRODUCTION BACKEND
+ * FIELD VISITS — Sales Representatives and Supervisors
  * ============================================================================
- * Sales Representatives (mini-markets) and Supervisors (larger outlets such as
- * China Mall and Melcom) move between several outlets during the day. They
- * are not tied to one allocated shop. Each outlet visit is recorded from the
- * attendance app with a face scan and, when the phone allows it, the device's
- * real GPS position. Nothing is ever generated: if the location could not be
- * read, the visit says so.
+ * Field staff record a visit (face scan) at each shop they go to. The phone's
+ * location is stored with the visit when the phone allows it, together with
+ * HOW FAR it was from the shop. There is no pass/fail radius (company
+ * decision, 11 Nov 2026 — "distance only, HR decides"): HR sees the distance
+ * and judges.
  *
  * Location result for a visit:
- *   inside               within the outlet's geofence (Shop Directory outlet with coordinates)
- *   outside              further than the geofence from the outlet
- *   unverified           location recorded, but the outlet has no saved coordinates
- *                        (e.g. a mini-market typed in by the Sales Rep)
- *   location-unavailable the phone did not provide a location (denied/unavailable)
+ *   recorded              the phone sent its location (distance shown when
+ *                         the shop has map coordinates)
+ *   location-unavailable  the phone did not provide a location
+ * Older records may still carry inside / outside / unverified; they are shown
+ * as "Location recorded" with their distance.
  * ============================================================================
  */
 
-import { getShop, GEOFENCE_RADIUS_M } from './shopsService'
+import { getShop } from './shopsService'
+import { distanceMeters } from '../utils/distance'
+
+const RECORDED = { label: 'The phone’s location was recorded with the visit', short: 'Location recorded', tone: 'ok' }
 
 export const VISIT_RESULT = {
-  inside: { label: 'Inside outlet geofence', short: 'Inside geofence', tone: 'ok' },
-  outside: { label: 'Outside outlet geofence', short: 'Outside geofence', tone: 'crit' },
-  unverified: { label: 'Location recorded — outlet has no saved coordinates', short: 'Location recorded', tone: 'pending' },
+  recorded: RECORDED,
   'location-unavailable': { label: 'Location not available from the phone', short: 'No location', tone: 'warn' },
-}
-
-/** Great-circle distance in metres. */
-export function distanceMeters(a, b) {
-  const R = 6371000
-  const toRad = (d) => (d * Math.PI) / 180
-  const dLat = toRad(b.latitude - a.latitude)
-  const dLng = toRad(b.longitude - a.longitude)
-  const h = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a.latitude)) * Math.cos(toRad(b.latitude)) * Math.sin(dLng / 2) ** 2
-  return Math.round(2 * R * Math.asin(Math.sqrt(h)))
+  // Older records from before the radius was removed:
+  inside: RECORDED,
+  outside: RECORDED,
+  unverified: RECORDED,
 }
 
 function validLocation(loc) {
   return loc && Number.isFinite(loc.latitude) && Number.isFinite(loc.longitude) && Math.abs(loc.latitude) <= 90 && Math.abs(loc.longitude) <= 180
 }
 
-/**
- * Check a visit's recorded location against the outlet.
- * @param {{ shopId?: string|null }} outlet
- * @param {{ latitude, longitude, accuracy? }|null} location from the device
- */
+/** The visit's location result and its distance from the shop (no pass/fail). */
 export function verifyVisitLocation(outlet, location) {
-  if (!validLocation(location)) return { status: 'location-unavailable', distance: null, radius: null }
+  if (!validLocation(location)) return { status: 'location-unavailable', distance: null }
   const shop = outlet?.shopId ? getShop(outlet.shopId) : null
-  if (!shop || shop.latitude == null || shop.longitude == null) return { status: 'unverified', distance: null, radius: null }
-  const radius = shop.geofenceRadius ?? GEOFENCE_RADIUS_M
-  const distance = distanceMeters(location, shop)
-  return { status: distance <= radius ? 'inside' : 'outside', distance, radius }
+  return { status: 'recorded', distance: shop ? distanceMeters(location, shop) : null }
+}
+
+/** Distance from the shop for a stored visit (computed if the record lacks it). */
+export function visitDistance(visit) {
+  if (visit?.verification?.distance != null) return visit.verification.distance
+  const shop = visit?.outlet?.shopId ? getShop(visit.outlet.shopId) : null
+  return shop && visit?.location ? distanceMeters(visit.location, shop) : null
 }
 
 /** Validate the outlet chosen or typed for a visit. */

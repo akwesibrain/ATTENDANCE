@@ -7,6 +7,7 @@ import StreetPlane from '../components/tracker/StreetPlane'
 import TrackingDailyReport from '../components/tracker/TrackingDailyReport'
 import { locationServiceStatus } from '../services/geocodingService'
 import { searchMapPlace } from '../services/mapSearch'
+import { formatDistance, nearestShop } from '../utils/distance'
 import { monitoringSettings, saveMonitoring } from '../services/settingsService'
 import { pxToLatLng, worldPx } from '../utils/webMercator'
 
@@ -616,6 +617,11 @@ export default function LiveFieldTracker({ company, user }) {
                   <dt>Status</dt><dd>{sel.duty}</dd>
                   <dt>Last seen</dt><dd>{agoText(lastSeen(sel, nowMs))}{sel.lastEventAt ? ` (${formatAccraTime(sel.lastEventAt)})` : ''}</dd>
                   <dt>Position</dt><dd>{sel.position ? `${POSITION_SOURCE[sel.position.source]}${sel.position.place ? ` — ${sel.position.place}` : ''}` : 'No position recorded yet'}</dd>
+                  {sel.position && sel.position.source !== 'shop' && (() => {
+                    // Distance only, no pass/fail: HR judges how far from their shop someone is.
+                    const near = nearestShop(sel.position, sel.shops ?? [])
+                    return <><dt>Nearest shop</dt><dd>{near ? `${near.shop.shopName} — ${formatDistance(near.distance)} away` : 'No assigned shop with a map location'}</dd></>
+                  })()}
                   {sel.position?.accuracy != null && <><dt>Accuracy</dt><dd>±{sel.position.accuracy} m</dd></>}
                   {sel.visitsToday != null && <><dt>Visits today</dt><dd>{sel.visitsToday}</dd></>}
                   {sel.lastEvent && <><dt>Latest</dt><dd>{sel.lastEvent}</dd></>}

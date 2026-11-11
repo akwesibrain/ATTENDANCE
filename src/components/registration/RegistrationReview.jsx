@@ -42,9 +42,13 @@ export default function RegistrationReview({
     .map((part) => part.trim())
     .join(' ')
   const position = data.position.trim()
-  const assignedShop = data.assignedShopId
-    ? getShop(data.assignedShopId)
-    : null
+  // Field staff: every ticked shop, plus shops added by hand.
+  const assignedShops = [
+    ...(data.assignedShopIds?.length ? data.assignedShopIds : [data.assignedShopId])
+      .filter(Boolean)
+      .map((id) => getShop(id)?.shopName ?? id),
+    ...(data.newShops ?? []).map((sh) => `${[sh.shopName, sh.area, sh.town].map((v) => (v ?? '').trim()).filter(Boolean).join(', ')} (new)`),
+  ]
 
   const hasEmergencyContact =
     data.emergencyContactName.trim() || data.emergencyContactPhone.trim()
@@ -60,7 +64,13 @@ export default function RegistrationReview({
 
       <ReviewSection title="Company" onEdit={() => onEdit(editSteps.company)}>
         <div className="review-rows">
-          <ReviewRow label="Company" value={company?.name} />
+          <ReviewRow label={data.additionalCompanyIds?.length ? 'Main company' : 'Company'} value={company?.name} />
+          {data.additionalCompanyIds?.length > 0 && (
+            <ReviewRow
+              label="Also works for"
+              value={data.additionalCompanyIds.map((id) => getCompanyById(id)?.name).filter(Boolean).join(', ')}
+            />
+          )}
         </div>
       </ReviewSection>
 
@@ -106,11 +116,8 @@ export default function RegistrationReview({
       >
         <div className="review-rows">
           <ReviewRow label="Position" value={position} />
-          {assignedShop && data.shopMode !== 'new' && (
-            <ReviewRow label="Allocated shop" value={assignedShop.shopName} />
-          )}
-          {data.shopMode === 'new' && data.newShop?.shopName && (
-            <ReviewRow label="Allocated shop (new)" value={[data.newShop.shopName, data.newShop.area, data.newShop.town].map((v) => (v ?? '').trim()).filter(Boolean).join(', ')} />
+          {assignedShops.length > 0 && (
+            <ReviewRow label={assignedShops.length === 1 ? 'Shop' : `Shops (${assignedShops.length})`} value={assignedShops.join(' · ')} />
           )}
         </div>
       </ReviewSection>

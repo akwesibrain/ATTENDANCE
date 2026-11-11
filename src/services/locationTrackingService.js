@@ -29,10 +29,10 @@
 import { readJson, writeJson } from '../utils/localStore'
 import { getAllEvents } from './attendanceService'
 import { listEmployees } from './registrationService'
-import { getVisitList, shopStays } from './visitListService'
-import { getShop } from './shopsService'
 import { categoryForPosition } from '../constants/employeeCategories'
 import { accraTodayKey } from '../utils/accraTime'
+import { getVisitList, shopStays } from './visitListService'
+import { getShop } from './shopsService'
 
 const PINGS_KEY = 'mock-tracking:pings'
 /**
@@ -196,6 +196,12 @@ function dayEvents(staffId, dateKey) {
   return getAllEvents().filter((e) => e.date === dateKey && String(e.staffId).toUpperCase() === staffId.toUpperCase())
 }
 
+/** Shops whose stays are kept for a day: the daily list plus any shop visited. */
+function stayShops(staffId, dateKey) {
+  const visited = dayEvents(staffId, dateKey).filter((e) => e.type === 'visit' && e.outlet?.shopId).map((e) => e.outlet.shopId)
+  return [...new Set([...getVisitList(staffId), ...visited])].map((id) => getShop(id)).filter(Boolean)
+}
+
 function clockTimes(staffId, dateKey) {
   const mine = dayEvents(staffId, dateKey)
   return {
@@ -204,11 +210,6 @@ function clockTimes(staffId, dateKey) {
   }
 }
 
-/** Shops whose stays are worth keeping for a day: the daily list plus any shop visited. */
-function stayShops(staffId, dateKey) {
-  const visited = dayEvents(staffId, dateKey).filter((e) => e.type === 'visit' && e.outlet?.shopId).map((e) => e.outlet.shopId)
-  return [...new Set([...getVisitList(staffId), ...visited])].map((id) => getShop(id)).filter(Boolean)
-}
 
 /** Summarise and delete every trail that is not from `today` (mutates `all`). */
 function archiveOldDays(all, today) {
@@ -224,7 +225,7 @@ function archiveOldDays(all, today) {
         ...summariseTrail(pts, start ?? pts[0]?.at, end ?? pts[pts.length - 1]?.at),
         clockIn: start,
         clockOut: end,
-        // Minutes spent near each listed/visited shop — no positions.
+        // Minutes near each listed/visited shop and the closest distance — no positions.
         shopStays: shopStays(pts, stayShops(id, date)),
       }
     }
@@ -252,10 +253,10 @@ export function daySummary(staffId, dateKey, clockIn, clockOut, now = new Date()
   return readJson(SUMMARIES_KEY, {})[`${id}|${dateKey}`] ?? null
 }
 
+
 /**
- * Minutes live tracking shows the person near each shop on a day, or null if
- * there is no live tracking for that day. Today is calculated from the trail;
- * past days come from the saved summary.
+ * Minutes live tracking shows the person near each shop on a day (and the
+ * closest they came), or null if there is no live tracking for that day.
  */
 export function dayShopStays(staffId, dateKey) {
   const id = String(staffId).toUpperCase()

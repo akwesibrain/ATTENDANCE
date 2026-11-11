@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { validateAllocatedShop, validateJobPosition } from '../../utils/registrationValidation'
 import { requiresShop } from '../../services/shopAssignmentService'
-import { findDuplicateShop, loadPublicShops, searchShops } from '../../services/shopsService'
+import { loadPublicShops, searchShops } from '../../services/shopsService'
+import { EMPTY_NEW_SHOP, MAX_SHOPS, backendShopFields, selectedShopCount, validateShopCount } from '../../utils/shopSelection'
+import '../../styles/registration-extra.css'
 
 const ErrorIcon = () => (
   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -16,10 +18,11 @@ const ErrorIcon = () => (
  * Privileged roles (administrator, HR, supervisor, etc.) cannot be
  * self-assigned.
  *
- * Field positions (Sales Representative, Merchandiser) must have an allocated
- * shop: search the company's shops by name, town or address, or add a new
- * shop (e.g. China Mall, Ashaiman) which is saved to this company. Other
- * positions do not need a shop.
+ * Field positions (Sales Representative, Merchandiser) choose the shops they
+ * work at: at least 1 and up to MAX_SHOPS (1 plus 6 more). They tick shops in
+ * the company's list (search by name, town or area) and/or add shops that
+ * are not in it yet; new shops are saved to this company. Other positions do
+ * not need a shop.
  */
 export default function JobPosition({ data, onChange, showErrors, onSubmit }) {
   const error = validateJobPosition(data)
@@ -43,25 +46,34 @@ export default function JobPosition({ data, onChange, showErrors, onSubmit }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [needsShop, data.companyId, shopSearch, shopsLoaded],
   )
-  const newShop = data.newShop ?? { shopName: '', town: '', area: '', address: '', latitude: '', longitude: '', locationSource: null, locationLabel: null }
-  const isNew = data.shopMode === 'new'
-  const duplicate = isNew && newShop.shopName.trim() && newShop.town.trim()
-    ? findDuplicateShop(data.companyId, newShop.shopName, newShop.town, newShop.area ?? '')
-    : null
-
-  const shopError = validateAllocatedShop(data)
+  const chosenIds = data.assignedShopIds ?? []
+  const newShops = data.newShops ?? []
+  const count = selectedShopCount(data)
+  const full = count >= MAX_SHOPS
+  const shopError = validateAllocatedShop(data) || validateShopCount(data)
   const showShopError = Boolean(shopError) && showErrors
 
-  const setNewShop = (field, value) => onChange('newShop', { ...newShop, [field]: value })
-  const chooseExisting = (shopId) => {
-    onChange('shopMode', 'existing')
-    onChange('assignedShopId', shopId)
+  // Every change keeps the fields the backend reads today pointing at the
+  // first shop (see utils/shopSelection).
+  const applyShops = (ids, added) => {
+    onChange('assignedShopIds', ids)
+    onChange('newShops', added)
+    const legacy = backendShopFields(ids, added)
+    onChange('shopMode', legacy.shopMode)
+    onChange('assignedShopId', legacy.assignedShopId)
+    onChange('newShop', legacy.newShop)
   }
-  const startNew = () => {
-    onChange('shopMode', 'new')
-    onChange('assignedShopId', null)
-    if (!newShop.shopName && shopSearch.trim()) onChange('newShop', { ...newShop, shopName: shopSearch.trim() })
+  const toggleExisting = (shopId) => {
+    if (chosenIds.includes(shopId)) applyShops(chosenIds.filter((id) => id !== shopId), newShops)
+    else if (!full) applyShops([...chosenIds, shopId], newShops)
   }
+  const addNewShop = () => {
+    if (full) return
+    const first = newShops.length === 0 && chosenIds.length === 0 && shopSearch.trim() ? shopSearch.trim() : ''
+    applyShops(chosenIds, [...newShops, { ...EMPTY_NEW_SHOP, shopName: first }])
+  }
+  const setNewShop = (index, field, value) => applyShops(chosenIds, newShops.map((sh, i) => (i === index ? { ...sh, [field]: value } : sh)))
+  const removeNewShop = (index) => applyShops(chosenIds, newShops.filter((_, i) => i !== index))
 
   const handleKeyDown = (event) => {
     if (event.key === 'Enter') {
@@ -110,92 +122,93 @@ export default function JobPosition({ data, onChange, showErrors, onSubmit }) {
       {needsShop && (
         <fieldset className="form-field shop-fieldset">
           <legend className="form-label">
-            Allocated shop <span className="required-tag">Required</span>
+            Shops you work at <span className="required-tag">{count} of {MAX_SHOPS}</span>
           </legend>
-          <p className="shop-help">Sales Representatives and Merchandisers must be linked to the shop they work from.</p>
+          <p className="shop-help">
+            Choose the shop you work at. If you work at more than one, you can add up to {MAX_SHOPS - 1} more
+            ({MAX_SHOPS} in total). Tick shops from the list, or add a shop that is not in it.
+          </p>
           {shopsError && <p className="field-error" role="alert">{shopsError}</p>}
 
-          {!isNew ? (
-            <>
-              <input
-                id="field-shop-search"
-                className="form-input"
-                type="search"
-                placeholder="Search by shop name, town or area…"
-                value={shopSearch}
-                onChange={(e) => setShopSearch(e.target.value)}
-                aria-label="Search shops by name, town or location"
-                autoComplete="off"
-              />
-              <div className="shop-options" role="radiogroup" aria-label="Allocated shop">
-                {filteredShops.length === 0 && (
-                  <p className="shop-options-empty">No shops match &ldquo;{shopSearch}&rdquo;. You can add it as a new shop below.</p>
-                )}
-                {filteredShops.map((shop) => {
-                  const selected = data.assignedShopId === shop.shopId
-                  return (
-                    <button
-                      key={shop.shopId}
-                      type="button"
-                      role="radio"
-                      aria-checked={selected}
-                      className={`shop-option${selected ? ' is-selected' : ''}`}
-                      onClick={() => chooseExisting(shop.shopId)}
-                    >
-                      <span className="shop-option-radio" aria-hidden="true">
-                        {selected && (
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
-                            <path d="m5 13 4 4L19 7" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-                          </svg>
-                        )}
-                      </span>
-                      <span className="shop-option-text">
-                        <span className="shop-option-name">{shop.shopName}</span>
-                        <span className="shop-option-address">{shop.latitude == null ? 'GPS location not set yet' : 'GPS location set'}{shop.address ? ` · ${shop.address}` : ''}</span>
-                      </span>
-                    </button>
-                  )
-                })}
-              </div>
-              <button type="button" className="shop-add-link" onClick={startNew}>
-                + Can&apos;t find the shop? Add a new allocated shop
-              </button>
-            </>
-          ) : (
-            <div className="shop-new">
+          <input
+            id="field-shop-search"
+            className="form-input"
+            type="search"
+            placeholder="Search by shop name, town or area…"
+            value={shopSearch}
+            onChange={(e) => setShopSearch(e.target.value)}
+            aria-label="Search shops by name, town or location"
+            autoComplete="off"
+          />
+          <div className="shop-options" role="group" aria-label="Shops you work at">
+            {filteredShops.length === 0 && (
+              <p className="shop-options-empty">
+                {shopSearch.trim() ? <>No shops match &ldquo;{shopSearch}&rdquo;.</> : 'The shop list is empty.'} You can add the shop below.
+              </p>
+            )}
+            {filteredShops.map((shop) => {
+              const selected = chosenIds.includes(shop.shopId)
+              const disabled = !selected && full
+              return (
+                <button
+                  key={shop.shopId}
+                  type="button"
+                  role="checkbox"
+                  aria-checked={selected}
+                  aria-disabled={disabled}
+                  className={`shop-option${selected ? ' is-selected' : ''}${disabled ? ' is-disabled' : ''}`}
+                  onClick={() => toggleExisting(shop.shopId)}
+                >
+                  <span className="shop-option-radio" aria-hidden="true">
+                    {selected && (
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                        <path d="m5 13 4 4L19 7" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    )}
+                  </span>
+                  <span className="shop-option-text">
+                    <span className="shop-option-name">{shop.shopName}</span>
+                    <span className="shop-option-address">{[shop.area, shop.town].filter(Boolean).join(', ') || shop.address || '—'}</span>
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+
+          {newShops.map((sh, i) => (
+            <div key={i} className="shop-new">
+              <p className="shop-new-title">New shop {newShops.length > 1 ? i + 1 : ''}</p>
               <div className="shop-new-grid">
                 <div className="form-field">
-                  <label className="form-label" htmlFor="new-shop-name">Shop name</label>
-                  <input id="new-shop-name" className="form-input" value={newShop.shopName} placeholder="e.g. China Mall, Shoprite, Melcom" autoComplete="off" onChange={(e) => setNewShop('shopName', e.target.value)} />
+                  <label className="form-label" htmlFor={`new-shop-name-${i}`}>Shop name</label>
+                  <input id={`new-shop-name-${i}`} className="form-input" value={sh.shopName} placeholder="e.g. China Mall, Shoprite, Melcom" autoComplete="off" onChange={(e) => setNewShop(i, 'shopName', e.target.value)} />
                 </div>
                 <div className="form-field">
-                  <label className="form-label" htmlFor="new-shop-town">City or town</label>
-                  <input id="new-shop-town" className="form-input" value={newShop.town} placeholder="e.g. Accra, Kumasi, Ashaiman" autoComplete="off" onChange={(e) => setNewShop('town', e.target.value)} />
+                  <label className="form-label" htmlFor={`new-shop-town-${i}`}>City or town</label>
+                  <input id={`new-shop-town-${i}`} className="form-input" value={sh.town} placeholder="e.g. Accra, Kumasi, Ashaiman" autoComplete="off" onChange={(e) => setNewShop(i, 'town', e.target.value)} />
                 </div>
                 <div className="form-field">
-                  <label className="form-label" htmlFor="new-shop-area">Area</label>
-                  <input id="new-shop-area" className="form-input" value={newShop.area ?? ''} placeholder="e.g. Spintex Road" autoComplete="off" onChange={(e) => setNewShop('area', e.target.value)} />
+                  <label className="form-label" htmlFor={`new-shop-area-${i}`}>Area</label>
+                  <input id={`new-shop-area-${i}`} className="form-input" value={sh.area ?? ''} placeholder="e.g. Spintex Road" autoComplete="off" onChange={(e) => setNewShop(i, 'area', e.target.value)} />
                 </div>
                 <div className="form-field">
-                  <label className="form-label" htmlFor="new-shop-address">Full address <span className="optional-tag">(optional)</span></label>
-                  <input id="new-shop-address" className="form-input" value={newShop.address} placeholder="e.g. Opposite the Ashaiman main station" autoComplete="off" onChange={(e) => setNewShop('address', e.target.value)} />
+                  <label className="form-label" htmlFor={`new-shop-address-${i}`}>Full address <span className="optional-tag">(optional)</span></label>
+                  <input id={`new-shop-address-${i}`} className="form-input" value={sh.address} placeholder="e.g. Opposite the Ashaiman main station" autoComplete="off" onChange={(e) => setNewShop(i, 'address', e.target.value)} />
                 </div>
               </div>
-              <p className="shop-help">
-                The shop is saved to this company&apos;s Shop Directory and linked to the employee profile. Its location is used for
-                GPS checks against the 150-metre geofence; if it is not set now, HR can set it later in Sales Rep Monitoring →
-                Assigned Shops.
-              </p>
-              {duplicate && (
-                <p className="shop-duplicate" role="status">
-                  {duplicate.shopName} already exists.{' '}
-                  <button type="button" className="shop-add-link" onClick={() => chooseExisting(duplicate.shopId)}>Select it instead</button>
-                </p>
-              )}
-              <button type="button" className="shop-add-link" onClick={() => onChange('shopMode', 'existing')}>
-                &larr; Back to the shop list
-              </button>
+              <button type="button" className="shop-add-link" onClick={() => removeNewShop(i)}>Remove this shop</button>
             </div>
+          ))}
+
+          {!full ? (
+            <button type="button" className="shop-add-link" onClick={addNewShop}>
+              {count === 0 ? '+ My shop is not in the list — add it' : `+ Add another shop (${MAX_SHOPS - count} more allowed)`}
+            </button>
+          ) : (
+            <p className="shop-help">You have chosen the maximum of {MAX_SHOPS} shops.</p>
+          )}
+          {newShops.length > 0 && (
+            <p className="shop-help">New shops are saved to this company&apos;s shop list. HR confirms their locations on the map.</p>
           )}
 
           {showShopError && (

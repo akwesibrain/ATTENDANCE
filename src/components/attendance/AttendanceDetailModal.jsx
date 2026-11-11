@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { RESULT_LABELS } from '../sales-monitoring/labels'
 import { sourceLabel } from '../../constants/attendanceLabels'
-import { GEOFENCE_RADIUS_M } from '../../services/shopsService'
+import { formatDistance } from '../../utils/distance'
 import { DIGITAL_GO_LIVE_DATE } from '../../utils/attendanceRules'
 import {
   HISTORICAL_SOURCE_LABEL,
@@ -289,7 +289,7 @@ export default function AttendanceDetailModal({ record, canCorrect, onCorrect, o
               <Detail label="Location check">{r.gps.label}</Detail>
               <Detail label="Distance from assigned shop">
                 {r.distanceFromShop != null
-                  ? `${r.distanceFromShop} m (geofence ${r.shop?.geofenceRadius ?? GEOFENCE_RADIUS_M} m)`
+                  ? `${formatDistance(r.distanceFromShop)} from the shop`
                   : '—'}
               </Detail>
               <Detail label="GPS accuracy">

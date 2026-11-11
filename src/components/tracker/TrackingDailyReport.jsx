@@ -133,8 +133,8 @@ const TrackingDailyReport = memo(function TrackingDailyReport({ company, user, r
       <p className="lt-report-note">
         Live coverage is the share of clocked-in time when the phone was sending its location (each update counts for up to 5 minutes).
         Signal lost counts gaps longer than 5 minutes — often no mobile data, Location off or the app closed, not necessarily misconduct.
-        Distance leaves out readings less accurate than 100 m. A shop visit is proven only by a face scan inside the shop area
-        and a stay of at least 10 minutes on live tracking. No positions are shown in this report.
+        Distance leaves out readings less accurate than 100 m. A shop visit is proven when live tracking shows a stay of 10+ minutes
+        at the shop (within 100 m, an allowance for GPS error). There is no pass/fail distance. No positions are shown in this report.
       </p>
     </section>
   )

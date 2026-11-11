@@ -1,9 +1,11 @@
 import { useMemo, useState } from 'react'
-import { CATEGORIES } from '../constants/employeeCategories'
+import { CATEGORIES, categoryForPosition } from '../constants/employeeCategories'
 import { listAttendanceRecords } from '../services/attendanceRecordsService'
-import { VISIT_RESULT, outletLabel } from '../services/fieldVisitsService'
+import { VISIT_RESULT, outletLabel, visitDistance } from '../services/fieldVisitsService'
+import { GPS_TOLERANCE_M, formatDistance } from '../utils/distance'
 import { visitProofForRecord } from '../services/trackingReportService'
-import { MIN_STAY_MINUTES, OFF_LIST, SHOP_PROOF, getVisitList, mockSaveVisitList } from '../services/visitListService'
+import { MIN_STAY_MINUTES, OFF_LIST, SHOP_RESULT, getVisitList, mockSaveVisitList } from '../services/visitListService'
+import { MAX_SHOPS, MIN_SHOPS } from '../utils/shopSelection'
 import { listShops } from '../services/shopsService'
 import { can } from '../services/permissionsService'
 import { accraTodayKey, formatAccraDate, formatAccraTime } from '../utils/accraTime'
@@ -14,11 +16,12 @@ import '../styles/attendance.css'
 /**
  * Sales Representative / Supervisor monitoring.
  *
- * Each person has a fixed list of shops to visit every working day (set by
- * HR here). A visit to a listed shop is PROVEN only by a face scan inside the
- * shop's area AND a stay of at least MIN_STAY_MINUTES on live tracking.
- * Everything else — scan without a stay, scan outside, missed shops, shops not
- * on the list, typed-in outlets — is flagged for HR to review.
+ * Each person has a fixed list of shops (at least MIN_SHOPS) to visit every
+ * working day, set by HR here. No pass/fail radius: HR sees how far people
+ * were. A listed shop is PROVEN when live tracking shows a stay of
+ * MIN_STAY_MINUTES+ at it (within GPS_TOLERANCE_M, an allowance for GPS error).
+ * Visits without a stay, missed shops, shops not on the list and typed-in
+ * outlets are flagged for HR.
  */
 export default function FieldVisitsMonitoring({ company, category, user, onOpenAttendance }) {
   const meta = CATEGORIES[category]
@@ -31,7 +34,10 @@ export default function FieldVisitsMonitoring({ company, category, user, onOpenA
   const canEditLists = can(user, 'shops', 'edit')
 
   const records = useMemo(
-    () => listAttendanceRecords({ companyId: company.id, dates: [date] }).filter((r) => r.category === category),
+    () => listAttendanceRecords({ companyId: company.id, dates: [date] })
+      // The backend's records carry the position; the category comes from it.
+      .map((r) => ({ ...r, category: r.category ?? categoryForPosition(r.position), visits: r.visits ?? [] }))
+      .filter((r) => r.category === category),
     [company.id, date, category],
   )
   const proofs = useMemo(
@@ -63,8 +69,9 @@ export default function FieldVisitsMonitoring({ company, category, user, onOpenA
             {category === 'supervisor'
               ? 'Supervisors visit larger outlets such as China Mall and Melcom.'
               : 'Sales Representatives visit mini-markets for the company.'}
-            {' '}Each person has a list of shops to visit every working day. A visit is <strong>proven</strong> only
-            by a face scan inside the shop area <strong>and</strong> a stay of at least {MIN_STAY_MINUTES} minutes on live tracking.
+            {' '}Each person has a list of 1 to {MAX_SHOPS} shops to visit every working day. A visit is <strong>proven</strong> when
+            live tracking shows a stay of {MIN_STAY_MINUTES}+ minutes at the shop. There is no pass/fail distance — you see how far
+            people were and decide.
           </p>
         </div>
       </div>
@@ -153,21 +160,24 @@ export default function FieldVisitsMonitoring({ company, category, user, onOpenA
           ) : (
             <div className="sm-table-wrap">
               <table className="sm-table">
-                <thead><tr><th scope="col">Shop</th><th scope="col">Result</th><th scope="col">Face-scan visit</th><th scope="col">Stay on live tracking</th></tr></thead>
+                <thead><tr><th scope="col">Shop</th><th scope="col">Result</th><th scope="col">Visit recorded</th><th scope="col">Stay at the shop (live tracking)</th></tr></thead>
                 <tbody>
                   {openProof.listed.map((l) => {
-                    const res = SHOP_PROOF[l.status]
-                    const scanRes = l.scan ? VISIT_RESULT[l.scan.verification?.status] : null
+                    const res = SHOP_RESULT[l.status]
                     return (
                       <tr key={l.shopId}>
                         <td data-label="Shop">{l.shop?.shopName ?? l.shopId}</td>
                         <td data-label="Result"><span className={`at-badge at-tone-${res.tone}`} title={res.label}>{res.short}</span></td>
-                        <td data-label="Face-scan visit">
-                          {l.scan
-                            ? <span className="at-stack">{formatAccraTime(l.scan.time)} · {scanRes?.short}<span className="at-sub">{l.scan.verification?.distance != null ? `${l.scan.verification.distance} m from the shop` : 'no distance'}{l.scans > 1 ? ` · ${l.scans} scans` : ''}</span></span>
-                            : <span className="at-none">No scan</span>}
+                        <td data-label="Visit recorded">
+                          {l.first
+                            ? <span className="at-stack">{formatAccraTime(l.first.time)}{l.scans > 1 ? ` · ${l.scans} visits` : ''}<span className="at-sub">{l.visitDistance != null ? `${formatDistance(l.visitDistance)} from the shop` : 'distance not available'}</span></span>
+                            : <span className="at-none">No visit recorded</span>}
                         </td>
-                        <td data-label="Stay on live tracking">{l.stayMinutes == null ? <span className="at-none">No live tracking</span> : `${l.stayMinutes} min${l.stayMinutes >= MIN_STAY_MINUTES ? '' : ` (needs ${MIN_STAY_MINUTES})`}`}</td>
+                        <td data-label="Stay at the shop">
+                          {l.stayMinutes == null
+                            ? <span className="at-none">{l.shop?.latitude == null ? 'Shop has no map location' : 'No live tracking'}</span>
+                            : <span className="at-stack">{l.stayMinutes} min<span className="at-sub">{l.closest != null ? `closest ${formatDistance(l.closest)}` : ''}</span></span>}
+                        </td>
                       </tr>
                     )
                   })}
@@ -180,9 +190,9 @@ export default function FieldVisitsMonitoring({ company, category, user, onOpenA
               <h4 className="fv-subhead">Visits to shops not on the list</h4>
               <div className="sm-table-wrap">
                 <table className="sm-table">
-                  <thead><tr><th scope="col">Time</th><th scope="col">Outlet</th><th scope="col">Result</th><th scope="col">Location check</th></tr></thead>
+                  <thead><tr><th scope="col">Time</th><th scope="col">Outlet</th><th scope="col">Result</th><th scope="col">Phone location</th><th scope="col">Distance</th></tr></thead>
                   <tbody>
-                    {openProof.offList.map(({ visit, status }) => {
+                    {openProof.offList.map(({ visit, status, distance }) => {
                       const res = OFF_LIST[status]
                       const loc = VISIT_RESULT[visit.verification?.status] ?? VISIT_RESULT['location-unavailable']
                       return (
@@ -190,7 +200,8 @@ export default function FieldVisitsMonitoring({ company, category, user, onOpenA
                           <td data-label="Time" className="at-time">{formatAccraTime(visit.time)}</td>
                           <td data-label="Outlet">{outletLabel(visit.outlet)}</td>
                           <td data-label="Result"><span className={`at-badge at-tone-${res.tone}`} title={res.label}>{res.short}</span></td>
-                          <td data-label="Location check">{loc.short}{visit.verification?.distance != null ? ` · ${visit.verification.distance} m` : ''}</td>
+                          <td data-label="Phone location">{loc.short}</td>
+                          <td data-label="Distance" className="at-time">{distance != null ? formatDistance(distance) : '—'}</td>
                         </tr>
                       )
                     })}
@@ -200,8 +211,9 @@ export default function FieldVisitsMonitoring({ company, category, user, onOpenA
             </>
           )}
           <p className="at-rules">
-            Proven = face scan inside the shop area <strong>and</strong> at least {MIN_STAY_MINUTES} minutes near the shop on live tracking.
-            A flag is a reason to check with the employee — for example a phone with no mobile data shows no stay — not proof of misconduct.
+            Proven = live tracking shows {MIN_STAY_MINUTES}+ minutes within {GPS_TOLERANCE_M} m of the shop (an allowance for GPS error,
+            not a pass/fail rule). A flag is a reason to check with the employee — for example a phone with no mobile data shows no stay —
+            not proof of misconduct.
           </p>
         </section>
       )}
@@ -213,7 +225,7 @@ export default function FieldVisitsMonitoring({ company, category, user, onOpenA
         ) : (
           <div className="sm-table-wrap">
             <table className="sm-table">
-              <thead><tr><th scope="col">Time</th><th scope="col">Employee</th><th scope="col">Outlet</th><th scope="col">Location check</th><th scope="col">Distance</th></tr></thead>
+              <thead><tr><th scope="col">Time</th><th scope="col">Employee</th><th scope="col">Outlet</th><th scope="col">Phone location</th><th scope="col">Distance from shop</th></tr></thead>
               <tbody>
                 {visits.map((v) => {
                   const res = VISIT_RESULT[v.verification?.status] ?? VISIT_RESULT['location-unavailable']
@@ -221,9 +233,9 @@ export default function FieldVisitsMonitoring({ company, category, user, onOpenA
                     <tr key={v.id}>
                       <td data-label="Time" className="at-time">{formatAccraTime(v.time)}</td>
                       <td data-label="Employee">{v.record.fullName}</td>
-                      <td data-label="Outlet">{outletLabel(v.outlet)}{!v.outlet?.shopId && <span className="at-sub"> · typed in, cannot be verified</span>}</td>
-                      <td data-label="Location check"><span className={`at-badge at-tone-${res.tone}`} title={res.label}>{res.short}</span>{v.locationError && <span className="at-sub"> · {v.locationError}</span>}</td>
-                      <td data-label="Distance" className="at-time">{v.verification?.distance != null ? `${v.verification.distance} m${v.location?.accuracy != null ? ` (±${v.location.accuracy} m)` : ''}` : '—'}</td>
+                      <td data-label="Outlet">{outletLabel(v.outlet)}{!v.outlet?.shopId && <span className="at-sub"> · typed in, not in the shop list</span>}</td>
+                      <td data-label="Phone location"><span className={`at-badge at-tone-${res.tone}`} title={res.label}>{res.short}</span>{v.locationError && <span className="at-sub"> · {v.locationError}</span>}</td>
+                      <td data-label="Distance from shop" className="at-time">{formatDistance(visitDistance(v))}</td>
                     </tr>
                   )
                 })}
@@ -231,7 +243,7 @@ export default function FieldVisitsMonitoring({ company, category, user, onOpenA
             </table>
           </div>
         )}
-        <p className="at-rules">Locations come only from the employee’s phone; nothing is filled in automatically. Outlets typed in by the employee have no saved coordinates, so they can never count as a proven visit.</p>
+        <p className="at-rules">Locations come only from the employee’s phone; nothing is filled in automatically. Outlets typed in by the employee are not in the shop list, so they never count as a listed shop.</p>
       </section>
     </div>
   )
@@ -244,6 +256,8 @@ function VisitListEditor({ record, company, user, onClose, onSaved }) {
   const [error, setError] = useState('')
   const toggle = (id) => setSelected((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n })
   const save = () => {
+    if (selected.size < MIN_SHOPS) { setError('Choose at least one shop.'); return }
+    if (selected.size > MAX_SHOPS) { setError(`Choose up to ${MAX_SHOPS} shops.`); return }
     const r = mockSaveVisitList({ employeeId: record.employeeId, fullName: record.fullName, companyId: company.id, shopIds: [...selected] }, user)
     if (r.error) { setError(r.error); return }
     onSaved()
@@ -253,7 +267,7 @@ function VisitListEditor({ record, company, user, onClose, onSaved }) {
       <div className="sm-panel-head">
         <div>
           <h3 id="fv-editor-title">Daily shop list — {record.fullName}</h3>
-          <span className="sm-muted">The shops {record.fullName.split(' ')[0]} must visit every working day.</span>
+          <span className="sm-muted">The shops {record.fullName.split(' ')[0]} must visit every working day — 1 to {MAX_SHOPS} shops.</span>
         </div>
       </div>
       {shops.length === 0 ? (
@@ -268,7 +282,7 @@ function VisitListEditor({ record, company, user, onClose, onSaved }) {
                   <span>{sh.shopName}</span>
                   <span className="at-sub">{[sh.area, sh.town].filter(Boolean).join(', ') || '—'}</span>
                 </span>
-                {sh.latitude == null && <span className="at-badge at-tone-warn" title="Visits here cannot be proven until HR saves the shop's location in the Shop Directory.">No saved location</span>}
+                {sh.latitude == null && <span className="at-badge at-tone-warn" title="HR can save the shop's location in the Shop Directory so it shows on the map.">No map location</span>}
               </label>
             </li>
           ))}

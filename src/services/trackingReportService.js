@@ -75,7 +75,7 @@ export function trackingDailyReport(companyId, dateKey, now = new Date()) {
       longestGapMinutes: s ? s.longestGapMinutes : null,
       distanceKm: s ? Math.round(s.distanceM / 100) / 10 : null,
       points: s?.points ?? null,
-      // Sales Reps / Supervisors: listed shops proven today.
+      // Sales Reps / Supervisors: listed shops proven (10+ min stay) today.
       shops: proof ? proof.counts : null,
       result,
     }

@@ -51,7 +51,7 @@ export const LEGAL_DOCS = [
               ['Failed face scans', 'When a scan does not match', 'To stop people clocking in for someone else'],
               ['Outlet visits: outlet, time, phone GPS location', 'When a Sales Rep or Supervisor records a visit', 'To confirm the visit happened at the outlet'],
               ['Live location', 'Supervisors, Sales Reps and Merchandisers, only between clock-in and clock-out', 'See the [Tracking Policy](/tracking-policy)'],
-              ['Merchandiser verification checks (SMS reply, location, face check)', 'Up to three times per shift', 'To confirm Merchandisers are at their allocated shop'],
+              ['Verification checks (SMS reply, face check, distance from your shop)', 'Up to three times per shift', 'To confirm it is really you and show HR how far you were from your shop'],
               ['Leave, holidays, shifts, overtime and HR corrections', 'When HR records them', 'Attendance and pay records'],
               ['HR user accounts and their actions', 'When HR staff use the HR portal', 'Security and an audit trail of who changed what'],
             ],
@@ -200,8 +200,8 @@ export const LEGAL_DOCS = [
           { ul: [
             '**Live location** while clocked in: your phone\'s GPS position, its accuracy and the time. A new point is saved when you move about 15 metres or more, and at most every 20 seconds.',
             '**Outlet visits** (Sales Reps and Supervisors): the phone\'s location at the moment you record a visit.',
-            '**Shop visit proof** (Sales Reps and Supervisors): you have a list of shops to visit every working day. A visit to a listed shop counts as proven when your face scan was inside the shop area **and** your live location stayed near the shop for at least 10 minutes. Visits that cannot be proven are shown to HR for review.',
-            '**Verification checks** (Merchandisers): up to three checks per shift at unpredictable times, each asking for your location and a face check, to confirm you are within 150 metres of your allocated shop.',
+            '**Your shops** (Sales Reps, Supervisors and Merchandisers): you work at 1 to 7 shops. HR sees how far you are from your shops — there is no pass/fail distance. For Sales Reps and Supervisors, a visit to a shop on your daily list is proven when your live location stayed at the shop for at least 10 minutes (within 100 metres, an allowance for GPS error). Visits that cannot be proven, missed shops and visits to other shops are shown to HR for review.',
+            '**Verification checks**: up to three checks per shift at unpredictable times, each asking for a face check and your location. HR sees how far you were from your shop; there is no pass/fail distance.',
           ] },
           { p: 'Nothing else on your phone is read.' },
         ],
@@ -228,7 +228,7 @@ export const LEGAL_DOCS = [
         id: 'report',
         heading: 'Daily tracking report',
         blocks: [
-          { p: 'At the end of each day the detailed trail is replaced by a short summary: your clock-in and clock-out times, how long you were tracked, how much of that time your phone was sending its location, how often the signal was lost, the distance travelled and, for Sales Reps and Supervisors, how many minutes you spent near each shop on your list. The summary contains **no positions**. HR uses it in a daily report, and it is kept {{retention.trackingSummary}} with your attendance records.' },
+          { p: 'At the end of each day the detailed trail is replaced by a short summary: your clock-in and clock-out times, how long you were tracked, how much of that time your phone was sending its location, how often the signal was lost, the distance travelled and, for your shops, how many minutes you spent at each and how close you came. The summary contains **no positions**. HR uses it in a daily report, and it is kept {{retention.trackingSummary}} with your attendance records.' },
         ],
       },
       {
@@ -274,7 +274,7 @@ export const LEGAL_DOCS = [
             'Use **only your own Staff ID and your own face**. Never clock in or out for anyone else, or let anyone do it for you.',
             'Give true information at registration and tell HR when your details change.',
             'Do not use fake-location apps, photos or videos of a face, or any other trick to fool the face check or location.',
-            'Record outlet visits only when you are actually at the outlet. Sales Reps and Supervisors: scan when you arrive at each shop on your daily list and stay at least 10 minutes with the app open and Location on, so the visit can be proven.',
+            'Record outlet visits only when you are actually at the outlet. Sales Reps and Supervisors: record a visit when you arrive at each shop on your daily list and stay at least 10 minutes with Location on, so the visit can be proven.',
             'Clock out at the end of your working day. Field staff: clocking out also stops location tracking.',
           ] },
         ],

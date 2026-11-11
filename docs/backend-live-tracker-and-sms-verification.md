@@ -6,6 +6,8 @@
 **Status:** the frontend is built and running on mock services; this document
 describes what the server must do so the mocks can be replaced.
 
+> **Update 11 November 2026 — read first:** the company **removed the 150 m radius** — **distance only, HR decides** (no pass/fail; HR sees "40 m", "2.3 km") — and field employees work at **1 to 7 shops**. The 10-minute stay rule stays, measured **within 100 m** (a GPS-error allowance). Everything in this document about geofences, inside/outside results and the 500 m location-mismatch alert is **replaced** by [docs/backend-multi-shop-and-places.md](backend-multi-shop-and-places.md).
+
 Read this together with the [Backend developer guide in the README](../README.md#backend-developer-guide)
 (general principles, data model, security).
 

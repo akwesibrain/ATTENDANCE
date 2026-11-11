@@ -61,6 +61,14 @@ export async function submitRegistration(registration) {
       faceImage: registration.faceImage,
       faceDescriptor: registration.faceDescriptor,
       biometricConsent: registration.confirmed === true,
+      // Frontend: other companies the employee also works for (main company =
+      // companyId). See docs/backend-dual-company-employees.md.
+      additionalCompanyIds: registration.additionalCompanyIds ?? [],
+      // Frontend: every shop a field employee works at (1 to 7) — ticked
+      // shops and shops added by hand. assignedShopId / newShop above stay the
+      // first one. See docs/backend-multi-shop-and-places.md.
+      assignedShopIds: registration.assignedShopIds ?? [],
+      newShops: registration.newShops ?? [],
     },
   })
   rememberDeviceRegistered()
