@@ -191,6 +191,43 @@ try {
   check('HR can add a Supervisor with a shop', supervisor.status === 201 && supervisor.json?.assignedShopIds?.length === 1, supervisor)
   const manager = await call('POST', '/hr/employees', employee({ position: 'Supervisor Manager', assignedShopIds: [s1] }), both)
   check('HR still cannot add other elevated titles', manager.status === 400 && Boolean(manager.json?.errors?.position), manager)
+
+  /* HR edits a list (an HR user for Box For Less only) */
+  const bfl = await makeHr('bfl', [BFL])
+  const listPath = `/hr/employees/${repId}/visit-list`
+  const read = await call('GET', listPath, undefined, bfl)
+  check('HR reads the list and its history', read.status === 200 && read.json?.shopIds?.length === 3 && read.json?.history?.length === 1, read)
+  const putForeign = await call('PUT', listPath, { shopIds: [shops.daa] }, bfl)
+  check('a list with another company’s shop is refused', putForeign.status === 400 && putForeign.json?.errors?.shop === 'Choose shops from your company’s shop list.', putForeign)
+  const putEight = await call('PUT', listPath, { shopIds: shops.bfl }, bfl)
+  check('a list of 8 is refused', putEight.status === 400 && putEight.json?.errors?.shop === 'Choose at most 7 shops.', putEight)
+  const editStarted = new Date().toISOString()
+  const reordered = await call('PUT', listPath, { shopIds: [s2, s1] }, bfl)
+  check('HR saves a new list', reordered.status === 200 && reordered.json?.shopIds?.join() === [s2, s1].join() && reordered.json?.history?.length === 2, reordered)
+  check('the new first shop becomes the assigned shop', (await sql(assignedShopSql(repId)))[0]?.assigned_shop_id === s2)
+  const audited = await sql(`select count(*)::int n from public.audit_events where action = 'Employee shop list changed' and affected like '%${repId}%' and at >= '${editStarted}'`)
+  check('the change is in the audit log', audited[0].n === 1, audited)
+  const same = await call('PUT', listPath, { shopIds: [s2, s1] }, bfl)
+  check('saving the same list changes nothing', same.status === 200 && same.json?.unchanged === true, same)
+  check('no snapshot for an unchanged list', (await sql(`select count(*)::int n from public.employee_shop_changes where staff_id = '${repId}'`))[0].n === 2)
+
+  const cashier = await call('POST', '/hr/employees', employee({ position: 'Cashier' }), both)
+  const cashierList = await call('GET', `/hr/employees/${cashier.json?.staffId}/visit-list`, undefined, bfl)
+  check('office staff have no shop list', cashierList.status === 409 && cashierList.json?.error === 'This employee’s position does not have a shop list.', cashierList)
+
+  const swap = await call('POST', `/hr/employees/${repId}/shop`, { shopId: s1 }, bfl)
+  const afterSwap = await call('GET', listPath, undefined, bfl)
+  check('change shop replaces only the first shop', swap.status === 200 && afterSwap.json?.shopIds?.join() === s1, { swap, afterSwap: afterSwap.json })
+  const positions = await sql(`select position from public.employee_shops where staff_id = '${repId}' order by position`)
+  check('positions stay 1..n', positions.map((row) => row.position).join() === '1', positions)
+
+  /* Company separation, straight from the database */
+  const direct = async (company) => {
+    const response = await fetch(`${URL_BASE}/rest/v1/employee_shops?select=staff_id&company_id=eq.${company}`, { headers: { apikey: KEY, authorization: `Bearer ${bfl}` } })
+    return await response.json()
+  }
+  check('Box For Less HR reads its own lists', (await direct(BFL)).length > 0)
+  check('Box For Less HR cannot read Double A lists', Array.isArray(await direct(DAA)) && (await direct(DAA)).length === 0)
 } finally {
   await cleanUp()
 }

@@ -13,7 +13,7 @@ import { formatShopCoordinates, shopFromRow } from '../_shared/rules/facts.js'
 import { validateHoliday } from '../_shared/rules/holidays.js'
 import { OPEN_STATUSES, RESOLUTION_ACTIONS } from '../_shared/rules/notificationTypes.js'
 import { buildRecord, correctionTimes, employmentStartFor, previewManualEntries, recordKey, validateCorrection } from '../_shared/rules/records.js'
-import { validateCoordinates, validateEmployeeDetails, validateLeavingDate } from '../_shared/rules/registration.js'
+import { replaceFirstShop, validateCoordinates, validateEmployeeDetails, validateLeavingDate } from '../_shared/rules/registration.js'
 import {
   attendanceRulesInForce,
   diffValues,
@@ -33,6 +33,8 @@ import { assertAllCompanies, assertCompany, type HrEnv, type HrUser, requireHr }
 import { hrEmployeeRoutes } from './employeeOnboarding.ts'
 import { hrAccessRoutes } from './hrAccess.ts'
 import { hrPasswordRoutes } from './hrPasswords.ts'
+import { currentShopList, firstShopOps, hrShopListRoutes, shopListOps } from './hrShopLists.ts'
+import { needsShopList } from '../_shared/rules/categories.js'
 import { loadFacts, loadSettings, syncNotifications } from './facts.ts'
 import { ApiError, applyChange, db, found, invalid, later, must, rateLimit, readJson, sha256Hex } from './lib.ts'
 import { newDisplayId, randomToken } from '../_shared/rules/siteCode.js'
@@ -42,6 +44,7 @@ hrRoutes.use('*', requireHr)
 hrRoutes.route('/', hrEmployeeRoutes)
 hrRoutes.route('/', hrAccessRoutes)
 hrRoutes.route('/', hrPasswordRoutes)
+hrRoutes.route('/', hrShopListRoutes)
 
 type Ctx = Context<HrEnv>
 // deno-lint-ignore no-explicit-any
@@ -202,24 +205,15 @@ hrRoutes.post('/employees/:staffId/shop', async (c) => {
   const previous = emp.assigned_shop_id
     ? await must(db.from('shops').select('*').eq('shop_id', emp.assigned_shop_id).maybeSingle())
     : null
-  await applyChange([
-    { table: 'shop_assignments', op: 'update', match: { employee_id: emp.staff_id, active: true }, row: { active: false } },
-    {
-      table: 'shop_assignments',
-      op: 'insert',
-      row: {
-        company_id: emp.company_id,
-        employee_id: emp.staff_id,
-        shop_id: shop.shop_id,
-        previous_shop_id: emp.assigned_shop_id,
-        effective_date: now,
-        assigned_at: now,
-        assigned_by: hr.name,
-        assigned_by_role: hr.role,
-      },
-    },
-    { table: 'employees', op: 'update', match: { staff_id: emp.staff_id }, row: { assigned_shop_id: shop.shop_id } },
-  ], audit(hr, {
+  // A field employee's list keeps its other shops; only the first is replaced.
+  let ops
+  if (needsShopList(emp.position)) {
+    const list = await currentShopList(emp.staff_id)
+    ops = shopListOps(emp, hr, replaceFirstShop(list, shop.shop_id), list)
+  } else {
+    ops = firstShopOps(emp, hr, shop.shop_id, now)
+  }
+  await applyChange(ops, audit(hr, {
     source: 'Employees',
     action: 'Employee shop assignment changed',
     category: 'Shifts & Shops',
