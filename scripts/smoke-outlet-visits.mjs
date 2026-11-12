@@ -245,6 +245,26 @@ try {
     ['a matching face records the visit', 'the visit keeps the distance, not the coordinates', 'the fifth failed scan locks visits', 'a locked person cannot record visits today', 'failed visit scans never touch the kiosk counter'].forEach(skip)
   }
 
+  /* The daily report counts visits and flags those tracking does not support */
+  if (faceApi) {
+    const todayReport = await call('GET', `/hr/tracking/reports/daily?companyId=${BFL}&date=${accraDate(now)}`, undefined, hr.token)
+    const repRow = todayReport.json?.rows?.find((r) => r.employeeId === rep)
+    check('today’s report counts the visit', repRow?.visits === 1, repRow)
+  } else {
+    skip('today’s report counts the visit')
+  }
+  const past = await addRep(hr.token)
+  await sql(`update public.employees set joined_on = '2026-01-01', registered_at = '2026-01-01T08:00:00Z' where staff_id = '${past}'`)
+  const yesterday = accraDate(now - 24 * 60 * MIN)
+  const y9 = Date.parse(`${yesterday}T09:00:00Z`)
+  await checkIn(past, { clockInMs: y9, closesAtMs: y9 + 14 * 60 * MIN })
+  await checkOut(past, y9 + 8 * 60 * MIN, yesterday)
+  await sql(`insert into public.outlet_visits (staff_id, company_id, date, occurred_at, shop_id, on_list, status, distance_m)
+             values ('${past}', '${BFL}', '${yesterday}', '${new Date(y9 + 60 * MIN).toISOString()}', '${SHOP_ID}', true, 'recorded', 30)`)
+  const pastReport = await call('GET', `/hr/tracking/reports/daily?companyId=${BFL}&date=${yesterday}`, undefined, hr.token)
+  const pastRow = pastReport.json?.rows?.find((r) => r.employeeId === past)
+  check('a visit with no 10-minute stay is flagged in the report', pastRow?.visits === 1 && pastRow?.shops?.flagged >= 1 && pastRow?.shops?.proven === 0, pastRow)
+
   /* After clock-out */
   await checkOut(rep, Date.now())
   const closed = await visit(repToken, { shopId: SHOP_ID, faceImage: picture(1), faceDescriptor: descriptor(1) })

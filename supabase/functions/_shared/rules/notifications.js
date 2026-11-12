@@ -259,6 +259,56 @@ export function detectTrackingFlags(flags, push, rosterById) {
   })
 }
 
+const NOT_MISCONDUCT = 'This is a reason to ask, not proof of misconduct. Attendance is not changed.'
+
+/**
+ * Shop visits against live tracking, for Sales Reps and Supervisors. A listed
+ * shop with no 10-minute stay, or not visited at all, is raised only once the
+ * working day is over; visits outside the list are raised straight away.
+ * @param {Array} days { employee, date, dayOver, proof, shopNames? } — proof from visitProof()
+ */
+export function detectVisitIssues(days, push) {
+  days.forEach(({ employee, date, dayOver, proof, shopNames }) => {
+    if (!proof) return
+    const who = { ...whoFrom(employee), relatedDate: date }
+    const shopName = (id) => shopNames?.get(id) ?? id
+    if (dayOver) {
+      proof.listed.forEach((shop) => {
+        if (shop.status === 'no-stay') {
+          push({
+            ...who,
+            sourceKey: `visit-no-stay:${employee.employeeId}:${date}:${shop.shopId}`,
+            type: 'visit-not-proven',
+            description: `${employee.fullName} recorded a visit to ${shopName(shop.shopId)} on ${dayText(date)}, but live tracking does not show a 10-minute stay there. ${NOT_MISCONDUCT}`,
+            occurredAt: null,
+          })
+        }
+        if (shop.status === 'missed') {
+          push({
+            ...who,
+            sourceKey: `visit-missed:${employee.employeeId}:${date}:${shop.shopId}`,
+            type: 'shop-missed',
+            description: `${employee.fullName} did not visit ${shopName(shop.shopId)}, on their shop list, on ${dayText(date)}. ${NOT_MISCONDUCT}`,
+            occurredAt: null,
+          })
+        }
+      })
+    }
+    proof.offList.forEach(({ visit, status }) => {
+      const where = status === 'off-list'
+        ? `${shopName(visit.outlet.shopId)}, which is not on their shop list`
+        : `${visit.outlet.name}, ${visit.outlet.town}, an outlet typed in by hand that is not in the shop directory`
+      push({
+        ...who,
+        sourceKey: `visit-off-list:${visit.id}`,
+        type: 'visit-off-list',
+        description: `${employee.fullName} recorded a visit to ${where} on ${dayText(date)}. ${NOT_MISCONDUCT}`,
+        occurredAt: visit.time,
+      })
+    })
+  })
+}
+
 /** @param {Array} entries correction history, each with employeeId and date */
 export function detectCorrections(entries, push, rosterById) {
   const batches = new Map()

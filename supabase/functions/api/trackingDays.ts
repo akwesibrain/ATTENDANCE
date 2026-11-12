@@ -13,34 +13,16 @@ import { accraDateKey } from '../_shared/rules/accraTime.js'
 import { categoryForPosition, TRACKED_CATEGORIES } from '../_shared/rules/categories.js'
 import { buildRecords } from '../_shared/rules/records.js'
 import { isDateKey } from '../_shared/rules/tenure.js'
-import { shopStays, summariseTrail, trackingResult, visitProof } from '../_shared/rules/tracking.js'
+import { shopStays, summariseTrail, trackingResult } from '../_shared/rules/tracking.js'
 import { assertCompany, type HrEnv } from './auth.ts'
-import { allRows, loadFacts } from './facts.ts'
-import { db, found, invalid, must, rpc } from './lib.ts'
+import { loadFacts } from './facts.ts'
+import { asPoint, listsFor, loadTrackingDays, shopsFor } from './trackingFacts.ts'
+import { allRows, db, found, invalid, must, rpc } from './lib.ts'
 
 export const hrTrackingRoutes = new Hono<HrEnv>()
 
 // deno-lint-ignore no-explicit-any
 type Row = Record<string, any>
-type Shop = { shopId: string; latitude: number | null; longitude: number | null }
-
-const asPoint = (p: Row) => ({ latitude: p.latitude, longitude: p.longitude, accuracy: p.accuracy, at: p.recorded_at })
-
-/** Each employee's listed shops, in order, for the given staff. */
-async function listsFor(staffIds: string[]) {
-  const lists = new Map<string, string[]>()
-  if (!staffIds.length) return lists
-  const rows = await allRows('employee_shops', 'position', (q: Row) => q.in('staff_id', staffIds))
-  rows.forEach((row: Row) => lists.set(row.staff_id, [...(lists.get(row.staff_id) ?? []), row.shop_id]))
-  return lists
-}
-
-async function shopsFor(ids: string[]): Promise<Map<string, Shop>> {
-  if (!ids.length) return new Map()
-  const rows = await found(db.from('shops').select('shop_id, shop_name, latitude, longitude').in('shop_id', [...new Set(ids)]))
-  return new Map(rows.map((r: Row) => [r.shop_id, { shopId: r.shop_id, shopName: r.shop_name, latitude: r.latitude, longitude: r.longitude }]))
-}
-
 /**
  * Summarise and delete a date's trails. Sessions still open before their
  * closing time (an overnight shift) are left alone.
@@ -112,38 +94,6 @@ export async function closePastDays(today = accraDateKey()) {
  * Daily report
  * ------------------------------------------------------------------------ */
 
-function fromSummaryRow(row: Row) {
-  return {
-    points: row.points,
-    trackedMinutes: row.tracked_minutes,
-    coverage: row.coverage,
-    signalLost: row.signal_lost,
-    longestGapMinutes: row.longest_gap_minutes,
-    distanceM: row.distance_m,
-    shopStays: row.shop_stays ?? {},
-  }
-}
-
-/** Today's summaries, worked out live from the trail. */
-async function liveSummaries(companyId: string, date: string, now: Date, lists: Map<string, string[]>, shops: Map<string, Shop>) {
-  const [sessions, points] = await Promise.all([
-    found(db.from('tracking_sessions').select('id, staff_id, clock_in_at, clock_out_at, closes_at').eq('company_id', companyId).eq('date', date)),
-    allRows('location_points', 'recorded_at', (q: Row) => q.eq('company_id', companyId).eq('date', date)),
-  ])
-  const bySession = new Map<string, Row[]>()
-  points.forEach((p: Row) => bySession.set(p.session_id, [...(bySession.get(p.session_id) ?? []), p]))
-  const out = new Map<string, ReturnType<typeof fromSummaryRow>>()
-  sessions.forEach((session: Row) => {
-    const trail = (bySession.get(session.id) ?? []).map(asPoint)
-    const endMs = session.clock_out_at ? Date.parse(session.clock_out_at) : Math.min(now.getTime(), Date.parse(session.closes_at))
-    const end = new Date(Math.max(endMs, Date.parse(session.clock_in_at))).toISOString()
-    const s = summariseTrail(trail, session.clock_in_at, end)
-    const listShops = (lists.get(session.staff_id) ?? []).map((id) => shops.get(id)).filter(Boolean)
-    out.set(session.staff_id, { ...s, shopStays: shopStays(trail, listShops) })
-  })
-  return out
-}
-
 hrTrackingRoutes.get('/tracking/reports/daily', async (c) => {
   const companyId = c.req.query('companyId') ?? ''
   const date = c.req.query('date') ?? ''
@@ -164,28 +114,10 @@ hrTrackingRoutes.get('/tracking/reports/daily', async (c) => {
   const records = buildRecords(roster.filter((e: Row) => e.companyId === companyId), [date], ctx)
     .map((r: Row) => ({ ...r, category: categoryForPosition(r.position) }))
     .filter((r: Row) => TRACKED_CATEGORIES.includes(r.category) && (!role || r.category === role))
-  const lists = await listsFor(records.map((r: Row) => r.employeeId))
-  const shops = await shopsFor([...lists.values()].flat())
+  const days = await loadTrackingDays(records, now)
 
-  // Days whose trail the 48-hour sweep removed before it could be summarised.
-  const expired = new Set((await found(
-    db.from('tracking_sessions').select('staff_id').eq('company_id', companyId).eq('date', date).eq('trail_expired', true),
-  )).map((row: Row) => row.staff_id))
-
-  const summaries = date === today
-    ? await liveSummaries(companyId, date, now, lists, shops)
-    : new Map((await found(db.from('tracking_day_summaries').select('*').eq('company_id', companyId).eq('date', date)))
-      .map((row: Row) => [row.staff_id, fromSummaryRow(row)]))
-
-  const rows = records.map((r: Row) => {
-    const s = r.clockIn ? summaries.get(r.employeeId) ?? null : null
+  const rows = days.map(({ record: r, summary: s, unavailable, proof, visits }) => {
     const isMerch = r.category === 'merchandiser'
-    // A swept trail is unknown, not missing: nothing is marked missed or no-signal.
-    const unavailable = Boolean(r.clockIn) && !s && expired.has(r.employeeId)
-    const dayOver = !unavailable && (!r.isToday || Boolean(r.clockOut) || now.getTime() >= Date.parse(r.expectedEnd))
-    const proof = isMerch
-      ? null
-      : visitProof({ listIds: lists.get(r.employeeId) ?? [], shopsById: shops, visits: [], stays: s ? s.shopStays : null, dayOver })
     return {
       employeeId: r.employeeId,
       fullName: r.fullName,
@@ -193,7 +125,7 @@ hrTrackingRoutes.get('/tracking/reports/daily', async (c) => {
       clockIn: r.clockIn,
       clockOut: r.clockOut,
       stillClockedIn: Boolean(r.clockIn && !r.clockOut && r.isToday),
-      visits: isMerch ? null : 0,
+      visits: isMerch ? null : visits.length,
       trackedMinutes: s?.trackedMinutes ?? null,
       coverage: s?.coverage ?? null,
       signalLost: s ? s.signalLost : null,

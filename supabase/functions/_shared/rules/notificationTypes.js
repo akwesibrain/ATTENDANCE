@@ -28,6 +28,9 @@ export const NOTIFICATION_TYPES = {
   'rep-no-shop': { category: 'sales-monitoring', label: 'Sales representative has no assigned shop', severity: 'high', kind: 'exception' },
   'tracking-mock-location': { category: 'sales-monitoring', label: 'Fake location reported', severity: 'high', kind: 'exception' },
   'tracking-impossible-speed': { category: 'sales-monitoring', label: 'Impossible movement speed', severity: 'high', kind: 'exception' },
+  'visit-not-proven': { category: 'sales-monitoring', label: 'Shop visit not proven', severity: 'medium', kind: 'exception' },
+  'shop-missed': { category: 'sales-monitoring', label: 'Shop missed', severity: 'medium', kind: 'exception' },
+  'visit-off-list': { category: 'sales-monitoring', label: 'Visit to an unlisted shop', severity: 'low', kind: 'exception' },
   // Employee & Shop (no-shift / shift-review are kept only so older
   // notifications still display; they are no longer raised.)
   'no-shift': { category: 'employee-shift', label: 'No assigned shift', severity: 'medium', kind: 'exception' },

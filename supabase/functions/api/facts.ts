@@ -9,7 +9,7 @@ import {
   shopFromRow,
 } from '../_shared/rules/facts.js'
 import {
-  detectCorrections, detectTrackingFlags,
+  detectCorrections, detectTrackingFlags, detectVisitIssues,
   detectFromRecord,
   detectFromRoster,
   planNotificationSync,
@@ -17,21 +17,14 @@ import {
 } from '../_shared/rules/notifications.js'
 import { buildRecords } from '../_shared/rules/records.js'
 import { attendanceRulesInForce, composeSettings } from '../_shared/rules/settings.js'
-import { ApiError, applyChange, db, must } from './lib.ts'
+import { allRows, ApiError, applyChange, db, must } from './lib.ts'
+import { loadTrackingDays } from './trackingFacts.ts'
+import { categoryForPosition } from '../_shared/rules/categories.js'
 
-const PAGE = 1000
+export { allRows }
+
 
 /** Every matching row, however many pages that takes. */
-// deno-lint-ignore no-explicit-any
-export async function allRows(table: string, order: string, filter: (query: any) => any = (q) => q): Promise<any[]> {
-  // deno-lint-ignore no-explicit-any
-  const rows: any[] = []
-  for (let from = 0; ; from += PAGE) {
-    const page = await must(filter(db.from(table).select('*')).order(order).range(from, from + PAGE - 1)) as unknown[]
-    rows.push(...page)
-    if (page.length < PAGE) return rows
-  }
-}
 
 export async function loadSettings() {
   const [general, companies, versions] = await Promise.all([
@@ -107,6 +100,13 @@ export async function syncNotifications(now = new Date()) {
   // deno-lint-ignore no-explicit-any
   const trackingFlags = await allRows('tracking_flags', 'date', (q: any) => q.gte('date', dates[0]).lte('date', today))
   detectTrackingFlags(trackingFlags, push, new Map(roster.map((e) => [e.employeeId, e])))
+
+  // Shop visits against live tracking (Sales Reps and Supervisors), from the same facts as the daily report.
+  const visitRecords = buildRecords(roster, dates, ctx)
+    .map((r: { position: string }) => ({ ...r, category: categoryForPosition(r.position) }))
+    .filter((r: { category: string }) => r.category === 'sales-rep' || r.category === 'supervisor')
+  const visitDays = await loadTrackingDays(visitRecords, now)
+  detectVisitIssues(visitDays.map((d) => ({ employee: d.record, date: d.record.date, dayOver: d.dayOver, proof: d.proof, shopNames: d.shopNames })), push)
 
   const [existing, reviews] = await Promise.all([
     allRows('notifications', 'id'),

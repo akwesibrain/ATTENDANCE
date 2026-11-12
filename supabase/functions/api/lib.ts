@@ -115,3 +115,17 @@ export async function discardPhoto(bucket: string, path: string) {
   const { error } = await db.storage.from(bucket).remove([path])
   if (error) console.error('photo cleanup failed', path, error.message)
 }
+
+const PAGE = 1000
+
+/** Every row of a table, in pages, in a fixed order. */
+// deno-lint-ignore no-explicit-any
+export async function allRows(table: string, order: string, filter: (query: any) => any = (q) => q): Promise<any[]> {
+  // deno-lint-ignore no-explicit-any
+  const rows: any[] = []
+  for (let from = 0; ; from += PAGE) {
+    const page = await must(filter(db.from(table).select('*')).order(order).range(from, from + PAGE - 1)) as unknown[]
+    rows.push(...page)
+    if (page.length < PAGE) return rows
+  }
+}
