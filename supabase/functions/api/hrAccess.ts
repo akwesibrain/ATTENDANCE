@@ -5,8 +5,8 @@
 
 import { Hono } from 'npm:hono@4.6.14'
 import type { Context } from 'npm:hono@4.6.14'
-import { validateInvite, validateNewPassword } from '../_shared/rules/onboarding.js'
-import type { HrEnv, HrUser } from './auth.ts'
+import { existingAccountRefusal, validateInvite, validateNewPassword } from '../_shared/rules/onboarding.js'
+import { assertAllCompanies, type HrEnv, type HrUser } from './auth.ts'
 import { ApiError, applyChange, clientIp, db, found, invalid, must, rateLimit, readJson, rpc } from './lib.ts'
 import { cancelLinksOps, createLink, deliverLink, type LinkResult, openLink } from './setupLinks.ts'
 
@@ -57,6 +57,7 @@ async function confirmedAccount(email: string): Promise<{ id: string | null; unc
 }
 
 hrAccessRoutes.get('/users', async (c) => {
+  await assertAllCompanies(c)
   const users = await found(db.from('hr_users').select('id, name, email, status, last_login_at, created_at').order('created_at'))
   const invites = await found(
     db.from('hr_invites').select('id, name, email, phone, invited_by, created_at').eq('status', 'pending').order('created_at'),
@@ -86,6 +87,7 @@ hrAccessRoutes.get('/users', async (c) => {
 })
 
 hrAccessRoutes.post('/invites', async (c) => {
+  await assertAllCompanies(c)
   const hr = c.get('hr')
   const parsed = validateInvite(await readJson(c))
   if (parsed.errors) throw invalid(parsed.errors)
@@ -112,12 +114,14 @@ hrAccessRoutes.post('/invites', async (c) => {
 })
 
 hrAccessRoutes.post('/invites/:id/link', async (c) => {
+  await assertAllCompanies(c)
   const hr = c.get('hr')
   const invite = await pendingInvite(c.req.param('id'))
   return c.json(await sendInviteLink(hr, invite, accessAudit(hr, 'HR invite link sent', `${invite.name} (${invite.email})`, 'A new setup link was created. The earlier one stopped working.')))
 })
 
 hrAccessRoutes.post('/invites/:id/cancel', async (c) => {
+  await assertAllCompanies(c)
   const hr = c.get('hr')
   const invite = await pendingInvite(c.req.param('id'))
   await applyChange([
@@ -128,6 +132,7 @@ hrAccessRoutes.post('/invites/:id/cancel', async (c) => {
 })
 
 hrAccessRoutes.post('/users/:id/status', async (c) => {
+  await assertAllCompanies(c)
   const hr = c.get('hr')
   const body = await readJson(c)
   const status = body.status
@@ -141,6 +146,14 @@ hrAccessRoutes.post('/users/:id/status', async (c) => {
   ))
   return c.json({ user: { id: user.id, name: user.name, email: user.email, status: user.status, lastLoginAt: user.last_login_at } })
 })
+
+/** The signed-in user behind the request's bearer token, if any. Any assurance level counts. */
+async function callerUserId(c: Context): Promise<string | null> {
+  const token = c.req.header('authorization')?.replace(/^Bearer\s+/i, '')
+  if (!token) return null
+  const { data, error } = await db.auth.getUser(token)
+  return error || !data.user ? null : data.user.id
+}
 
 async function setupInvite(c: Context) {
   await rateLimit(`hr-setup:ip:${clientIp(c)}`, ...SETUP_LIMIT)
@@ -163,7 +176,11 @@ publicHrSetupRoutes.post('/public/hr-setup/:token', async (c) => {
 
   let userId = existingId
   let passwordSet = false
-  if (!userId) {
+  if (userId) {
+    // Proof the person accepting owns this sign-in: they signed in with its password first.
+    const refusal = existingAccountRefusal({ accountId: userId, callerId: await callerUserId(c) })
+    if (refusal) throw new ApiError(403, refusal, { code: 'sign-in-required' })
+  } else {
     const problem = validateNewPassword(body.password, body.confirm)
     if (problem) throw invalid({ password: problem })
     const password = body.password as string

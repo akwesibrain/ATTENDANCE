@@ -155,7 +155,9 @@ export default function AddEmployeeModal({ companyId, onClose, onCreated }) {
                     <LinkResult url={enrolUrl(result.link.token)} {...result.link} />
                   </>
                 )
-                : <p className="ed-hint">Their face is set up. They can check in now.</p>}
+                : result.linkError
+                  ? <p className="at-form-alert" role="alert">{result.linkError}</p>
+                  : <p className="ed-hint">Their face is set up. They can check in now.</p>}
             </section>
           )}
 

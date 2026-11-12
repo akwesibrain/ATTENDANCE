@@ -6,6 +6,7 @@
 import { Hono } from 'npm:hono@4.6.14'
 import type { Context } from 'npm:hono@4.6.14'
 import { enrollFace } from '../_shared/faceMatcher.ts'
+import { faceLinkRefusal } from '../_shared/rules/onboarding.js'
 import { parseRegistration } from '../_shared/rules/registration.js'
 import { assertCompany, type HrEnv, type HrUser } from './auth.ts'
 import { ENROLLMENT_BUCKET, enrolNewFace, faceSample, readable, registerEmployee } from './enrolment.ts'
@@ -54,20 +55,30 @@ hrEmployeeRoutes.post('/employees', async (c) => {
   const face = withFace ? await enrolNewFace(body, form.companyId) : null
   const employee = await registerEmployee(form, face, { name: hr.name, role: hr.role })
 
-  const link = !withFace && body.sendFaceLink === true
-    ? await sendFaceLink(hr, {
-      staff_id: employee.staff_id as string,
-      full_name: employee.full_name as string,
-      company_id: employee.company_id as string,
-      phone: (employee.phone as string) ?? '',
-    })
-    : undefined
+  // The employee exists from here on. A link failure must not look like the
+  // whole request failed, or HR would add the same person twice.
+  let link: LinkResult | undefined
+  let linkError: string | undefined
+  if (!withFace && body.sendFaceLink === true) {
+    try {
+      link = await sendFaceLink(hr, {
+        staff_id: employee.staff_id as string,
+        full_name: employee.full_name as string,
+        company_id: employee.company_id as string,
+        phone: (employee.phone as string) ?? '',
+      })
+    } catch (error) {
+      console.error('face link after adding employee failed', employee.staff_id, error)
+      linkError = 'The employee was added, but the face setup link could not be created. Open their details and use Send face setup link.'
+    }
+  }
 
   return c.json({
     staffId: employee.staff_id,
     fullName: employee.full_name,
     companyName: employee.company_name,
     link,
+    linkError,
   }, 201)
 })
 
@@ -77,7 +88,8 @@ hrEmployeeRoutes.post('/employees/:staffId/face-link', async (c) => {
   )
   if (!employee) throw new ApiError(404, 'Employee not found.')
   assertCompany(c, employee.company_id)
-  if (employee.status !== 'active') throw new ApiError(409, 'This employee is not active. Reactivate them first.')
+  const refusal = faceLinkRefusal(employee)
+  if (refusal) throw new ApiError(409, refusal)
   return c.json(await sendFaceLink(c.get('hr'), employee))
 })
 

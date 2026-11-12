@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
+  existingAccountRefusal,
+  faceLinkRefusal,
   FACE_LINK_HOURS,
   HR_INVITE_HOURS,
   LINK_UNUSABLE,
@@ -118,5 +120,25 @@ describe('parseRegistration without a face', () => {
   it('skips consent when HR adds the employee without a face', () => {
     const result = parseRegistration(body, { faceRequired: false })
     expect(result.errors?.biometricConsent).toBeUndefined()
+  })
+})
+
+describe('faceLinkRefusal (final review: Critical 1)', () => {
+  it('allows a face link for an active employee, whose status is stored as ACTIVE', () => {
+    expect(faceLinkRefusal({ status: 'ACTIVE' })).toBe('')
+  })
+  it('refuses an inactive employee', () => {
+    expect(faceLinkRefusal({ status: 'INACTIVE' })).toBe('This employee is not active. Reactivate them first.')
+  })
+})
+
+describe('existingAccountRefusal (final review: Important 3)', () => {
+  it('accepts only when the caller is signed in as that account', () => {
+    expect(existingAccountRefusal({ accountId: 'u1', callerId: 'u1' })).toBe('')
+  })
+  it('refuses when nobody is signed in, or someone else is', () => {
+    const message = 'Sign in with your existing password to accept this invite.'
+    expect(existingAccountRefusal({ accountId: 'u1', callerId: null })).toBe(message)
+    expect(existingAccountRefusal({ accountId: 'u1', callerId: 'u2' })).toBe(message)
   })
 })

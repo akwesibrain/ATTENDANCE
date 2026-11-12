@@ -30,11 +30,17 @@ export default function HrSetup({ token }) {
   const finish = async (e) => {
     e?.preventDefault()
     setTouched(true)
-    if (busy || (!invite.hasAccount && problem)) return
+    if (busy || (!invite.hasAccount && problem) || (invite.hasAccount && !password)) return
     setBusy(true)
     setError('')
     try {
+      if (invite.hasAccount) {
+        // Signing in first proves this person owns the existing account.
+        const { error: signInError } = await supabase.auth.signInWithPassword({ email: invite.email, password })
+        if (signInError) { setError('That password is not right for this email.'); return }
+      }
       const result = await completeHrSetup(token, invite.hasAccount ? {} : { password, confirm })
+      if (invite.hasAccount && !result.errors) { window.location.assign('/hr'); return }
       if (result.errors) {
         if (result.error === LINK_UNUSABLE) setClosed(LINK_UNUSABLE)
         else setError(result.error)
@@ -83,14 +89,22 @@ export default function HrSetup({ token }) {
 
               {invite.hasAccount ? (
                 <>
-                  <p className="step-description">
-                    You already have a sign-in for <strong>{invite.email}</strong>. Accept to add HR access to it, then
-                    sign in with your existing password.
-                  </p>
-                  {error && <div className="submit-error" role="alert"><span>{error}</span></div>}
-                  <div className="step-actions">
-                    <button type="button" className="btn btn-primary" onClick={finish} disabled={busy}>{busy ? 'Saving…' : 'Accept'}</button>
-                  </div>
+                  <form onSubmit={finish} noValidate>
+                    <p className="step-description">
+                      You already have a sign-in for <strong>{invite.email}</strong>. Enter its password to add HR access to it.
+                    </p>
+                    <div className="form-grid">
+                      <div className="form-field">
+                        <label className="form-label" htmlFor="hs-existing">Your existing password</label>
+                        <input id="hs-existing" type="password" className="form-input" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+                      </div>
+                    </div>
+                    {touched && !password && <p className="form-error" role="alert">Enter your password.</p>}
+                    {error && <div className="submit-error" role="alert"><span>{error}</span></div>}
+                    <div className="step-actions">
+                      <button type="submit" className="btn btn-primary" disabled={busy}>{busy ? 'Checking…' : 'Accept'}</button>
+                    </div>
+                  </form>
                 </>
               ) : (
                 <form onSubmit={finish} noValidate>

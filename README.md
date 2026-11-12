@@ -208,6 +208,10 @@ pg_cron + pg_net ─────────> `api` /jobs/* (secret header)
    `APP_URL` as function secrets, then redeploy. `APP_URL` is also what face
    setup links and HR invite links use in their SMS; without it HR can still
    copy each link and send it themselves.
+7. **Turn off public sign-up** (Dashboard → Authentication → Sign In /
+   Providers → "Allow new users to sign up"). HR invites create accounts on
+   the server, so nothing needs it, and leaving it on lets anyone create an
+   account for an address before that person is invited.
 
 ### Function secrets
 

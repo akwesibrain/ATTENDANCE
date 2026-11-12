@@ -74,3 +74,17 @@ export function smsPlan({ phone, smsOn, appUrl }) {
 function clean(value) {
   return typeof value === 'string' ? value.trim() : ''
 }
+
+/** Why a face setup link cannot go to this employee, or '' when it can. */
+export function faceLinkRefusal(employee) {
+  return employee?.status === 'ACTIVE' ? '' : 'This employee is not active. Reactivate them first.'
+}
+
+/**
+ * An invite only adds HR access to an existing sign-in when the person
+ * accepting it is signed in as that account, so knowing an address and its
+ * invite link is not enough to claim someone else's account.
+ */
+export function existingAccountRefusal({ accountId, callerId }) {
+  return callerId && callerId === accountId ? '' : 'Sign in with your existing password to accept this invite.'
+}
