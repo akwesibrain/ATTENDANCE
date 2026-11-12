@@ -10,6 +10,7 @@ const AttendanceCheckIn = lazy(() => import('./pages/AttendanceCheckIn'))
 const HrDashboard = lazy(() => import('./pages/HrDashboard'))
 const VerifyCheck = lazy(() => import('./pages/VerifyCheck'))
 const WorkplaceDisplay = lazy(() => import('./pages/WorkplaceDisplay'))
+const EnrolFace = lazy(() => import('./pages/EnrolFace'))
 
 const VIEW = {
   home: 'home',
@@ -38,12 +39,17 @@ function viewFromLocation() {
 
 const VERIFY_PATH = /^\/verify\/([^/]+)$/
 const DISPLAY_PATH = /^\/display(?:\/setup\/([^/]+))?\/?$/
+const ENROL_PATH = /^\/enroll\/([^/]+)$/
 
 function App() {
   const path = window.location.pathname
   const verifyToken = path.match(VERIFY_PATH)?.[1]
   if (verifyToken) {
     return <Suspense fallback={<PageSkeleton label="Loading verification" />}><VerifyCheck token={verifyToken} /></Suspense>
+  }
+  const enrolToken = path.match(ENROL_PATH)?.[1]
+  if (enrolToken) {
+    return <Suspense fallback={<PageSkeleton label="Loading face setup" />}><EnrolFace token={enrolToken} /></Suspense>
   }
   const display = path.match(DISPLAY_PATH)
   if (display) {
