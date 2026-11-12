@@ -11,7 +11,7 @@ import { isWorkingDay, overtimeHours } from '../_shared/rules/policy.js'
 import { parseRegistration, requiresShop } from '../_shared/rules/registration.js'
 import { checkSiteCode, makeSitePass, parseSiteCode, randomToken } from '../_shared/rules/siteCode.js'
 import { activeDisplay, type Site, siteFromPass } from './sites.ts'
-import { enrolNewFace, ENROLLMENT_BUCKET, faceSample, readable } from './enrolment.ts'
+import { enrolNewFace, ENROLLMENT_BUCKET, faceSample, readable, registerEmployee } from './enrolment.ts'
 import { attendanceRulesInForce, hoursInForce } from '../_shared/rules/settings.js'
 import { loadSettings, syncNotifications } from './facts.ts'
 import { ApiError, applyChange, clientIp, db, discardPhoto, found, invalid, later, must, rateLimit, readJson, rpc, sha256Hex, storePhoto } from './lib.ts'
@@ -42,9 +42,6 @@ async function loadEnrolledPhoto(path: string) {
   return new Uint8Array(await data.arrayBuffer())
 }
 
-function slug(value: string) {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
-}
 
 /** The server clock, so a workplace display can correct its own. */
 publicRoutes.get('/public/time', (c) => c.json({ now: new Date().toISOString() }))
@@ -127,37 +124,8 @@ publicRoutes.post('/employees/register', async (c) => {
   if (parsed.errors) throw invalid(parsed.errors)
   const form = parsed.value
 
-  const { template, photoPath } = await enrolNewFace(body, form.companyId)
-
-  let employee
-  try {
-    employee = await rpc<Record<string, string | null>>('register_employee', {
-      p_employee: {
-        company_id: form.companyId,
-        full_name: form.fullName,
-        position: form.position,
-        payment_method: form.paymentMethod,
-        phone: form.phone,
-        email: form.email,
-        address: form.address,
-        emergency_contact_name: form.emergencyContactName,
-        emergency_contact_phone: form.emergencyContactPhone,
-        face_photo_path: photoPath,
-      },
-      p_template: template,
-      p_shop_id: form.shopId,
-      p_new_shop: form.newShop && {
-        shop_id: `shop-${slug(form.companyId)}-${slug(`${form.newShop.shopName} ${form.newShop.area}`)}-${crypto.randomUUID().slice(0, 8)}`,
-        shop_name: form.newShop.shopName,
-        town: form.newShop.town,
-        area: form.newShop.area,
-        address: form.newShop.address,
-      },
-    })
-  } catch (error) {
-    await discardPhoto(ENROLLMENT_BUCKET, photoPath)
-    throw error
-  }
+  const face = await enrolNewFace(body, form.companyId)
+  const employee = await registerEmployee(form, face)
 
   return c.json({
     staffId: employee.staff_id,
