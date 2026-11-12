@@ -374,3 +374,118 @@
 @media (max-width: 560px) {
   .ed-fields { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* ---- HR onboarding: add employee, face setup links ---- */
+
+.emp-add-btn {
+  white-space: nowrap;
+}
+
+.emp-card-face-missing {
+  align-self: flex-start;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  border: 1px solid currentColor;
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.add-emp-modal {
+  max-width: 640px;
+  width: 100%;
+}
+
+.add-emp-face,
+.add-emp-done {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.add-emp-choice {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.add-emp-option {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius-md, 10px);
+  cursor: pointer;
+  background: var(--surface);
+}
+
+.add-emp-option.is-selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.add-emp-option > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.add-emp-staff-id {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+}
+
+.add-emp-staff-id strong {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--brand);
+  font-variant-numeric: tabular-nums;
+}
+
+.link-result {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md, 10px);
+  background: var(--ground);
+}
+
+.link-result-sms {
+  margin: 0;
+  font-weight: 700;
+}
+
+.link-result-sms-sent {
+  color: var(--ok);
+}
+
+.link-result-sms-skipped,
+.link-result-sms-failed {
+  color: var(--warn);
+}
+
+.link-result-row {
+  display: flex;
+  gap: 8px;
+}
+
+.link-result-url {
+  flex: 1;
+  min-width: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+}
+
+@media (max-width: 560px) {
+  .link-result-row {
+    flex-direction: column;
+  }
+}

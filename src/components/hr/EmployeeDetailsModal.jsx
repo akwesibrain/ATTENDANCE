@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { employeeJoinedOn, setEmployeeActive, updateEmployeeDetails, validateEmployeeDetails } from '../../services/registrationService'
 import { accraTodayKey, formatAccraDate } from '../../utils/accraTime'
 import { formatTenure, tenureBetween } from '../../utils/tenure'
+import { enrolUrl, sendFaceLink } from '../../services/onboardingService'
+import LinkResult from './LinkResult'
 
 /**
  * HR edits the date an employee joined the company and their emergency
@@ -44,6 +46,22 @@ export default function EmployeeDetailsModal({ employee, onClose, onSaved }) {
       onSaved(result.employee)
     } finally {
       setStatusBusy(false)
+    }
+  }
+
+  const [faceLink, setFaceLink] = useState(null)
+  const [faceLinkError, setFaceLinkError] = useState(null)
+  const [faceLinkBusy, setFaceLinkBusy] = useState(false)
+
+  const makeFaceLink = async () => {
+    setFaceLinkBusy(true)
+    setFaceLinkError(null)
+    try {
+      const result = await sendFaceLink(employee.staffId)
+      if (result.errors) { setFaceLinkError(result.error ?? 'Could not create the link.'); return }
+      setFaceLink(result)
+    } finally {
+      setFaceLinkBusy(false)
     }
   }
 
@@ -101,6 +119,24 @@ export default function EmployeeDetailsModal({ employee, onClose, onSaved }) {
               </div>
             </div>
           </section>
+          {active && (
+            <section className="sm-section">
+              <h4 className="sm-section-title">Face for check-in</h4>
+              <p className="ed-hint">
+                {employee.facePhotoPath
+                  ? 'Their face is set up. Send a new link only if check-in says their face photo needs to be registered again.'
+                  : 'Their face is not set up yet, so they cannot check in. Send them a one-time link to do it on their phone.'}
+              </p>
+              {faceLinkError && <span className="ed-error" role="alert">{faceLinkError}</span>}
+              {faceLink
+                ? <LinkResult url={enrolUrl(faceLink.token)} {...faceLink} />
+                : (
+                  <button type="button" className="btn btn-secondary" onClick={makeFaceLink} disabled={faceLinkBusy}>
+                    {faceLinkBusy ? 'Creating link…' : 'Send face setup link'}
+                  </button>
+                )}
+            </section>
+          )}
           <section className="sm-section">
             <h4 className="sm-section-title">Employment status</h4>
             {active ? (

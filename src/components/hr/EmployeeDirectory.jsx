@@ -10,6 +10,7 @@ import { employeeJoinedOn } from '../../services/registrationService'
 import { accraTodayKey, formatAccraDate } from '../../utils/accraTime'
 import { formatTenure, tenureBetween } from '../../utils/tenure'
 import EmployeeDetailsModal from './EmployeeDetailsModal'
+import AddEmployeeModal from './AddEmployeeModal'
 
 const PAGE_SIZE = 8
 
@@ -100,6 +101,7 @@ function EmployeeCard({ emp, onAssignShop, onViewAttendance, onEditDetails }) {
             {emp.status}
           </span>
         </div>
+        {!emp.facePhotoPath && <span className="emp-card-face-missing">Face not set up</span>}
         <h3 className="emp-card-name">{emp.fullName}</h3>
         <p className="emp-card-position">{emp.position}</p>
 
@@ -204,8 +206,9 @@ function EmployeeCard({ emp, onAssignShop, onViewAttendance, onEditDetails }) {
  * pagination. Each card shows the information the employee gave at
  * registration.
  */
-export default function EmployeeDirectory({ employees, onAssignShop, onViewAttendance, onEmployeeChanged }) {
+export default function EmployeeDirectory({ employees, companyId, canAddEmployees, onAssignShop, onViewAttendance, onEmployeeChanged }) {
   const [search, setSearch] = useState('')
+  const [adding, setAdding] = useState(false)
   const [editing, setEditing] = useState(null)
   const [saved, setSaved] = useState('')
   const [page, setPage] = useState(1)
@@ -256,7 +259,18 @@ export default function EmployeeDirectory({ employees, onAssignShop, onViewAtten
           onChange={(e) => handleSearch(e.target.value)}
           aria-label="Search employees"
         />
+        {canAddEmployees && companyId && (
+          <button type="button" className="btn btn-primary emp-add-btn" onClick={() => setAdding(true)}>Add employee</button>
+        )}
       </div>
+
+      {adding && (
+        <AddEmployeeModal
+          companyId={companyId}
+          onClose={() => setAdding(false)}
+          onCreated={(created) => { setSaved(`Added ${created.fullName} (${created.staffId}).`); onEmployeeChanged?.(created) }}
+        />
+      )}
 
       {saved && <p className="emp-saved" role="status">{saved}</p>}
       {editing && (

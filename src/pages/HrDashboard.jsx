@@ -862,6 +862,8 @@ function HrDashboardContent({ onBack, user }) {
             <section className="hr-panel hr-panel-flush">
               <EmployeeDirectory
                 employees={companyEmployees}
+                companyId={company.id}
+                canAddEmployees={can(user, 'employees', 'create')}
                 onAssignShop={can(user, 'employees', 'edit') ? setAssigningEmployee : null}
                 onViewAttendance={can(user, 'attendance', 'view') ? (emp) => openAttendanceHistory({ employeeId: emp.staffId, companyId: emp.companyId }) : null}
                 onEmployeeChanged={can(user, 'employees', 'edit') ? () => { setAssignRefreshKey((k) => k + 1); setAttendanceVersion((v) => v + 1) } : null}
