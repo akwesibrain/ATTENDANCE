@@ -4,7 +4,9 @@ import { submit } from './backend/client'
 import { refresh, rows } from './backend/cache'
 import { getShop } from './shopsService'
 
-export { FIELD_POSITIONS, requiresShop } from '../../supabase/functions/_shared/rules/registration.js'
+export { FIELD_POSITIONS } from '../../supabase/functions/_shared/rules/registration.js'
+/** Whether a position works from shops: the same rule the server uses for shop lists. */
+export { needsShopList as requiresShop } from '../../supabase/functions/_shared/rules/categories.js'
 
 function fromRow(row) {
   return {

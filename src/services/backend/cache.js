@@ -17,7 +17,8 @@ const TABLES = {
   employees: { order: 'staff_id' },
   shops: { order: 'shop_id' },
   shop_assignments: { order: 'assigned_at' },
-  employee_shops: { order: 'position' },
+  // Paging needs a unique order, or rows can be skipped or repeated between pages.
+  employee_shops: { order: ['staff_id', 'position'] },
   employee_shop_changes: { order: 'at' },
   leave_records: { order: 'start_date', since: 'end_date' },
   attendance_events: { order: 'occurred_at', since: 'date' },
@@ -56,7 +57,8 @@ async function fetchTable(name) {
   for (let from = 0; ; from += PAGE) {
     let query = supabase.from(name).select('*')
     if (since) query = query.gte(since, cutoff)
-    const { data, error } = await query.order(order).range(from, from + PAGE - 1)
+    for (const column of [order].flat()) query = query.order(column)
+    const { data, error } = await query.range(from, from + PAGE - 1)
     if (error) throw new Error(`Could not load ${name}: ${error.message}`)
     all.push(...data)
     if (data.length < PAGE) return all
