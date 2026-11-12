@@ -1,4 +1,7 @@
 import { hasRegisteredOnThisDevice } from '../services/registrationService'
+// The home screen shares the registration layout. Import it here, because the
+// pages that also import it are lazy-loaded and arrive only when opened.
+import '../styles/registration.css'
 
 /**
  * Entry screen — choose between employee registration and attendance.

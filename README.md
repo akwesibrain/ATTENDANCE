@@ -40,6 +40,8 @@ hosted copy needs HTTPS.
   emergency contact name and phone) → face enrollment → job position (and an
   allocated shop for Sales Representatives and Merchandisers) → review with
   biometric consent → Staff ID (`BFL-0001`, `DAA-0001`).
+- **Face setup link** (`/enroll/<link>`): for employees HR added without a
+  face. They scan their face once on their own phone, within 7 days.
 - **Attendance**: Staff ID → live face scan → check-in or check-out.
   One check-in and one check-out per day. The windows follow Settings: check-in
   from 06:00 (after the late-coming time, 09:00 by default, it is **late**);
@@ -56,11 +58,11 @@ hosted copy needs HTTPS.
 | Area | What it does |
 |---|---|
 | Dashboard | Today's figures per company and combined; today's register |
-| Employees | Directory cards with emergency contact; HR sets the **date joined** and the time with the company is calculated (years, months, days); shop assignment for field staff; **deactivate** a leaver from their last working day so later days are not absences |
+| Employees | **Add employee** (face scanned on the spot, or a one-time face setup link texted to them); a *Face not set up* badge and a **Send face setup link** button; directory cards with emergency contact; HR sets the **date joined** and the time with the company is calculated (years, months, days); shop assignment for field staff; **deactivate** a leaver from their last working day so later days are not absences |
 | Attendance | One record per employee per day (from check-ins, SMS verification, or HR manual entry); corrections with full history; manual entry for paper records |
 | Sales Reps | Rep monitoring, 3 random SMS verification checks per working day, 150 m shop geofence, alerts, shop directory with map locations, live field board |
 | Reports | Monthly report (26th–25th) with working days, hours, overtime and pay; daily records; **Overtime** tab |
-| Settings | General, company profiles, attendance rules, working hours, **holidays**, sales-rep monitoring, notifications, security, data export, **Audit Logs** tab |
+| Settings | General, company profiles, attendance rules, working hours, **holidays**, sales-rep monitoring, notifications, security, **HR users** (invite people by a one-time link, remove or restore access), data export, **Audit Logs** tab |
 | Notifications | Exceptions (late, absent, missing clock-out, failed verifications, missing shop…) with assign / review / resolve / dismiss |
 | HR Assistant | Rule-based chat that answers from the records (no AI service) |
 
@@ -203,7 +205,9 @@ pg_cron + pg_net ─────────> `api` /jobs/* (secret header)
 5. **Empty the test photos.** Dashboard → Storage: clear the `face-enrollment`
    and `attendance-photos` buckets. They hold generated test patterns only.
 6. **When the app is hosted**, set `ALLOWED_ORIGINS` (comma-separated) and
-   `APP_URL` as function secrets, then redeploy.
+   `APP_URL` as function secrets, then redeploy. `APP_URL` is also what face
+   setup links and HR invite links use in their SMS; without it HR can still
+   copy each link and send it themselves.
 
 ### Function secrets
 
