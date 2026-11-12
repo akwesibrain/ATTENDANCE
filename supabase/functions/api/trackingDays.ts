@@ -16,7 +16,7 @@ import { isDateKey } from '../_shared/rules/tenure.js'
 import { shopStays, summariseTrail, trackingResult, visitProof } from '../_shared/rules/tracking.js'
 import { assertCompany, type HrEnv } from './auth.ts'
 import { allRows, loadFacts } from './facts.ts'
-import { applyChange, db, found, invalid, must } from './lib.ts'
+import { db, found, invalid, must, rpc } from './lib.ts'
 
 export const hrTrackingRoutes = new Hono<HrEnv>()
 
@@ -57,51 +57,41 @@ export async function closeDay(date: string, now = new Date()) {
     await must(db.from('tracking_latest').update({ session_status: 'closed' }).eq('date', date).in('staff_id', closedNow.map((s: Row) => s.staff_id)))
   }
 
-  const [sessions, summarised] = await Promise.all([
-    found(db.from('tracking_sessions').select('*').eq('date', date).eq('status', 'closed')),
-    found(db.from('tracking_day_summaries').select('staff_id').eq('date', date)),
-  ])
-  const done = new Set(summarised.map((s: Row) => s.staff_id))
+  // Sessions not yet summarised. Each is saved under a lock by
+  // save_session_summary, so a second run at the same moment changes nothing.
+  const sessions = await found(
+    db.from('tracking_sessions').select('*').eq('date', date).eq('status', 'closed').is('summarised_at', null).eq('trail_expired', false),
+  )
   const lists = await listsFor(sessions.map((s: Row) => s.staff_id))
   const shops = await shopsFor([...lists.values()].flat())
 
   let count = 0
   for (const session of sessions) {
     const points = await allRows('location_points', 'recorded_at', (q: Row) => q.eq('session_id', session.id))
-    if (done.has(session.staff_id) && !points.length) continue
     const flags = await found(db.from('tracking_flags').select('kind, points').eq('staff_id', session.staff_id).eq('date', date))
     const trail = points.map(asPoint)
     const end = session.clock_out_at ?? points[points.length - 1]?.recorded_at ?? session.clock_in_at
     const s = summariseTrail(trail, session.clock_in_at, end)
     const listShops = (lists.get(session.staff_id) ?? []).map((id) => shops.get(id)).filter(Boolean)
-    await applyChange([
-      {
-        table: 'tracking_day_summaries',
-        op: 'upsert',
-        conflict: ['staff_id', 'date'],
-        row: {
-          staff_id: session.staff_id,
-          company_id: session.company_id,
-          date,
-          clock_in: session.clock_in_at,
-          clock_out: session.clock_out_at,
-          tracked_minutes: s.trackedMinutes,
-          points: s.points,
-          first_at: s.firstAt,
-          last_at: s.lastAt,
-          covered_minutes: s.coveredMinutes,
-          coverage: s.coverage,
-          signal_lost: s.signalLost,
-          longest_gap_minutes: s.longestGapMinutes,
-          distance_m: s.distanceM,
-          shop_stays: shopStays(trail, listShops),
-          mock_points: flags.find((f: Row) => f.kind === 'mock')?.points ?? 0,
-          speed_points: flags.find((f: Row) => f.kind === 'speed')?.points ?? 0,
-        },
+    const saved = await rpc<boolean>('save_session_summary', {
+      p_session: session.id,
+      p_points: points.length,
+      p_summary: {
+        tracked_minutes: s.trackedMinutes,
+        points: s.points,
+        first_at: s.firstAt,
+        last_at: s.lastAt,
+        covered_minutes: s.coveredMinutes,
+        coverage: s.coverage,
+        signal_lost: s.signalLost,
+        longest_gap_minutes: s.longestGapMinutes,
+        distance_m: s.distanceM,
+        shop_stays: shopStays(trail, listShops),
+        mock_points: flags.find((f: Row) => f.kind === 'mock')?.points ?? 0,
+        speed_points: flags.find((f: Row) => f.kind === 'speed')?.points ?? 0,
       },
-      { table: 'location_points', op: 'delete', match: { session_id: session.id } },
-    ])
-    count += 1
+    })
+    if (saved) count += 1
   }
   await must(db.from('tracking_latest').delete().lt('date', accraDateKey(now)))
   return { closed: closedNow.length, summarised: count }
@@ -177,6 +167,11 @@ hrTrackingRoutes.get('/tracking/reports/daily', async (c) => {
   const lists = await listsFor(records.map((r: Row) => r.employeeId))
   const shops = await shopsFor([...lists.values()].flat())
 
+  // Days whose trail the 48-hour sweep removed before it could be summarised.
+  const expired = new Set((await found(
+    db.from('tracking_sessions').select('staff_id').eq('company_id', companyId).eq('date', date).eq('trail_expired', true),
+  )).map((row: Row) => row.staff_id))
+
   const summaries = date === today
     ? await liveSummaries(companyId, date, now, lists, shops)
     : new Map((await found(db.from('tracking_day_summaries').select('*').eq('company_id', companyId).eq('date', date)))
@@ -185,7 +180,9 @@ hrTrackingRoutes.get('/tracking/reports/daily', async (c) => {
   const rows = records.map((r: Row) => {
     const s = r.clockIn ? summaries.get(r.employeeId) ?? null : null
     const isMerch = r.category === 'merchandiser'
-    const dayOver = !r.isToday || Boolean(r.clockOut) || now.getTime() >= Date.parse(r.expectedEnd)
+    // A swept trail is unknown, not missing: nothing is marked missed or no-signal.
+    const unavailable = Boolean(r.clockIn) && !s && expired.has(r.employeeId)
+    const dayOver = !unavailable && (!r.isToday || Boolean(r.clockOut) || now.getTime() >= Date.parse(r.expectedEnd))
     const proof = isMerch
       ? null
       : visitProof({ listIds: lists.get(r.employeeId) ?? [], shopsById: shops, visits: [], stays: s ? s.shopStays : null, dayOver })
@@ -204,7 +201,7 @@ hrTrackingRoutes.get('/tracking/reports/daily', async (c) => {
       distanceKm: s ? Math.round(s.distanceM / 100) / 10 : null,
       points: s?.points ?? null,
       shops: proof ? { listed: proof.counts.listed, proven: proof.counts.proven, flagged: proof.counts.flagged, missed: proof.counts.missed } : null,
-      result: trackingResult({ clockIn: r.clockIn, summary: s }),
+      result: unavailable ? 'unavailable' : trackingResult({ clockIn: r.clockIn, summary: s }),
     }
   }).sort((a: Row, b: Row) => a.fullName.localeCompare(b.fullName))
 

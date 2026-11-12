@@ -155,6 +155,15 @@ describe('screenPoints (tracker spec §4.1 and §8)', () => {
     expect(r.rejected).toBe(0)
   })
 
+  it('never flags a late point as a speed jump against a newer stored point (final review: Important 3)', () => {
+    // The phone's offline queue arrives after a live point was already stored.
+    const last = { latitude: LAT, longitude: LNG, recorded_at: '2026-11-12T10:30:00Z' }
+    const r = run(closed, [at('10:00:00', { longitude: LNG + 500 / METRES_PER_DEG_LNG })], { last })
+    expect(r.keep).toHaveLength(1)
+    expect(r.keep[0].flagged).toBeNull()
+    expect(r.flags.speed).toBe(0)
+  })
+
   it('sorts points by the time they were recorded', () => {
     const r = run(closed, [at('10:10:00'), at('10:00:00', { latitude: LAT + 0.01 })])
     expect(r.keep.map((p) => p.recorded_at)).toEqual(['2026-11-12T10:00:00.000Z', '2026-11-12T10:10:00.000Z'])

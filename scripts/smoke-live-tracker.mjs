@@ -287,6 +287,43 @@ try {
   check('Box For Less HR reads its own live positions', ((await own.json()) ?? []).length === 1)
   const hashRead = await fetch(`${URL_BASE}/rest/v1/tracking_sessions?select=token_hash`, { headers: { apikey: KEY, authorization: `Bearer ${hr.token}` } })
   check('nobody in HR can read a token hash', !hashRead.ok, hashRead.status)
+
+  /* Final review, Important 3: a retried batch stores nothing twice */
+  const retryBatch = { points: [point(Date.now() - 20 * 1000, 900, { isMock: true })] }
+  const pointsOf = async (staffId) => (await sql(`select count(*)::int n from public.location_points where staff_id = '${staffId}'`))[0].n
+  await call('POST', '/tracking/points', retryBatch, liveToken)
+  const once = await pointsOf(rep5)
+  await call('POST', '/tracking/points', retryBatch, liveToken)
+  check('a retried batch is not stored twice', (await pointsOf(rep5)) === once, { once, twice: await pointsOf(rep5) })
+  const mockFlags = await sql(`select points from public.tracking_flags where staff_id = '${rep5}' and kind = 'mock'`)
+  check('a retried fake location is counted once', mockFlags[0]?.points === 1, mockFlags)
+
+  /* Final review, Critical 1: end-of-day runs at the same moment never overwrite a summary */
+  const rep6 = await addRep(hr.token)
+  await sql(`update public.employees set joined_on = '2026-01-01', registered_at = '2026-01-01T08:00:00Z' where staff_id = '${rep6}'`)
+  await checkIn(rep6, { clockInMs: y9, closesAtMs: y9 + 14 * 60 * MIN })
+  const s6 = (await sql(`select id from public.tracking_sessions where staff_id = '${rep6}'`))[0].id
+  await sql(`insert into public.location_points (session_id, staff_id, company_id, date, latitude, longitude, accuracy, recorded_at) values ${Array.from({ length: 31 }, (_, m) => `('${s6}', '${rep6}', '${BFL}', '${yesterday}', ${SHOP.latitude}, ${SHOP.longitude}, 10, '${new Date(y9 + m * MIN).toISOString()}')`).join(', ')}`)
+  await checkOut(rep6, y9 + 60 * MIN, yesterday)
+  await Promise.all([1, 2, 3, 4].map(() => call('GET', `/hr/tracking/reports/daily?companyId=${BFL}&date=${yesterday}`, undefined, hr.token)))
+  const raced6 = await sql(`select points from public.tracking_day_summaries where staff_id = '${rep6}' and date = '${yesterday}'`)
+  check('four reports at once keep the full summary', raced6[0]?.points === 31, raced6)
+  const second = await sql(`select public.save_session_summary('${s6}', '{"points":0}'::jsonb, 0) as saved`)
+  check('a second summary for the same session is refused', second[0]?.saved === false, second)
+
+  /* Final review, Important 2: a trail the sweep removed is "unavailable", never "no signal" */
+  const rep7 = await addRep(hr.token)
+  await sql(`update public.employees set joined_on = '2026-01-01', registered_at = '2026-01-01T08:00:00Z' where staff_id = '${rep7}'`)
+  await checkIn(rep7, { clockInMs: y9, closesAtMs: y9 + 14 * 60 * MIN })
+  const s7 = (await sql(`select id from public.tracking_sessions where staff_id = '${rep7}'`))[0].id
+  await sql(`insert into public.location_points (session_id, staff_id, company_id, date, latitude, longitude, accuracy, recorded_at, received_at) values ('${s7}', '${rep7}', '${BFL}', '${yesterday}', ${SHOP.latitude}, ${SHOP.longitude}, 10, '${new Date(y9 + MIN).toISOString()}', now() - interval '3 days')`)
+  await checkOut(rep7, y9 + 60 * MIN, yesterday)
+  await sql('select app_private.sweep_tracking()')
+  const swept = await sql(`select trail_expired from public.tracking_sessions where id = '${s7}'`)
+  check('the sweep marks the trail it removed', swept[0]?.trail_expired === true, swept)
+  const afterSweep = await call('GET', `/hr/tracking/reports/daily?companyId=${BFL}&date=${yesterday}`, undefined, hr.token)
+  const row7 = afterSweep.json?.rows?.find((r) => r.employeeId === rep7)
+  check('a swept day reads "unavailable", not "no signal"', row7?.result === 'unavailable' && row7?.shops?.missed === 0, row7)
 } finally {
   await cleanUp()
 }

@@ -233,8 +233,17 @@ export function screenPoints({ session, last, storedToday, points, now }) {
 
   const keep = []
   const flags = { mock: 0, speed: 0 }
-  let previous = last ? { latitude: Number(last.latitude), longitude: Number(last.longitude), ms: Date.parse(last.recorded_at) } : null
+  // A late batch (an offline queue) can hold points older than the last stored
+  // one. Those are compared only with each other; the stored point is the
+  // reference only for newer points, so a late point never looks like a jump.
+  const stored = last ? { latitude: Number(last.latitude), longitude: Number(last.longitude), ms: Date.parse(last.recorded_at) } : null
+  let previous = null
+  let reachedStored = !stored
   for (const p of candidates) {
+    if (!reachedStored && p.ms > stored.ms) {
+      previous = stored
+      reachedStored = true
+    }
     if (previous) {
       const seconds = (p.ms - previous.ms) / 1000
       const metres = distanceMetres(previous, p) ?? 0
