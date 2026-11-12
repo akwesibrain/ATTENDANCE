@@ -1,5 +1,6 @@
 /**
- * One-time setup links: a face link for an employee, or an HR invite link.
+ * One-time setup links: a face link for an employee, an HR invite link, or an
+ * HR user's password reset link.
  * Only the SHA-256 hash of each token is stored; the plain token goes back to
  * HR once, and the browser turns it into an address.
  */
@@ -9,23 +10,25 @@ import { LINK_UNUSABLE, linkExpiry, linkState, smsPlan } from '../_shared/rules/
 import { randomToken } from '../_shared/rules/siteCode.js'
 import { ApiError, applyChange, db, must, sha256Hex } from './lib.ts'
 
-export type LinkKind = 'face' | 'hr-invite'
+export type LinkKind = 'face' | 'hr-invite' | 'password-reset'
 export type LinkResult = { token: string; expiresAt: string; sms: 'sent' | 'skipped' | 'failed'; smsReason: string }
 export type LinkRow = {
   token_hash: string
   kind: LinkKind
   staff_id: string | null
   invite_id: string | null
+  hr_user_id: string | null
   expires_at: string
   used_at: string | null
   cancelled_at: string | null
 }
 
-type Subject = { staffId?: string; inviteId?: string }
+type Subject = { staffId?: string; inviteId?: string; hrUserId?: string }
 
 function subjectMatch(kind: LinkKind, subject: Subject) {
   if (kind === 'face' && subject.staffId) return { kind, staff_id: subject.staffId }
   if (kind === 'hr-invite' && subject.inviteId) return { kind, invite_id: subject.inviteId }
+  if (kind === 'password-reset' && subject.hrUserId) return { kind, hr_user_id: subject.hrUserId }
   throw new Error(`A ${kind} link needs its subject`)
 }
 
@@ -49,6 +52,7 @@ export async function createLink(kind: LinkKind, subject: Subject, createdBy: st
         kind,
         staff_id: subject.staffId ?? null,
         invite_id: subject.inviteId ?? null,
+        hr_user_id: subject.hrUserId ?? null,
         expires_at: expiresAt,
         created_by: createdBy,
       },

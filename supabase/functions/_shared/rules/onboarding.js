@@ -9,11 +9,12 @@ import { validateOptionalEmail, validateOptionalPhone, validateRequired } from '
 
 export const FACE_LINK_HOURS = 168
 export const HR_INVITE_HOURS = 24
+export const PASSWORD_RESET_HOURS = 24
 export const MIN_PASSWORD_LENGTH = 12
 
 export const LINK_UNUSABLE = 'This link has expired or was already used. Ask HR for a new one.'
 
-const LINK_HOURS = { face: FACE_LINK_HOURS, 'hr-invite': HR_INVITE_HOURS }
+const LINK_HOURS = { face: FACE_LINK_HOURS, 'hr-invite': HR_INVITE_HOURS, 'password-reset': PASSWORD_RESET_HOURS }
 
 /** When a link made now stops working, as an ISO time. */
 export function linkExpiry(kind, nowMs = Date.now()) {
@@ -87,4 +88,39 @@ export function faceLinkRefusal(employee) {
  */
 export function existingAccountRefusal({ accountId, callerId }) {
   return callerId && callerId === accountId ? '' : 'Sign in with your existing password to accept this invite.'
+}
+
+/** Why HR may not reset this person's password or authenticator, or '' when they may. */
+export function passwordResetRefusal({ actorId, target }) {
+  if (!target) return 'HR user not found.'
+  if (target.id === actorId) return 'Use My password in Settings to change your own password.'
+  if (target.status !== 'active') return 'This person no longer has HR access. Restore their access first.'
+  return ''
+}
+
+// No 0/O, 1/l/I: the password is read off a screen and typed by hand.
+const TEMP_ALPHABET = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+
+/** A random temporary password like "iNQw-CAha-jnrs-eSHS" (about 92 bits). */
+export function temporaryPassword() {
+  const limit = 256 - (256 % TEMP_ALPHABET.length)
+  const chars = []
+  while (chars.length < 16) {
+    for (const byte of crypto.getRandomValues(new Uint8Array(32))) {
+      // Rejecting the top bytes keeps every character equally likely.
+      if (byte < limit && chars.length < 16) chars.push(TEMP_ALPHABET[byte % TEMP_ALPHABET.length])
+    }
+  }
+  return chars.join('').match(/.{4}/g).join('-')
+}
+
+/** An HR user changing their own password. */
+export function validatePasswordChange(input) {
+  const current = typeof input?.current === 'string' ? input.current : ''
+  const errors = {}
+  if (!current) errors.current = 'Enter your current password.'
+  const problem = validateNewPassword(input?.password, input?.confirm)
+  if (problem) errors.password = problem
+  else if (input.password === current) errors.password = 'Choose a password different from your current one.'
+  return Object.keys(errors).length ? { errors } : { value: { current, password: input.password } }
 }

@@ -4,6 +4,7 @@ import { cors } from 'npm:hono@4.6.14/cors'
 import { publicEnrolRoutes } from './employeeOnboarding.ts'
 import { hrRoutes } from './hr.ts'
 import { publicHrSetupRoutes } from './hrAccess.ts'
+import { publicPasswordResetRoutes } from './hrPasswords.ts'
 import { jobRoutes } from './jobs.ts'
 import { ApiError } from './lib.ts'
 import { publicRoutes } from './public.ts'
@@ -41,6 +42,7 @@ app.notFound((c) => c.json({ error: 'Not found.' }, 404))
 app.get('/health', (c) => c.json({ ok: true, time: new Date().toISOString() }))
 app.route('/', publicEnrolRoutes)
 app.route('/', publicHrSetupRoutes)
+app.route('/', publicPasswordResetRoutes)
 app.route('/', publicRoutes)
 app.route('/hr', hrRoutes)
 app.route('/jobs', jobRoutes)

@@ -7,6 +7,21 @@ export const supabase = createClient(url, key, {
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false },
 })
 
+/**
+ * Whether this is the account's current password. Checked on a separate,
+ * unsaved client so the signed-in session is untouched; the extra session is
+ * ended straight away.
+ */
+export async function checkPassword(email, password) {
+  const probe = createClient(url, key, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false, storageKey: 'password-check' },
+  })
+  const { data, error } = await probe.auth.signInWithPassword({ email, password })
+  if (error || !data.session) return false
+  await probe.auth.signOut({ scope: 'local' }).catch(() => {})
+  return true
+}
+
 /** A refusal or failure from the server, with its message ready to show. */
 export class ApiFailure extends Error {
   constructor(message, status, data = {}) {

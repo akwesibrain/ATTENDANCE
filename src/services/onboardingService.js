@@ -5,10 +5,11 @@
  * Link results look like { token, expiresAt, sms: 'sent'|'skipped'|'failed', smsReason }.
  */
 
-import { api, submit } from './backend/client'
+import { api, checkPassword, submit, supabase } from './backend/client'
+import { validatePasswordChange } from '../../supabase/functions/_shared/rules/onboarding.js'
 import { refresh } from './backend/cache'
 
-const LINK_PATHS = { face: '/enroll/', 'hr-invite': '/hr/setup/' }
+const LINK_PATHS = { face: '/enroll/', 'hr-invite': '/hr/setup/', 'password-reset': '/hr/reset/' }
 
 export function setupLinkUrl(origin, kind, token) {
   return `${origin}${LINK_PATHS[kind]}${token}`
@@ -16,6 +17,7 @@ export function setupLinkUrl(origin, kind, token) {
 
 export const enrolUrl = (token) => setupLinkUrl(window.location.origin, 'face', token)
 export const hrSetupUrl = (token) => setupLinkUrl(window.location.origin, 'hr-invite', token)
+export const passwordResetUrl = (token) => setupLinkUrl(window.location.origin, 'password-reset', token)
 
 /** The request body for HR adding an employee, with or without a face. */
 export function hrEmployeeBody(registration, { sendFaceLink = false } = {}) {
@@ -101,4 +103,50 @@ export function getHrSetup(token) {
 
 export function completeHrSetup(token, { password, confirm } = {}) {
   return submit(`/public/hr-setup/${encodeURIComponent(token)}`, { method: 'POST', body: { password, confirm } })
+}
+
+/* ------------------------------------------------------------------ Passwords (HR) */
+
+/**
+ * Change the signed-in HR user's own password. It is changed from this
+ * session, which keeps it signed in and signs the account out everywhere else.
+ * @returns {Promise<{ ok: true } | { error, errors }>}
+ */
+export async function changeMyPassword(input) {
+  const refused = (errors) => ({ error: Object.values(errors)[0], errors })
+  const parsed = validatePasswordChange(input)
+  if (parsed.errors) return refused(parsed.errors)
+  const { data } = await supabase.auth.getUser()
+  const email = data?.user?.email
+  if (!email || !(await checkPassword(email, parsed.value.current))) {
+    return refused({ current: 'That is not your current password.' })
+  }
+  const { error } = await supabase.auth.updateUser({ password: parsed.value.password })
+  if (error) return refused({ password: `That password was not accepted: ${error.message}` })
+  // The password has changed; a missed audit line must not say otherwise.
+  await submit('/hr/me/password-changed', { method: 'POST', body: {} }).catch(() => {})
+  return { ok: true }
+}
+
+/** @param {'link'|'temporary'} mode  @returns {Promise<{ token, expiresAt } | { password } | { error, errors }>} */
+export async function resetHrPassword(userId, mode) {
+  const result = await submit(`/hr/users/${encodeURIComponent(userId)}/password-reset`, { method: 'POST', body: { mode } })
+  if (!result.errors) await refresh('audit_events')
+  return result
+}
+
+export async function resetHrAuthenticator(userId) {
+  const result = await submit(`/hr/users/${encodeURIComponent(userId)}/authenticator-reset`, { method: 'POST', body: {} })
+  if (!result.errors) await refresh('audit_events')
+  return result
+}
+
+/* ------------------------------------------------------------------ Password reset page (no sign-in) */
+
+export function getPasswordReset(token) {
+  return api(`/public/password-reset/${encodeURIComponent(token)}`)
+}
+
+export function completePasswordReset(token, { password, confirm }) {
+  return submit(`/public/password-reset/${encodeURIComponent(token)}`, { method: 'POST', body: { password, confirm } })
 }
