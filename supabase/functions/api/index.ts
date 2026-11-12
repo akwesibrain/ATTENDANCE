@@ -8,6 +8,7 @@ import { publicPasswordResetRoutes } from './hrPasswords.ts'
 import { jobRoutes } from './jobs.ts'
 import { ApiError } from './lib.ts'
 import { publicRoutes } from './public.ts'
+import { publicTrackingRoutes } from './tracking.ts'
 
 const app = new Hono().basePath('/api')
 
@@ -43,6 +44,7 @@ app.get('/health', (c) => c.json({ ok: true, time: new Date().toISOString() }))
 app.route('/', publicEnrolRoutes)
 app.route('/', publicHrSetupRoutes)
 app.route('/', publicPasswordResetRoutes)
+app.route('/', publicTrackingRoutes)
 app.route('/', publicRoutes)
 app.route('/hr', hrRoutes)
 app.route('/jobs', jobRoutes)

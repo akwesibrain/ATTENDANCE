@@ -8,7 +8,10 @@ import { shopFromRow } from '../_shared/rules/facts.js'
 import { holidayNameFor } from '../_shared/rules/holidays.js'
 import { checkGeofence, verificationResult } from '../_shared/rules/monitoring.js'
 import { isWorkingDay, overtimeHours } from '../_shared/rules/policy.js'
-import { parseRegistration, requiresShop } from '../_shared/rules/registration.js'
+import { parseRegistration } from '../_shared/rules/registration.js'
+import { needsShopList } from '../_shared/rules/categories.js'
+import { sessionClosesAt } from '../_shared/rules/tracking.js'
+import { openTrackingSession } from './tracking.ts'
 import { checkSiteCode, makeSitePass, parseSiteCode, randomToken } from '../_shared/rules/siteCode.js'
 import { activeDisplay, type Site, siteFromPass } from './sites.ts'
 import { enrolNewFace, ENROLLMENT_BUCKET, faceSample, readable, registerEmployee, shopListOf } from './enrolment.ts'
@@ -183,6 +186,7 @@ async function kioskDay(
     loadSettings(),
   ])
   const hours = hoursInForce(settings, employee.company_id, date)
+  const rules = attendanceRulesInForce(settings, date)
   const gate = attendanceGate({
     fullName: employee.full_name,
     status: employee.status,
@@ -190,13 +194,13 @@ async function kioskDay(
     now,
     holiday,
     hours,
-    rules: attendanceRulesInForce(settings, date),
+    rules,
     site,
     companyId: employee.company_id,
-    // Field staff work at shops, which have no display; SMS checks cover them.
-    siteRequired: Boolean(settings.workplaceCodeRequired[employee.company_id]) && !requiresShop(employee.position),
+    // Field staff work at shops, which have no display; live tracking covers them.
+    siteRequired: Boolean(settings.workplaceCodeRequired[employee.company_id]) && !needsShopList(employee.position),
   })
-  return { date, events, failed, gate, dayOff: !isWorkingDay(now, { holiday, hours }) }
+  return { date, events, failed, gate, hours, rules, dayOff: !isWorkingDay(now, { holiday, hours }) }
 }
 
 /** Only what the kiosk needs before a face scan: no photo and no contact details. */
@@ -315,7 +319,7 @@ publicRoutes.post('/attendance/events', async (c) => {
 
   const now = new Date()
   const site = await siteFromPass(body.sitePass)
-  const { date, events, gate, dayOff } = await kioskDay(employee, now, site)
+  const { date, events, gate, dayOff, hours, rules } = await kioskDay(employee, now, site)
   if (gate.blockedReason) throw new ApiError(409, gate.blockedReason, { code: 'blocked' })
 
   const face = faceSample(body)
@@ -363,6 +367,11 @@ publicRoutes.post('/attendance/events', async (c) => {
     throw error
   }
 
+  // Field staff share their location until clock-out. A tracking failure never undoes the check-in.
+  const tracking = event.type === 'check-in'
+    ? await openTrackingSession(employee, { date: String(event.date), occurred_at: String(event.occurred_at) }, sessionClosesAt(date, hours, rules))
+    : null
+
   return c.json({
     id: event.id,
     staffId: employee.staff_id,
@@ -375,5 +384,6 @@ publicRoutes.post('/attendance/events', async (c) => {
     time: event.occurred_at,
     weekend: event.weekend,
     overtimeHours: event.overtime_hours,
+    ...(tracking ? { trackingToken: tracking.token, trackingClosesAt: tracking.closesAt } : {}),
   })
 })

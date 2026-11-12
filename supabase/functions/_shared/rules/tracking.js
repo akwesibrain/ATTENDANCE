@@ -7,6 +7,7 @@
 
 import { accraIso } from './accraTime.js'
 import { shiftWindowMinutes } from './records.js'
+import { needsShopList } from './categories.js'
 
 /** Keep a new point only if this long has passed or the phone moved this far. */
 export const MIN_SECONDS = 20
@@ -258,4 +259,20 @@ export function screenPoints({ session, last, storedToday, points, now }) {
 export function sessionClosesAt(dateKey, hours, rules) {
   const { end } = shiftWindowMinutes(hours)
   return new Date(Date.parse(accraIso(dateKey, end)) + Number(rules.clockOutWindowMinutes) * 60000).toISOString()
+}
+
+/**
+ * The tracking session to open at a check-in, or null when the employee's
+ * role is not tracked. Only the token's hash is stored.
+ */
+export function trackingSessionRow(employee, event, closesAt, tokenHash) {
+  if (!needsShopList(employee.position)) return null
+  return {
+    staff_id: employee.staff_id,
+    company_id: employee.company_id,
+    date: event.date,
+    clock_in_at: event.occurred_at,
+    closes_at: closesAt,
+    token_hash: tokenHash,
+  }
 }

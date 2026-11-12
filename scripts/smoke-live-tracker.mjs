@@ -1,0 +1,231 @@
+/**
+ * Live test of the Live Tracker against the hosted project.
+ *
+ * A real check-in needs a face match, which the live face provider may block,
+ * so this script makes check-ins and tracking sessions with SQL exactly as the
+ * server does (a check-in event, plus a session holding the token's hash). It
+ * creates temporary shops, HR accounts with real MFA and employees, exercises
+ * the routes, then deletes everything it made. Audit rows stay.
+ * SQL runs through the Management API when SUPABASE_ACCESS_TOKEN is set,
+ * otherwise through the logged-in Supabase CLI.
+ *
+ * Usage: node scripts/smoke-live-tracker.mjs
+ */
+
+import { execFileSync } from 'node:child_process'
+import { createHash, createHmac, randomBytes } from 'node:crypto'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { createClient } from '@supabase/supabase-js'
+
+const env = Object.fromEntries(
+  readFileSync(new URL('../.env.local', import.meta.url), 'utf8')
+    .split(/\r?\n/)
+    .filter((line) => line.includes('='))
+    .map((line) => [line.slice(0, line.indexOf('=')), line.slice(line.indexOf('=') + 1).trim()]),
+)
+const URL_BASE = env.VITE_SUPABASE_URL
+const KEY = env.VITE_SUPABASE_PUBLISHABLE_KEY
+const API = `${URL_BASE}/functions/v1/api`
+const REF = new URL(URL_BASE).hostname.split('.')[0]
+const ACCESS = process.env.SUPABASE_ACCESS_TOKEN
+const DOMAIN = 'workforce-test.example.com'
+const BFL = 'box-for-less'
+const DAA = 'double-a'
+const SHOP_ID = 'smoke-tracker-shop-1'
+const SHOP = { latitude: 5.6037, longitude: -0.187 }
+const METRES_PER_DEG_LNG = 111320 * Math.cos((SHOP.latitude * Math.PI) / 180)
+
+let failures = 0
+function check(name, passed, detail) {
+  console.log(`${passed ? 'pass' : 'FAIL'}  ${name}${passed || detail === undefined ? '' : `  ->  ${JSON.stringify(detail).slice(0, 400)}`}`)
+  if (!passed) failures += 1
+}
+
+async function sql(query) {
+  if (ACCESS) {
+    const response = await fetch(`https://api.supabase.com/v1/projects/${REF}/database/query`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${ACCESS}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ query }),
+    })
+    const body = await response.json()
+    if (!response.ok) throw new Error(`SQL failed: ${JSON.stringify(body)}`)
+    return body
+  }
+  const dir = mkdtempSync(join(tmpdir(), 'smoke-sql-'))
+  try {
+    writeFileSync(join(dir, 'q.sql'), query)
+    const out = execFileSync('npx', ['supabase', 'db', 'query', `--remote=${REF}`, '--yes', '-f', join(dir, 'q.sql')], { encoding: 'utf8', shell: true })
+    return JSON.parse(out.slice(out.indexOf('{'))).rows
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+}
+
+async function call(method, path, body, token) {
+  const response = await fetch(`${API}${path}`, {
+    method,
+    headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}) },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  })
+  return { status: response.status, json: await response.json().catch(() => null) }
+}
+
+function totp(secret) {
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
+  let bits = ''
+  for (const char of secret.replace(/=+$/, '')) bits += alphabet.indexOf(char).toString(2).padStart(5, '0')
+  const key = Buffer.from(bits.match(/.{8}/g).map((b) => parseInt(b, 2)))
+  const counter = Buffer.alloc(8)
+  counter.writeBigUInt64BE(BigInt(Math.floor(Date.now() / 30000)))
+  const hash = createHmac('sha1', key).update(counter).digest()
+  const offset = hash[19] & 15
+  return String((hash.readUInt32BE(offset) & 0x7fffffff) % 1000000).padStart(6, '0')
+}
+
+/** Signs in and enrols an authenticator; returns the client and its MFA token. */
+async function signInWithMfa(email, password) {
+  const auth = createClient(URL_BASE, KEY, { auth: { persistSession: false, autoRefreshToken: false } })
+  const { error } = await auth.auth.signInWithPassword({ email, password })
+  if (error) throw new Error(`sign-in failed for ${email}: ${error.message}`)
+  const enrolled = await auth.auth.mfa.enroll({ factorType: 'totp', friendlyName: 'smoke' })
+  if (enrolled.error) throw new Error(`enroll failed: ${enrolled.error.message}`)
+  const verified = await auth.auth.mfa.challengeAndVerify({ factorId: enrolled.data.id, code: totp(enrolled.data.totp.secret) })
+  if (verified.error) throw new Error(`mfa failed: ${verified.error.message}`)
+  return { auth, token: (await auth.auth.getSession()).data.session.access_token }
+}
+
+async function makeHr(label, companyIds) {
+  const email = `smoke-track-${label}@${DOMAIN}`
+  const password = randomBytes(18).toString('base64url')
+  await sql(`
+    with u as (
+      insert into auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at, confirmation_token, recovery_token, email_change, email_change_token_new)
+      values ('00000000-0000-0000-0000-000000000000', gen_random_uuid(), 'authenticated', 'authenticated', '${email}', extensions.crypt('${password}', extensions.gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}', '{}', now(), now(), '', '', '', '')
+      returning id
+    ), i as (
+      insert into auth.identities (provider_id, user_id, identity_data, provider, last_sign_in_at, created_at, updated_at)
+      select u.id::text, u.id, jsonb_build_object('sub', u.id::text, 'email', '${email}', 'email_verified', true), 'email', now(), now(), now() from u
+    ), h as (
+      insert into public.hr_users (id, name, email, company_ids) select u.id, 'Smoke Test Tracker ${label}', '${email}', array[${companyIds.map((id) => `'${id}'`).join(',')}] from u
+    )
+    select id from u`)
+  return await signInWithMfa(email, password)
+}
+
+const TEST_STAFF = `select staff_id from public.employees where full_name like 'Smoke Tracker%'`
+
+async function cleanUp() {
+  await sql(`
+    delete from public.tracking_flags where staff_id in (${TEST_STAFF});
+    delete from public.tracking_latest where staff_id in (${TEST_STAFF});
+    delete from public.tracking_day_summaries where staff_id in (${TEST_STAFF});
+    delete from public.location_points where staff_id in (${TEST_STAFF});
+    delete from public.tracking_sessions where staff_id in (${TEST_STAFF});
+    delete from public.attendance_events where employee_id in (${TEST_STAFF});
+    delete from public.employee_shop_changes where staff_id in (${TEST_STAFF});
+    delete from public.employee_shops where staff_id in (${TEST_STAFF});
+    delete from public.shop_assignments where employee_id in (${TEST_STAFF});
+    delete from public.employees where full_name like 'Smoke Tracker%';
+    delete from public.shops where shop_id like 'smoke-tracker-%';
+    delete from public.hr_users where name like 'Smoke Test Tracker%';
+    delete from auth.users where email like 'smoke-track-%@${DOMAIN}';`)
+}
+
+const accraDate = (ms) => new Date(ms).toISOString().slice(0, 10) // Accra is UTC
+const hash = (token) => createHash('sha256').update(token, 'utf8').digest('hex')
+
+let people = 0
+/** A Sales Rep added through HR, with the test shop as their only shop. */
+async function addRep(hrToken) {
+  people += 1
+  const created = await call('POST', '/hr/employees', {
+    companyId: BFL, firstName: 'Smoke', lastName: `Tracker ${people}`, phone: '0241234567', email: '', address: 'Accra',
+    emergencyContactName: '', emergencyContactPhone: '', paymentMethod: 'mobile-money',
+    position: 'Sales Representative', assignedShopIds: [SHOP_ID],
+  }, hrToken)
+  if (created.status !== 201) throw new Error(`could not add a test employee: ${JSON.stringify(created)}`)
+  return created.json.staffId
+}
+
+/** A check-in event and an open session, as the server makes them. Returns the token. */
+async function checkIn(staffId, { clockInMs, closesAtMs, date = accraDate(clockInMs) }) {
+  const token = randomBytes(32).toString('base64url')
+  await sql(`
+    insert into public.attendance_events (employee_id, company_id, company_name, full_name, type, status, date, occurred_at, source)
+    select staff_id, company_id, company_name, full_name, 'check-in', 'on-time', '${date}', '${new Date(clockInMs).toISOString()}', 'smoke'
+      from public.employees where staff_id = '${staffId}';
+    insert into public.tracking_sessions (staff_id, company_id, date, clock_in_at, closes_at, token_hash)
+    select staff_id, company_id, '${date}', '${new Date(clockInMs).toISOString()}', '${new Date(closesAtMs).toISOString()}', '${hash(token)}'
+      from public.employees where staff_id = '${staffId}';`)
+  return token
+}
+
+async function checkOut(staffId, atMs, date = accraDate(atMs)) {
+  await sql(`
+    insert into public.attendance_events (employee_id, company_id, company_name, full_name, type, status, date, occurred_at, source)
+    select staff_id, company_id, company_name, full_name, 'check-out', 'on-time', '${date}', '${new Date(atMs).toISOString()}', 'smoke'
+      from public.employees where staff_id = '${staffId}';`)
+}
+
+/** A point `metresEast` of the test shop, at `ms`. */
+const point = (ms, metresEast = 0, extra = {}) => ({
+  latitude: SHOP.latitude, longitude: SHOP.longitude + metresEast / METRES_PER_DEG_LNG, accuracy: 12, recordedAt: new Date(ms).toISOString(), isMock: false, ...extra,
+})
+
+const MIN = 60000
+
+try {
+  await cleanUp()
+  await sql(`insert into public.shops (shop_id, company_id, shop_name, town, area, latitude, longitude, location_source)
+             values ('${SHOP_ID}', '${BFL}', 'Smoke Tracker Shop', 'Accra', 'Smoke', ${SHOP.latitude}, ${SHOP.longitude}, 'manual')`)
+  const hr = await makeHr('bfl', [BFL])
+  const now = Date.now()
+
+  /* Points while the session is open */
+  const rep = await addRep(hr.token)
+  const token = await checkIn(rep, { clockInMs: now - 30 * MIN, closesAtMs: now + 6 * 60 * MIN })
+  const sent = await call('POST', '/tracking/points', { points: [point(now - 10 * MIN, 0), point(now - 5 * MIN, 50), point(now - MIN, 100)] }, token)
+  check('points are accepted while clocked in', sent.status === 200 && sent.json?.accepted === 3 && sent.json?.rejected === 0 && sent.json?.sessionOpen === true, sent)
+  const early = await call('POST', '/tracking/points', { points: [point(now - 40 * MIN, 300)] }, token)
+  check('a point from before clock-in is rejected', early.status === 200 && early.json?.rejected === 1, early)
+  check('an unknown token is refused', (await call('POST', '/tracking/points', { points: [point(now)] }, 'not-a-token')).json?.code === 'invalid_token')
+  const latest = await sql(`select recorded_at from public.tracking_latest where staff_id = '${rep}'`)
+  check('the latest position is the newest point', latest.length === 1 && Date.parse(latest[0].recorded_at) === now - MIN, latest)
+  await call('POST', '/tracking/points', { points: [point(now - 30 * 1000, 400, { isMock: true })] }, token)
+  const flags = await sql(`select kind, points from public.tracking_flags where staff_id = '${rep}'`)
+  check('a fake location is flagged for HR', flags.some((f) => f.kind === 'mock' && f.points === 1), flags)
+
+  /* Clock-out ends the session */
+  await checkOut(rep, Date.now())
+  const session = await sql(`select status, closed_reason, clock_out_at from public.tracking_sessions where staff_id = '${rep}'`)
+  check('clock-out closes the session', session[0]?.status === 'closed' && session[0]?.closed_reason === 'clock-out' && Boolean(session[0]?.clock_out_at), session)
+  const after = await call('POST', '/tracking/points', { points: [point(Date.now(), 500)] }, token)
+  check('after clock-out the phone is told the session closed', after.status === 409 && after.json?.code === 'session_closed', after)
+
+  /* The clock-out boundary, even for a batch that raced the clock-out */
+  const rep2 = await addRep(hr.token)
+  const outAt = Date.now() - 2 * MIN
+  await checkIn(rep2, { clockInMs: now - 60 * MIN, closesAtMs: now + 6 * 60 * MIN })
+  await checkOut(rep2, outAt)
+  const sessionId = (await sql(`select id from public.tracking_sessions where staff_id = '${rep2}'`))[0].id
+  const raced = await sql(`select public.record_points('${sessionId}', '${JSON.stringify([
+    { latitude: SHOP.latitude, longitude: SHOP.longitude, accuracy: 10, recorded_at: new Date(outAt - 1000).toISOString(), is_mock: false, flagged: null },
+    { latitude: SHOP.latitude, longitude: SHOP.longitude, accuracy: 10, recorded_at: new Date(outAt + 1000).toISOString(), is_mock: false, flagged: null },
+  ])}'::jsonb, '[]'::jsonb, null) as stored`)
+  check('1 s before clock-out is stored and 1 s after is not', raced[0]?.stored === 1, raced)
+
+  /* A session with no clock-out closes at the end of the clock-out window */
+  const rep3 = await addRep(hr.token)
+  const expired = await checkIn(rep3, { clockInMs: now - 60 * MIN, closesAtMs: now - MIN })
+  const late = await call('POST', '/tracking/points', { points: [point(now - 2 * MIN)] }, expired)
+  const ended = await sql(`select status, closed_reason from public.tracking_sessions where staff_id = '${rep3}'`)
+  check('an expired session is refused and closed as day-end', late.status === 409 && ended[0]?.closed_reason === 'day-end', { late, ended })
+} finally {
+  await cleanUp()
+}
+
+console.log(failures ? `\n${failures} check(s) failed` : '\nall checks passed')
+process.exit(failures ? 1 : 0)
