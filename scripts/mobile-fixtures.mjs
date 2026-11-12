@@ -85,7 +85,7 @@ export function hrSession() {
 
 const employees = [
   ['BFL-0007', LONG_NAME, 'Sales Representative', 'shop-1'],
-  ['BFL-0008', 'Kwame Boateng', 'Merchandiser', 'shop-2'],
+  ['BFL-0008', 'Kwame Boateng Asamoah-Gyamfi Ofori', 'Merchandiser', 'shop-2'],
   ['BFL-0009', 'Efua Sarpong', 'Supervisor', 'shop-3'],
   ['BFL-0010', 'Yaw Darko', 'Warehouse Worker', null],
 ].map(([staffId, name, position, shop]) => ({
@@ -102,6 +102,8 @@ export function restFixture(table) {
     case 'employees': return employees
     case 'shops': return shops.map((s) => ({ shop_id: s.shopId, company_id: s.companyId, shop_name: s.shopName, town: s.town, area: s.area, address: '', latitude: 5.6037, longitude: -0.187, location_source: 'manual', status: 'active', geofence_radius: 150 }))
     case 'attendance_events': return [{ id: 'a1', employee_id: 'BFL-0007', company_id: 'box-for-less', company_name: 'Box For Less', full_name: LONG_NAME, type: 'check-in', status: 'on-time', date: NOW.slice(0, 10), occurred_at: NOW, weekend: false, source: 'face' }]
+    case 'shop_assignments': return employees.filter((e) => e.assigned_shop_id).map((e, i) => ({ id: `sa-${i}`, company_id: 'box-for-less', employee_id: e.staff_id, shop_id: e.assigned_shop_id, previous_shop_id: null, effective_date: '2026-01-05T08:00:00Z', assigned_at: '2026-01-05T08:00:00Z', assigned_by: 'HR Manager', assigned_by_role: 'HR Manager', active: true }))
+    case 'employee_shops': return employees.filter((e) => e.assigned_shop_id).map((e) => ({ staff_id: e.staff_id, shop_id: e.assigned_shop_id, company_id: 'box-for-less', position: 1, assigned_at: '2026-01-05T08:00:00Z', assigned_by: 'HR Manager' }))
     case 'settings_company': return [
       { company_id: 'box-for-less', profile: { displayName: 'Box For Less', code: 'BFL', phone: '', email: '', address: '', logo: null, status: 'active' }, vat_rate: 0, require_workplace_code: false },
       { company_id: 'double-a', profile: { displayName: 'Double A', code: 'DAA', phone: '', email: '', address: '', logo: null, status: 'active' }, vat_rate: 0, require_workplace_code: false },

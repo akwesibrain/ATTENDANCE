@@ -17,12 +17,11 @@ h2,
 h3,
 p,
 li,
-td,
 dd,
-label,
 .step-description,
 .review-value {
-  overflow-wrap: anywhere;
+  /* break-word, not anywhere: anywhere lets tables squeeze columns to one letter. */
+  overflow-wrap: break-word;
 }
 
 img,
@@ -58,11 +57,15 @@ a.btn:hover {
   }
 
   /* A radio or checkbox is tapped through its label: the whole row is the target. */
-  html label:has(> input[type='radio']),
-  html label:has(> input[type='checkbox']) {
-    display: flex;
-    align-items: center;
+  :where(label):has(> input[type='radio']),
+  :where(label):has(> input[type='checkbox']) {
     min-height: 44px;
+  }
+
+  /* A dropdown never runs past the screen; long options are cut inside it. */
+  select {
+    min-width: 0 !important;
+    max-width: min(100%, calc(100vw - 32px)) !important;
   }
 
   /* Links that act as buttons, outside a sentence. */
@@ -121,6 +124,24 @@ a.btn:hover {
   html .scanner-corners::before,
   html .scanner-corners::after {
     width: 72%;
+  }
+
+  /* Reports: the month, employee, view and export controls wrap to fit. */
+  html .hr-report-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    width: 100%;
+    min-width: 0;
+  }
+
+  html .hr-report-actions > * {
+    max-width: 100%;
+  }
+
+  html .hr-report-actions select,
+  html .hr-report-actions .hr-report-btn {
+    flex: 1 1 100%;
   }
 
   /* Wide tables scroll inside their own box rather than the page. */

@@ -55,8 +55,13 @@ async function startServer() {
  * Measuring a page
  * ------------------------------------------------------------------------ */
 
-function measure() {
-  const out = { overflow: document.documentElement.scrollWidth > window.innerWidth + 1, scrollWidth: document.documentElement.scrollWidth, small: [], tinyText: [] }
+function measure(width) {
+  // The layer's overflow-x: clip is a safety net; measure what it would hide.
+  const unclip = document.createElement('style')
+  unclip.textContent = 'html, body { overflow-x: visible !important; }'
+  document.head.appendChild(unclip)
+  const out = { overflow: document.documentElement.scrollWidth > width + 1, scrollWidth: document.documentElement.scrollWidth, small: [], tinyText: [], cut: [], squeezed: [] }
+  unclip.remove()
   const describe = (el, r) => {
     const label = (el.getAttribute('aria-label') || el.textContent || el.getAttribute('placeholder') || el.name || el.type || '').trim().replace(/\s+/g, ' ').slice(0, 40)
     return `${el.tagName.toLowerCase()}${el.className && typeof el.className === 'string' ? '.' + el.className.split(' ')[0] : ''} "${label}" ${Math.round(r.width)}×${Math.round(r.height)}`
@@ -66,6 +71,21 @@ function measure() {
     const cs = getComputedStyle(el)
     return r.width > 0 && r.height > 0 && cs.visibility !== 'hidden' && cs.display !== 'none' && cs.opacity !== '0'
   }
+  // Inside a box that scrolls sideways on purpose (a wide table), going past the edge is fine.
+  const inScroller = (el) => {
+    for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) {
+      const ox = getComputedStyle(p).overflowX
+      if (ox === 'auto' || ox === 'scroll') return true
+    }
+    return false
+  }
+  // Text squeezed into a column so narrow that words break letter by letter.
+  document.querySelectorAll('body *').forEach((el) => {
+    const own = [...el.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent).join('').trim()
+    if (own.length < 8) return
+    const r = el.getBoundingClientRect()
+    if (r.width > 0 && r.width < 40 && r.height > 90) out.squeezed.push(`${el.tagName.toLowerCase()} "${own.slice(0, 24)}" ${Math.round(r.width)}×${Math.round(r.height)}`)
+  })
   document.querySelectorAll('button, a[href], input:not([type=hidden]), select, textarea, [role=button], [role=tab]').forEach((el) => {
     if (!visible(el) && !(el.type === 'radio' || el.type === 'checkbox')) return
     const cs = getComputedStyle(el)
@@ -76,6 +96,9 @@ function measure() {
     if (!visible(box)) return
     const r = box.getBoundingClientRect()
     if (r.width < 44 || r.height < 44) out.small.push(describe(el, r))
+    // A control that sticks out past the screen edge is cut off or unreachable.
+    const er = el.getBoundingClientRect()
+    if ((er.right > width + 1 || er.left < -1) && !inScroller(el)) out.cut.push(describe(el, er) + ` at x ${Math.round(er.left)}–${Math.round(er.right)}`)
     if (['INPUT', 'SELECT', 'TEXTAREA'].includes(el.tagName) && !['radio', 'checkbox', 'file', 'range'].includes(el.type) && parseFloat(cs.fontSize) < 16) {
       out.tinyText.push(describe(el, r) + ` font ${cs.fontSize}`)
     }
@@ -206,8 +229,19 @@ export const SCREENS = [
   { name: 'cookies', path: '/cookies', states: [{ name: 'default' }] },
   { name: 'display', path: '/display', overflowOnly: true, states: [{ name: 'default' }] },
   { name: 'hr-sign-in', path: '/hr', form: true, states: [{ name: 'default' }] },
-  ...['dashboard', 'employees', 'attendance', 'live-tracker', 'settings'].map((section) => ({
-    name: `hr-${section}`, path: `/hr#${section}`, hr: true, states: [{ name: 'default', setup: withHrSession, act: async (page) => { await page.waitForSelector('.hr-sidebar, .hr-nav', { timeout: 10000 }) } }],
+  {
+    name: 'hr-dashboard', path: '/hr#dashboard', hr: true,
+    states: [{ name: 'default', setup: withHrSession, act: async (page) => { await page.waitForSelector('.hr-sidebar, .hr-nav', { timeout: 10000 }) } }],
+  },
+  // The other HR screens are kept per company: open Box For Less, as HR would.
+  ...['employees', 'attendance', 'live-tracker', 'sales-monitoring', 'sales-rep-monitoring', 'reports', 'payroll', 'settings'].map((section) => ({
+    name: `hr-${section}`, path: `/hr#${section}`, hr: true, states: [{
+      name: 'box-for-less', setup: withHrSession, act: async (page) => {
+        await page.waitForSelector('.hr-sidebar, .hr-nav', { timeout: 10000 })
+        await page.selectOption('.hr-company-select', 'box-for-less').catch(() => {})
+        await page.waitForTimeout(800)
+      },
+    }],
   })),
 ]
 
@@ -257,9 +291,11 @@ async function runState(browser, base, size, screen, state) {
     await page.goto(base + screen.path, { waitUntil: 'networkidle' })
     if (state.act) await state.act(page)
     await page.waitForTimeout(300)
-    const m = await page.evaluate(measure)
+    const m = await page.evaluate(measure, size.width)
     const reasons = []
     if (m.overflow) reasons.push(`scrolls sideways (${m.scrollWidth}px wide)`)
+    if (m.cut.length) reasons.push(`cut off at the screen edge: ${m.cut.slice(0, 4).join('; ')}`)
+    if (m.squeezed.length) reasons.push(`table text squeezed: ${m.squeezed.slice(0, 3).join('; ')}`)
     if (!screen.overflowOnly) {
       if (m.small.length) reasons.push(`small targets: ${m.small.slice(0, 6).join('; ')}${m.small.length > 6 ? ` …+${m.small.length - 6}` : ''}`)
       if (m.tinyText.length) reasons.push(`inputs under 16px: ${m.tinyText.slice(0, 4).join('; ')}`)
