@@ -32,6 +32,12 @@ svg {
   max-width: 100%;
 }
 
+/* A link styled as a button reads as a button, not as underlined text. */
+a.btn,
+a.btn:hover {
+  text-decoration: none;
+}
+
 @media (pointer: coarse), (max-width: 760px) {
   /* Text boxes at 16px or more: iPhones zoom in on anything smaller. */
   input:not([type='radio']):not([type='checkbox']):not([type='range']):not([type='color']),
@@ -103,10 +109,27 @@ svg {
     width: 100%;
   }
 
-  /* The camera fills the width. */
-  html .scanner-frame {
+  /* Camera buttons stack too, so their labels stay on one line. */
+  html .camera-controls {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  html .camera-controls .btn {
+    width: 100%;
+  }
+
+  /* The camera fills the width, in portrait like the face it frames. */
+  html .scanner-frame,
+  html .camera-frame {
     width: 100%;
     max-width: none;
+    aspect-ratio: 3 / 4;
+  }
+
+  html .scanner-corners::before,
+  html .scanner-corners::after {
+    width: 72%;
   }
 
   /* Wide tables scroll inside their own box rather than the page. */
@@ -114,7 +137,6 @@ svg {
   html .sm-table-wrap,
   html .at-table-wrap {
     overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
     max-width: 100%;
   }
 }
