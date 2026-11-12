@@ -38,3 +38,6 @@ shots/
 
 # Local demo HR login (personal details, not for the repo)
 src/config/hrLogin.js
+
+# Mobile layout check output
+mobile-screenshots/
