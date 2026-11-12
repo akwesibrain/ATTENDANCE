@@ -17,6 +17,8 @@ const TABLES = {
   employees: { order: 'staff_id' },
   shops: { order: 'shop_id' },
   shop_assignments: { order: 'assigned_at' },
+  employee_shops: { order: 'position' },
+  employee_shop_changes: { order: 'at' },
   leave_records: { order: 'start_date', since: 'end_date' },
   attendance_events: { order: 'occurred_at', since: 'date' },
   attendance_corrections: { order: 'date', since: 'date' },

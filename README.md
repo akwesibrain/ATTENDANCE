@@ -58,7 +58,7 @@ hosted copy needs HTTPS.
 | Area | What it does |
 |---|---|
 | Dashboard | Today's figures per company and combined; today's register |
-| Employees | **Add employee** (face scanned on the spot, or a one-time face setup link texted to them); a *Face not set up* badge and a **Send face setup link** button; directory cards with emergency contact; HR sets the **date joined** and the time with the company is calculated (years, months, days); shop assignment for field staff; **deactivate** a leaver from their last working day so later days are not absences |
+| Employees | **Add employee** (face scanned on the spot, or a one-time face setup link texted to them); a *Face not set up* badge and a **Send face setup link** button; directory cards with emergency contact; HR sets the **date joined** and the time with the company is calculated (years, months, days); **shop lists**: Supervisors, Sales Reps and Merchandisers each have 1 to 7 shops (picked at registration, edited by HR with `GET/PUT /hr/employees/:staffId/visit-list`, every change kept); the first shop is the main one; **deactivate** a leaver from their last working day so later days are not absences |
 | Attendance | One record per employee per day (from check-ins, SMS verification, or HR manual entry); corrections with full history; manual entry for paper records |
 | Sales Reps | Rep monitoring, 3 random SMS verification checks per working day, 150 m shop geofence, alerts, shop directory with map locations, live field board |
 | Reports | Monthly report (26th–25th) with working days, hours, overtime and pay; daily records; **Overtime** tab |
@@ -248,6 +248,7 @@ face readings, so they only work while `FACE_PROVIDER` is unset or `faceapi`.
 node scripts/smoke-employee.mjs
 SUPABASE_ACCESS_TOKEN=<token> node scripts/smoke-hr.mjs   # removes what it creates
 node scripts/smoke-hr-passwords.mjs   # password resets; uses the logged-in CLI, removes its accounts
+node scripts/smoke-shop-lists.mjs     # shop lists; uses the logged-in CLI, removes its shops, employees and accounts
 ```
 
 ### Swapping in real services
