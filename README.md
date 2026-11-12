@@ -158,6 +158,14 @@ pg_cron + pg_net ─────────> `api` /jobs/* (secret header)
   nightly `tracking-close-day` job or, before that is configured, whenever a past
   day is asked for. A plain-SQL sweep deletes any trail older than 48 hours even
   without `JOBS_SECRET`.
+- **Outlet visits are recorded on the clocked-in phone.** A Sales Rep or
+  Supervisor opens **Record a visit** (`/visit`) after check-in, picks a listed
+  shop or types an outlet, and scans their face (`GET`/`POST /tracking/visits`,
+  authenticated by the tracking token). A visit stores the distance from the
+  shop, never the phone's coordinates. Five failed visit scans lock visits for
+  the day without locking the kiosk. The daily report counts visits and flags a
+  listed shop visited without a 10-minute stay, missed shops, and visits off
+  the list; HR gets an alert for each.
 
 ### First-time setup
 
@@ -259,6 +267,7 @@ SUPABASE_ACCESS_TOKEN=<token> node scripts/smoke-hr.mjs   # removes what it crea
 node scripts/smoke-hr-passwords.mjs   # password resets; uses the logged-in CLI, removes its accounts
 node scripts/smoke-shop-lists.mjs     # shop lists; uses the logged-in CLI, removes its shops, employees and accounts
 node scripts/smoke-live-tracker.mjs   # live tracking, Realtime and the daily report; removes what it creates
+node scripts/smoke-outlet-visits.mjs  # outlet visits; face checks run only when FACE_PROVIDER is faceapi
 ```
 
 ### Swapping in real services
