@@ -13,6 +13,7 @@ import {
   verifyMfa,
 } from '../../services/permissionsService'
 import { securitySettings } from '../../services/settingsService'
+import { gateStep } from './gateStep'
 
 function Shell({ title, children, onExit }) {
   return (
@@ -216,9 +217,19 @@ export function HrGate({ onExit, children }) {
     }
   }, [ready])
 
-  switch (state.status) {
-    case 'ready':
-      return children(getSessionUser())
+  const user = getSessionUser()
+  const step = gateStep(state.status, user)
+  useEffect(() => {
+    if (step !== 'recheck') return
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- re-reads the session once; check() sets the outcome.
+    setState({ status: 'loading', reason: null })
+    check()
+  }, [step, check])
+
+  switch (step) {
+    case 'portal':
+      return children(user)
+    case 'recheck':
     case 'loading':
       return <Shell title="Loading…"><p className="ac-lead" role="status">Opening the HR portal.</p></Shell>
     case 'mfa-enroll':
