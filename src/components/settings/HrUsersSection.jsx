@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
 import { can } from '../../services/permissionsService'
-import { cancelInvite, hrSetupUrl, inviteHrUser, listHrAccess, resendInvite, setHrUserStatus } from '../../services/onboardingService'
+import { cancelInvite, hrSetupUrl, inviteHrUser, listHrAccess, resendInvite, resetHrAuthenticator, setHrUserStatus } from '../../services/onboardingService'
 import { formatAccraDateTime } from '../../utils/accraTime'
 import LinkResult from '../hr/LinkResult'
 import { ConfirmChange, Field, SectionCard } from './SettingsKit'
+import ResetPasswordDialog from './ResetPasswordDialog'
 
 const BLANK = { name: '', email: '', phone: '' }
 
@@ -21,6 +22,7 @@ export default function HrUsersSection({ user }) {
   const [flash, setFlash] = useState('')
   const [link, setLink] = useState(null)
   const [confirming, setConfirming] = useState(null)
+  const [resetting, setResetting] = useState(null)
   const [busy, setBusy] = useState(false)
 
   const load = useCallback(() => {
@@ -56,7 +58,9 @@ export default function HrUsersSection({ user }) {
   const confirm = () => {
     const { kind, target } = confirming
     setConfirming(null)
-    if (kind === 'cancel') {
+    if (kind === 'authenticator') {
+      run(() => resetHrAuthenticator(target.id), () => setFlash(`${target.name}'s authenticator was reset. They set up a new one at their next sign-in.`))
+    } else if (kind === 'cancel') {
       run(() => cancelInvite(target.id), () => {
         if (link?.name === target.name) setLink(null)
         setFlash(`The invite for ${target.name} was cancelled. Its link no longer works.`)
@@ -144,6 +148,12 @@ export default function HrUsersSection({ user }) {
                 <span className={`at-badge at-tone-${active ? 'ok' : 'muted'}`}>{active ? 'Active' : 'Removed'}</span>
                 {!readOnly && !isMe ? (
                   <span className="wd-actions">
+                    {active && (
+                      <>
+                        <button type="button" className="sm-actions-btn" disabled={busy} onClick={() => { setFlash(''); setResetting(u) }}>Reset password</button>
+                        <button type="button" className="sm-actions-btn" disabled={busy} onClick={() => setConfirming({ kind: 'authenticator', target: u })}>Reset authenticator</button>
+                      </>
+                    )}
                     <button type="button" className="sm-actions-btn" disabled={busy} onClick={() => setConfirming({ kind: active ? 'remove' : 'restore', target: u })}>
                       {active ? 'Remove access' : 'Restore access'}
                     </button>
@@ -161,15 +171,29 @@ export default function HrUsersSection({ user }) {
             remove: `Remove ${confirming.target.name}'s access?`,
             restore: `Restore ${confirming.target.name}'s access?`,
             cancel: `Cancel the invite for ${confirming.target.name}?`,
+            authenticator: `Reset ${confirming.target.name}'s authenticator?`,
           }[confirming.kind]}
           lines={{
             remove: ['They are signed out on their next action and cannot sign in again.', 'Their past actions stay in the audit log.'],
             restore: ['They can sign in again with their existing password and authenticator app.'],
             cancel: ['Their setup link stops working straight away.'],
+            authenticator: [
+              'Use this when they lost or changed their phone.',
+              'Their authenticator app is removed and they are signed out on every device.',
+              'At their next sign-in they scan a new QR code. Their password stays the same.',
+            ],
           }[confirming.kind]}
-          confirmLabel={{ remove: 'Remove access', restore: 'Restore access', cancel: 'Cancel invite' }[confirming.kind]}
+          confirmLabel={{ remove: 'Remove access', restore: 'Restore access', cancel: 'Cancel invite', authenticator: 'Reset authenticator' }[confirming.kind]}
           onConfirm={confirm}
           onCancel={() => setConfirming(null)}
+        />
+      )}
+
+      {resetting && (
+        <ResetPasswordDialog
+          target={resetting}
+          onClose={() => setResetting(null)}
+          onDone={(message) => { setFlash(message); load() }}
         />
       )}
     </SectionCard>

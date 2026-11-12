@@ -28,12 +28,12 @@ export default function LinkResult({ url, expiresAt, sms, smsReason }) {
 
   return (
     <div className="link-result" role="status">
-      <p className={`link-result-sms link-result-sms-${sms}`}>{(SMS_TEXT[sms] ?? SMS_TEXT.skipped)(smsReason)}</p>
+      {sms && <p className={`link-result-sms link-result-sms-${sms}`}>{(SMS_TEXT[sms] ?? SMS_TEXT.skipped)(smsReason)}</p>}
       <div className="link-result-row">
         <input className="sh-form-input link-result-url" readOnly value={url} aria-label="Setup link" onFocus={(e) => e.target.select()} />
         <button type="button" className="btn btn-secondary" onClick={copy}>{copied ? 'Copied' : 'Copy link'}</button>
       </div>
-      <p className="ed-hint">Works once. Expires {formatAccraDateTime(expiresAt)}. Send it by WhatsApp if the SMS did not go.</p>
+      <p className="ed-hint">Works once. Expires {formatAccraDateTime(expiresAt)}. {sms ? 'Send it by WhatsApp if the SMS did not go.' : 'Send it privately, for example by WhatsApp.'}</p>
     </div>
   )
 }

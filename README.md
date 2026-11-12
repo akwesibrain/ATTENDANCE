@@ -62,7 +62,7 @@ hosted copy needs HTTPS.
 | Attendance | One record per employee per day (from check-ins, SMS verification, or HR manual entry); corrections with full history; manual entry for paper records |
 | Sales Reps | Rep monitoring, 3 random SMS verification checks per working day, 150 m shop geofence, alerts, shop directory with map locations, live field board |
 | Reports | Monthly report (26th–25th) with working days, hours, overtime and pay; daily records; **Overtime** tab |
-| Settings | General, company profiles, attendance rules, working hours, **holidays**, sales-rep monitoring, notifications, security, **HR users** (invite people by a one-time link, remove or restore access), data export, **Audit Logs** tab |
+| Settings | General, company profiles, attendance rules, working hours, **holidays**, sales-rep monitoring, notifications, security, **HR users** (invite people by a one-time link, remove or restore access, **reset a password** by one-time link or temporary password, **reset a lost authenticator**), **My password** (any HR user changes their own), data export, **Audit Logs** tab |
 | Notifications | Exceptions (late, absent, missing clock-out, failed verifications, missing shop…) with assign / review / resolve / dismiss |
 | HR Assistant | Rule-based chat that answers from the records (no AI service) |
 
@@ -247,6 +247,7 @@ face readings, so they only work while `FACE_PROVIDER` is unset or `faceapi`.
 ```bash
 node scripts/smoke-employee.mjs
 SUPABASE_ACCESS_TOKEN=<token> node scripts/smoke-hr.mjs   # removes what it creates
+node scripts/smoke-hr-passwords.mjs   # password resets; uses the logged-in CLI, removes its accounts
 ```
 
 ### Swapping in real services

@@ -12,6 +12,7 @@ const VerifyCheck = lazy(() => import('./pages/VerifyCheck'))
 const WorkplaceDisplay = lazy(() => import('./pages/WorkplaceDisplay'))
 const EnrolFace = lazy(() => import('./pages/EnrolFace'))
 const HrSetup = lazy(() => import('./pages/HrSetup'))
+const PasswordReset = lazy(() => import('./pages/PasswordReset'))
 
 const VIEW = {
   home: 'home',
@@ -42,6 +43,7 @@ const VERIFY_PATH = /^\/verify\/([^/]+)$/
 const DISPLAY_PATH = /^\/display(?:\/setup\/([^/]+))?\/?$/
 const ENROL_PATH = /^\/enroll\/([^/]+)$/
 const HR_SETUP_PATH = /^\/hr\/setup\/([^/]+)$/
+const PASSWORD_RESET_PATH = /^\/hr\/reset\/([^/]+)$/
 
 function App() {
   const path = window.location.pathname
@@ -56,6 +58,10 @@ function App() {
   const hrSetupToken = path.match(HR_SETUP_PATH)?.[1]
   if (hrSetupToken) {
     return <Suspense fallback={<PageSkeleton label="Loading your invite" />}><HrSetup token={hrSetupToken} /></Suspense>
+  }
+  const resetToken = path.match(PASSWORD_RESET_PATH)?.[1]
+  if (resetToken) {
+    return <Suspense fallback={<PageSkeleton label="Loading your reset link" />}><PasswordReset token={resetToken} /></Suspense>
   }
   const display = path.match(DISPLAY_PATH)
   if (display) {

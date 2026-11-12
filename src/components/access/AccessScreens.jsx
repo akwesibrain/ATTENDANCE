@@ -100,6 +100,7 @@ function SignInForm({ onDone, onExit, reason }) {
         {error && <p className="at-form-alert" role="alert">{error}</p>}
         <SubmitButton busy={busy}>Sign in</SubmitButton>
       </form>
+      <p className="ac-note">Forgot your password? Ask another HR user to reset it in Settings → HR users.</p>
     </Shell>
   )
 }
@@ -120,6 +121,7 @@ function MfaVerify({ onDone, onExit }) {
         {error && <p className="at-form-alert" role="alert">{error}</p>}
         <SubmitButton busy={busy} disabled={code.length !== 6}>Continue</SubmitButton>
       </form>
+      <p className="ac-note">Lost or changed your phone? Ask another HR user to reset your authenticator in Settings → HR users.</p>
     </Shell>
   )
 }
