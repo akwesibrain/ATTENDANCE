@@ -9,6 +9,7 @@ import { jobRoutes } from './jobs.ts'
 import { ApiError } from './lib.ts'
 import { publicRoutes } from './public.ts'
 import { publicTrackingRoutes } from './tracking.ts'
+import { publicVisitRoutes } from './trackingVisits.ts'
 
 const app = new Hono().basePath('/api')
 
@@ -45,6 +46,7 @@ app.route('/', publicEnrolRoutes)
 app.route('/', publicHrSetupRoutes)
 app.route('/', publicPasswordResetRoutes)
 app.route('/', publicTrackingRoutes)
+app.route('/', publicVisitRoutes)
 app.route('/', publicRoutes)
 app.route('/hr', hrRoutes)
 app.route('/jobs', jobRoutes)

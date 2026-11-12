@@ -7,6 +7,7 @@
  */
 
 import { Hono } from 'npm:hono@4.6.14'
+import type { Context } from 'npm:hono@4.6.14'
 import { randomToken } from '../_shared/rules/siteCode.js'
 import { MAX_POINTS_PER_REQUEST, screenPoints, trackingSessionRow } from '../_shared/rules/tracking.js'
 import { ApiError, clientIp, db, later, must, rateLimit, rpc, sha256Hex } from './lib.ts'
@@ -44,7 +45,13 @@ export async function openTrackingSession(employee: Employee, event: Event, clos
 
 const sessionClosed = () => new ApiError(409, 'Location sharing has stopped because you clocked out.', { code: 'session_closed' })
 
-async function sessionFor(token: string) {
+/** The tracking token from `Authorization: Bearer …`. */
+export function bearerToken(c: Context) {
+  return (c.req.header('authorization') ?? '').replace(/^Bearer\s+/i, '').trim()
+}
+
+/** The session a tracking token belongs to; 401 for an unknown token. */
+export async function sessionFor(token: string) {
   const session = token
     ? await must(db.from('tracking_sessions').select('*').eq('token_hash', await sha256Hex(token)).maybeSingle())
     : null
@@ -52,10 +59,26 @@ async function sessionFor(token: string) {
   return session
 }
 
+/**
+ * Refuses a closed session with 409 session_closed. A session past its closing
+ * time (no clock-out) is closed first, as the end of the working day.
+ */
+export async function assertSessionOpen(session: { id: string; staff_id: string; date: string; status: string; closes_at: string }, now: Date) {
+  if (session.status === 'closed') throw sessionClosed()
+  if (now.getTime() >= Date.parse(session.closes_at)) {
+    await must(db.from('tracking_sessions')
+      .update({ status: 'closed', closed_reason: 'day-end', closed_at: now.toISOString() })
+      .eq('id', session.id).eq('status', 'open'))
+    await must(db.from('tracking_latest').update({ session_status: 'closed' }).eq('staff_id', session.staff_id).eq('date', session.date))
+    throw sessionClosed()
+  }
+}
+
+export { sessionClosed }
+
 publicTrackingRoutes.post('/tracking/points', async (c) => {
   await rateLimit(`points:ip:${clientIp(c)}`, ...LIMITS.byIp)
-  const token = (c.req.header('authorization') ?? '').replace(/^Bearer\s+/i, '').trim()
-  const session = await sessionFor(token)
+  const session = await sessionFor(bearerToken(c))
   await rateLimit(`points:token:${session.token_hash.slice(0, 16)}`, ...LIMITS.byToken)
 
   const raw = await c.req.text()
@@ -70,14 +93,7 @@ publicTrackingRoutes.post('/tracking/points', async (c) => {
   if (body.points.length > MAX_POINTS_PER_REQUEST) throw new ApiError(400, 'Send fewer points at a time.')
 
   const now = new Date()
-  if (session.status === 'closed') throw sessionClosed()
-  if (now.getTime() >= Date.parse(session.closes_at)) {
-    await must(db.from('tracking_sessions')
-      .update({ status: 'closed', closed_reason: 'day-end', closed_at: now.toISOString() })
-      .eq('id', session.id).eq('status', 'open'))
-    await must(db.from('tracking_latest').update({ session_status: 'closed' }).eq('staff_id', session.staff_id).eq('date', session.date))
-    throw sessionClosed()
-  }
+  await assertSessionOpen(session, now)
 
   const [lastRows, counted] = await Promise.all([
     must(db.from('location_points').select('latitude, longitude, recorded_at').eq('session_id', session.id).order('recorded_at', { ascending: false }).limit(1)),

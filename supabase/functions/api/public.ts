@@ -14,7 +14,7 @@ import { sessionClosesAt } from '../_shared/rules/tracking.js'
 import { openTrackingSession } from './tracking.ts'
 import { checkSiteCode, makeSitePass, parseSiteCode, randomToken } from '../_shared/rules/siteCode.js'
 import { activeDisplay, type Site, siteFromPass } from './sites.ts'
-import { enrolNewFace, ENROLLMENT_BUCKET, faceSample, readable, registerEmployee, shopListOf } from './enrolment.ts'
+import { enrolNewFace, ENROLLMENT_BUCKET, faceSample, loadEnrolledPhoto, readable, registerEmployee, shopListOf } from './enrolment.ts'
 import { attendanceRulesInForce, hoursInForce } from '../_shared/rules/settings.js'
 import { loadSettings, syncNotifications } from './facts.ts'
 import { ApiError, applyChange, clientIp, db, discardPhoto, found, invalid, later, must, rateLimit, readJson, rpc, sha256Hex, storePhoto } from './lib.ts'
@@ -36,14 +36,6 @@ const LIMITS = {
 
 export const publicRoutes = new Hono()
 
-async function loadEnrolledPhoto(path: string) {
-  const { data, error } = await db.storage.from(ENROLLMENT_BUCKET).download(path)
-  if (error || !data) {
-    console.error('enrolled photo unavailable', error?.message)
-    throw new FaceServiceUnavailable()
-  }
-  return new Uint8Array(await data.arrayBuffer())
-}
 
 
 /** The server clock, so a workplace display can correct its own. */

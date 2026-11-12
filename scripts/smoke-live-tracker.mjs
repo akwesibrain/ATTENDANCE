@@ -267,9 +267,16 @@ try {
         clearTimeout(timer)
         resolve(change)
       })
-      .subscribe(async (status, error) => {
+      // SUBSCRIBED arrives before the database-change listener is ready; Realtime
+      // sends a system message once it is, and only then is a change delivered.
+      .on('system', {}, async (message) => {
+        statuses.push(`system: ${message?.extension ?? ''} ${message?.status ?? ''}`.trim())
+        if (message?.extension === 'postgres_changes' && message?.status === 'ok' && !posted) {
+          posted = await call('POST', '/tracking/points', { points: [point(Date.now() - 1000, 60)] }, liveToken)
+        }
+      })
+      .subscribe((status, error) => {
         statuses.push(error ? `${status}: ${error.message}` : status)
-        if (status === 'SUBSCRIBED') posted = await call('POST', '/tracking/points', { points: [point(Date.now() - 1000, 60)] }, liveToken)
       })
   })
   const change = await pushed

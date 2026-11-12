@@ -103,3 +103,13 @@ export async function shopListOf(staffId: string): Promise<string[]> {
   const rows = await found(db.from('employee_shops').select('shop_id').eq('staff_id', staffId).order('position'))
   return rows.map((row: { shop_id: string }) => row.shop_id)
 }
+
+/** The enrolled photo a face is compared with (AWS matching only). */
+export async function loadEnrolledPhoto(path: string) {
+  const { data, error } = await db.storage.from(ENROLLMENT_BUCKET).download(path)
+  if (error || !data) {
+    console.error('enrolled photo unavailable', error?.message)
+    throw new FaceServiceUnavailable()
+  }
+  return new Uint8Array(await data.arrayBuffer())
+}
