@@ -89,7 +89,11 @@ const nonEmpty = (errors) => Object.fromEntries(Object.entries(errors).filter(([
  * coordinates from here: only HR can confirm where a shop is.
  * @returns {{ errors: object } | { value: object }}
  */
-export function parseRegistration(body) {
+/**
+ * @param {{ faceRequired?: boolean }} options faceRequired is false only when
+ *   HR adds an employee without a face; consent is then given at face setup.
+ */
+export function parseRegistration(body, { faceRequired = true } = {}) {
   const input = body && typeof body === 'object' ? body : {}
   const data = {
     companyId: text(input.companyId),
@@ -113,7 +117,7 @@ export function parseRegistration(body) {
   if (!PAYMENT_METHODS.some((method) => method.id === data.paymentMethod)) {
     errors.paymentMethod = 'Choose how your salary is paid.'
   }
-  if (input.biometricConsent !== true) {
+  if (faceRequired && input.biometricConsent !== true) {
     errors.biometricConsent = 'Biometric consent is required to register.'
   }
 
