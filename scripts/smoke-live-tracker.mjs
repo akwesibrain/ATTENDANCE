@@ -253,6 +253,40 @@ try {
   check('a future date is refused', future.status === 400, future)
   const daa = await makeHr('daa', [DAA])
   check('another company’s HR cannot read the report', (await call('GET', `/hr/tracking/reports/daily?companyId=${BFL}&date=${yesterday}`, undefined, daa.token)).status === 403)
+
+  /* The live map: Realtime pushes each new position to HR */
+  const rep5 = await addRep(hr.token)
+  const liveToken = await checkIn(rep5, { clockInMs: Date.now() - 10 * MIN, closesAtMs: Date.now() + 6 * 60 * MIN })
+  hr.auth.realtime.setAuth(hr.token)
+  const statuses = []
+  let posted = null
+  const pushed = new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(null), 15000)
+    hr.auth.channel('smoke-live-map')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tracking_latest', filter: `staff_id=eq.${rep5}` }, (change) => {
+        clearTimeout(timer)
+        resolve(change)
+      })
+      .subscribe(async (status, error) => {
+        statuses.push(error ? `${status}: ${error.message}` : status)
+        if (status === 'SUBSCRIBED') posted = await call('POST', '/tracking/points', { points: [point(Date.now() - 1000, 60)] }, liveToken)
+      })
+  })
+  const change = await pushed
+  check('HR’s live map receives the new position through Realtime', change?.new?.staff_id === rep5 && change?.new?.session_status === 'open', { change, statuses, posted })
+  await hr.auth.removeAllChannels()
+
+  /* Company separation, straight from the database */
+  const tables = ['tracking_sessions', 'location_points', 'tracking_latest', 'tracking_day_summaries', 'tracking_flags']
+  for (const table of tables) {
+    const response = await fetch(`${URL_BASE}/rest/v1/${table}?select=staff_id&company_id=eq.${BFL}`, { headers: { apikey: KEY, authorization: `Bearer ${daa.token}` } })
+    const rows = await response.json().catch(() => null)
+    check(`Double A HR reads no Box For Less ${table}`, response.ok && Array.isArray(rows) && rows.length === 0, rows)
+  }
+  const own = await fetch(`${URL_BASE}/rest/v1/tracking_latest?select=staff_id&staff_id=eq.${rep5}`, { headers: { apikey: KEY, authorization: `Bearer ${hr.token}` } })
+  check('Box For Less HR reads its own live positions', ((await own.json()) ?? []).length === 1)
+  const hashRead = await fetch(`${URL_BASE}/rest/v1/tracking_sessions?select=token_hash`, { headers: { apikey: KEY, authorization: `Bearer ${hr.token}` } })
+  check('nobody in HR can read a token hash', !hashRead.ok, hashRead.status)
 } finally {
   await cleanUp()
 }

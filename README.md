@@ -149,6 +149,15 @@ pg_cron + pg_net ─────────> `api` /jobs/* (secret header)
   calculate in the browser from server facts using that same code.
 - **Future SMS times are unreadable.** They exist only in a table no client can
   reach, and a check becomes visible once it has been sent.
+- **Live tracking is on duty only, and the trail lasts one day.** A field
+  employee's check-in returns a `trackingToken`; the phone sends points to
+  `POST /tracking/points` until clock-out (then `409 session_closed`). HR's live
+  map reads `tracking_latest` through Realtime; `GET /hr/tracking/reports/daily`
+  serves the daily report. After each day the trail is summarised (time, coverage,
+  distance, minutes at each listed shop; no coordinates) and deleted, by the
+  nightly `tracking-close-day` job or, before that is configured, whenever a past
+  day is asked for. A plain-SQL sweep deletes any trail older than 48 hours even
+  without `JOBS_SECRET`.
 
 ### First-time setup
 
@@ -217,7 +226,7 @@ pg_cron + pg_net ─────────> `api` /jobs/* (secret header)
 
 | Name | Purpose |
 |---|---|
-| `JOBS_SECRET` | Lets the scheduler call `/jobs/*`. Must match Vault's `jobs_secret` |
+| `JOBS_SECRET` | Lets the scheduler call `/jobs/*` (SMS checks, notifications, the nightly tracking summary). Must match Vault's `jobs_secret` |
 | `FACE_PROVIDER` | Unset (or `faceapi`) uses face-api on the phone. `rekognition` uses AWS |
 | `REKOGNITION_REGION` | AWS region, e.g. `eu-west-1` |
 | `REKOGNITION_ACCESS_KEY_ID` | Key for the AWS user described in setup |
@@ -249,6 +258,7 @@ node scripts/smoke-employee.mjs
 SUPABASE_ACCESS_TOKEN=<token> node scripts/smoke-hr.mjs   # removes what it creates
 node scripts/smoke-hr-passwords.mjs   # password resets; uses the logged-in CLI, removes its accounts
 node scripts/smoke-shop-lists.mjs     # shop lists; uses the logged-in CLI, removes its shops, employees and accounts
+node scripts/smoke-live-tracker.mjs   # live tracking, Realtime and the daily report; removes what it creates
 ```
 
 ### Swapping in real services
