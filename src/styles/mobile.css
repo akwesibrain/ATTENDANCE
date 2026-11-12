@@ -27,8 +27,7 @@ label,
 
 img,
 video,
-canvas,
-svg {
+canvas {
   max-width: 100%;
 }
 
@@ -56,14 +55,6 @@ a.btn:hover {
   select,
   input:not([type='radio']):not([type='checkbox']):not([type='range']):not([type='color']):not([type='hidden']) {
     min-height: 44px !important;
-  }
-
-  button,
-  [role='button'],
-  [role='tab'],
-  a.btn,
-  .btn {
-    min-width: 44px !important;
   }
 
   /* A radio or checkbox is tapped through its label: the whole row is the target. */
