@@ -53,12 +53,16 @@ const loaders = {
   notifications: () => import('./NotificationsCenter'),
   visits: () => import('./FieldVisitsMonitoring'),
   tracker: () => import('./LiveFieldTracker'),
+  payroll: () => import('./Payroll'),
+  payrollSettings: () => import('../components/payroll/SalaryStructures'),
 }
 const LiveFieldTracker = lazy(loaders.tracker)
 const FieldVisitsMonitoring = lazy(loaders.visits)
 const AttendanceManagement = lazy(loaders.attendance)
 const SalesMonitoring = lazy(loaders.sales)
 const Overtime = lazy(loaders.overtime)
+const Payroll = lazy(loaders.payroll)
+const SalaryStructures = lazy(loaders.payrollSettings)
 const Settings = lazy(loaders.settings)
 const AuditLogs = lazy(loaders.audit)
 const NotificationsCenter = lazy(loaders.notifications)
@@ -89,11 +93,14 @@ const NAV = [
   { id: 'supervisor-monitoring', label: 'Supervisor Monitoring', icon: 'mappin', module: 'sales-monitoring', group: 'field' },
   { id: 'reports', label: 'Reports', icon: 'report', module: 'reports', group: 'reports' },
   { id: 'overtime', label: 'Overtime', icon: 'clock', module: 'reports', group: 'reports' },
+  // Payroll: the payroll run, and Payroll Settings → Salary Structures & Categories.
+  { id: 'payroll', label: 'Payroll', icon: 'wallet', module: 'payroll', group: 'payroll' },
+  { id: 'payroll-settings', label: 'Salary Structures & Categories', icon: 'wallet', module: 'payroll', group: 'payroll' },
   { id: 'settings', label: 'Settings', icon: 'gear', module: 'settings', group: 'settings' },
   { id: 'audit-logs', label: 'Audit Logs', icon: 'list', module: 'audit-logs', group: 'settings' },
   { id: 'notifications', label: 'Notifications', icon: 'bell', module: 'notifications', hidden: true },
 ]
-const GROUP_LABELS = { field: { label: 'Field Monitoring', icon: 'mappin' }, reports: { label: 'Reports', icon: 'report' }, settings: { label: 'Settings', icon: 'gear' } }
+const GROUP_LABELS = { field: { label: 'Field Monitoring', icon: 'mappin' }, reports: { label: 'Reports', icon: 'report' }, payroll: { label: 'Payroll', icon: 'wallet' }, settings: { label: 'Settings', icon: 'gear' } }
 
 function navFromHash() {
   if (typeof window === 'undefined' || !window.location) return null
@@ -210,6 +217,12 @@ function Icon({ name, size = 20 }) {
       <>
         <circle cx="12" cy="12" r="3" />
         <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+      </>
+    ),
+    wallet: (
+      <>
+        <path d="M20 7V5a2 2 0 0 0-2-2H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-4a2 2 0 0 0 0 4h4v3a1 1 0 0 1-1 1H5a2 2 0 0 1-2-2V5" />
+        <path d="M17 14h.01" />
       </>
     ),
     list: (
@@ -640,6 +653,20 @@ function HrDashboardContent({ onBack, user }) {
 
           {permitted && activeNav === 'audit-logs' && <AuditLogs user={user} />}
 
+          {permitted && activeNav === 'payroll' && (
+            <Payroll
+              key={scopeCompany.id || 'all'}
+              user={user}
+              company={scopeCompany}
+              companies={myCompanies.map((c) => ({ id: c.id, name: nameOf(c.id) }))}
+              onNavigate={goTo}
+            />
+          )}
+
+          {permitted && !isCombined && activeNav === 'payroll-settings' && (
+            <SalaryStructures key={company.id} user={user} company={{ id: company.id, name: nameOf(company.id) }} />
+          )}
+
           {permitted && activeNav === 'overtime' && (
             <Overtime
               key={scopeCompany.id || 'all'}
@@ -653,7 +680,7 @@ function HrDashboardContent({ onBack, user }) {
           )}
 
 
-          {permitted && isCombined && ['employees', 'live-tracker', 'sales-monitoring', 'sales-rep-monitoring', 'supervisor-monitoring', 'reports'].includes(activeNav) && (
+          {permitted && isCombined && ['employees', 'payroll-settings', 'live-tracker', 'sales-monitoring', 'sales-rep-monitoring', 'supervisor-monitoring', 'reports'].includes(activeNav) && (
             <section className="hr-panel hr-chooser" aria-label="Choose a company">
               <h2>{navItem.label} is kept per company</h2>
               <p>Choose which company to open. Employee, shop and report data are never mixed between companies.</p>
