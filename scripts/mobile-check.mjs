@@ -70,7 +70,7 @@ function measure() {
     if (!visible(el) && !(el.type === 'radio' || el.type === 'checkbox')) return
     const cs = getComputedStyle(el)
     // Links inside a sentence are exempt from the tap size.
-    if (el.tagName === 'A' && cs.display === 'inline' && el.closest('p, li, small, span.form-hint, .ac-note')) return
+    if (el.tagName === 'A' && cs.display === 'inline' && el.closest('p, li, td, small, span.form-hint, .ac-note')) return
     let box = el
     if (el.type === 'radio' || el.type === 'checkbox') box = el.closest('label') || el
     if (!visible(box)) return
@@ -90,9 +90,10 @@ async function lastFieldVisible(page) {
       .filter((el) => el.getBoundingClientRect().height > 0)
     const last = fields[fields.length - 1]
     if (!last) return true
-    last.focus()
-    last.scrollIntoView({ block: 'nearest' })
+    last.focus({ preventScroll: true })
+    last.scrollIntoView({ block: 'center', behavior: 'instant' })
     const r = last.getBoundingClientRect()
+    if (r.bottom <= 0 || r.top >= window.innerHeight) return false
     const covering = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)
     return Boolean(covering && (covering === last || last.contains(covering) || covering.contains(last)))
   })

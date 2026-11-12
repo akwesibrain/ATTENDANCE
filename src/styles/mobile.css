@@ -1,0 +1,127 @@
+/*
+ * Mobile layer: what every screen needs on a phone, without changing the look.
+ * Loaded after every other stylesheet. It only ever raises sizes, so it uses
+ * !important to win over the many specific rules that set smaller ones, and it
+ * applies on touch screens and narrow windows, the same condition as the touch
+ * rule in index.css. Checked by `node scripts/mobile-check.mjs`.
+ */
+
+/* The page never scrolls sideways; a long word or link wraps instead. */
+html,
+body {
+  overflow-x: clip;
+}
+
+h1,
+h2,
+h3,
+p,
+li,
+td,
+dd,
+label,
+.step-description,
+.review-value {
+  overflow-wrap: anywhere;
+}
+
+img,
+video,
+canvas,
+svg {
+  max-width: 100%;
+}
+
+@media (pointer: coarse), (max-width: 760px) {
+  /* Text boxes at 16px or more: iPhones zoom in on anything smaller. */
+  input:not([type='radio']):not([type='checkbox']):not([type='range']):not([type='color']),
+  select,
+  textarea {
+    font-size: max(16px, 1em) !important;
+  }
+
+  /* Every control is at least 44×44px. */
+  button,
+  [role='button'],
+  [role='tab'],
+  [role='radio'],
+  a.btn,
+  .btn,
+  select,
+  input:not([type='radio']):not([type='checkbox']):not([type='range']):not([type='color']):not([type='hidden']) {
+    min-height: 44px !important;
+  }
+
+  button,
+  [role='button'],
+  [role='tab'],
+  a.btn,
+  .btn {
+    min-width: 44px !important;
+  }
+
+  /* A radio or checkbox is tapped through its label: the whole row is the target. */
+  html label:has(> input[type='radio']),
+  html label:has(> input[type='checkbox']) {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+  }
+
+  /* Links that act as buttons, outside a sentence. */
+  .landing-back-link,
+  .shop-add-link,
+  .hr-link,
+  footer a,
+  nav a,
+  .legal-nav a,
+  .landing-footer a {
+    display: inline-flex !important;
+    align-items: center;
+    min-height: 44px !important;
+  }
+}
+
+@media (max-width: 640px) {
+  /* Room for the iPhone notch and home bar (index.html sets viewport-fit=cover). */
+  html .registration-page,
+  html .landing-page {
+    padding-left: max(16px, env(safe-area-inset-left));
+    padding-right: max(16px, env(safe-area-inset-right));
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
+  }
+
+  /* Main actions: full width, primary at the bottom within thumb reach. */
+  html .step-actions,
+  html .success-actions {
+    flex-direction: column-reverse;
+    gap: 10px;
+  }
+
+  html .step-actions .btn,
+  html .success-actions .btn {
+    width: 100%;
+  }
+
+  /* The camera fills the width. */
+  html .scanner-frame {
+    width: 100%;
+    max-width: none;
+  }
+
+  /* Wide tables scroll inside their own box rather than the page. */
+  html .table-scroll,
+  html .sm-table-wrap,
+  html .at-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    max-width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scanner-frame *,
+  .is-scanning * {
+    animation: none !important;
+  }
+}
