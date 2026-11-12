@@ -11,7 +11,7 @@ import { isWorkingDay, overtimeHours } from '../_shared/rules/policy.js'
 import { parseRegistration, requiresShop } from '../_shared/rules/registration.js'
 import { checkSiteCode, makeSitePass, parseSiteCode, randomToken } from '../_shared/rules/siteCode.js'
 import { activeDisplay, type Site, siteFromPass } from './sites.ts'
-import { enrolNewFace, ENROLLMENT_BUCKET, faceSample, readable, registerEmployee } from './enrolment.ts'
+import { enrolNewFace, ENROLLMENT_BUCKET, faceSample, readable, registerEmployee, shopListOf } from './enrolment.ts'
 import { attendanceRulesInForce, hoursInForce } from '../_shared/rules/settings.js'
 import { loadSettings, syncNotifications } from './facts.ts'
 import { ApiError, applyChange, clientIp, db, discardPhoto, found, invalid, later, must, rateLimit, readJson, rpc, sha256Hex, storePhoto } from './lib.ts'
@@ -136,6 +136,7 @@ publicRoutes.post('/employees/register', async (c) => {
     position: employee.position,
     paymentMethod: employee.payment_method,
     assignedShopId: employee.assigned_shop_id,
+    assignedShopIds: await shopListOf(employee.staff_id as string),
     registeredAt: employee.registered_at,
   }, 201)
 })

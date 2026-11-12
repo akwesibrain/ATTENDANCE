@@ -9,7 +9,7 @@ import { enrollFace } from '../_shared/faceMatcher.ts'
 import { faceLinkRefusal } from '../_shared/rules/onboarding.js'
 import { parseRegistration } from '../_shared/rules/registration.js'
 import { assertCompany, type HrEnv, type HrUser } from './auth.ts'
-import { ENROLLMENT_BUCKET, enrolNewFace, faceSample, readable, registerEmployee } from './enrolment.ts'
+import { ENROLLMENT_BUCKET, enrolNewFace, faceSample, readable, registerEmployee, shopListOf } from './enrolment.ts'
 import { ApiError, clientIp, db, discardPhoto, invalid, must, rateLimit, readJson, rpc, sha256Hex, storePhoto } from './lib.ts'
 import { createLink, deliverLink, type LinkResult, openLink } from './setupLinks.ts'
 
@@ -47,7 +47,7 @@ hrEmployeeRoutes.post('/employees', async (c) => {
   const withFace = Boolean(body.faceImage)
 
   // deno-lint-ignore no-explicit-any
-  const parsed = parseRegistration(body, { faceRequired: withFace }) as any
+  const parsed = parseRegistration(body, { faceRequired: withFace, addedByHr: true }) as any
   if (parsed.errors) throw invalid(parsed.errors)
   const form = parsed.value
   assertCompany(c, form.companyId)
@@ -77,6 +77,7 @@ hrEmployeeRoutes.post('/employees', async (c) => {
     staffId: employee.staff_id,
     fullName: employee.full_name,
     companyName: employee.company_name,
+    assignedShopIds: await shopListOf(employee.staff_id as string),
     link,
     linkError,
   }, 201)

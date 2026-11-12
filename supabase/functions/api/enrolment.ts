@@ -3,7 +3,7 @@
 import { EnrollmentOutdated, enrollFace, FaceServiceUnavailable, type FaceSample, type FaceTemplate, UnusableFaceImage } from '../_shared/faceMatcher.ts'
 import { parseDescriptor } from '../_shared/rules/faceDescriptor.js'
 import { parseJpegDataUrl } from '../_shared/rules/facePhoto.js'
-import { ApiError, discardPhoto, rpc, storePhoto } from './lib.ts'
+import { ApiError, db, discardPhoto, found, invalid, rpc, storePhoto } from './lib.ts'
 
 export const ENROLLMENT_BUCKET = 'face-enrollment'
 
@@ -74,18 +74,32 @@ export async function registerEmployee(
         face_photo_path: face?.photoPath ?? null,
       },
       p_template: face?.template ?? null,
-      p_shop_id: form.shopId,
-      p_new_shop: form.newShop && {
-        shop_id: `shop-${slug(form.companyId)}-${slug(`${form.newShop.shopName} ${form.newShop.area}`)}-${crypto.randomUUID().slice(0, 8)}`,
-        shop_name: form.newShop.shopName,
-        town: form.newShop.town,
-        area: form.newShop.area,
-        address: form.newShop.address,
-      },
+      p_shop_ids: form.shopIds,
+      p_new_shops: form.newShops.map((shop: { shopName: string; town: string; area: string; address: string }) => ({
+        shop_id: `shop-${slug(form.companyId)}-${slug(`${shop.shopName} ${shop.area}`)}-${crypto.randomUUID().slice(0, 8)}`,
+        shop_name: shop.shopName,
+        town: shop.town,
+        area: shop.area,
+        address: shop.address,
+      })),
       p_added_by: addedBy,
     })
   } catch (error) {
     if (face) await discardPhoto(ENROLLMENT_BUCKET, face.photoPath)
+    // The database's shop refusals belong next to the shop field.
+    if (error instanceof ApiError && SHOP_REFUSALS.includes(error.message)) throw invalid({ shop: error.message })
     throw error
   }
+}
+
+const SHOP_REFUSALS = [
+  'Choose shops from your company’s shop list.',
+  'Choose at most 7 shops.',
+  'Please choose an allocated shop for this position to continue.',
+]
+
+/** An employee's shops, in list order. */
+export async function shopListOf(staffId: string): Promise<string[]> {
+  const rows = await found(db.from('employee_shops').select('shop_id').eq('staff_id', staffId).order('position'))
+  return rows.map((row: { shop_id: string }) => row.shop_id)
 }
