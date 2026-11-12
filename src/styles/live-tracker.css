@@ -1,0 +1,319 @@
+/* ==========================================================================
+ * Live Tracker — full-screen 3D map of Ghana
+ * Real-time operations pattern (UI/UX Pro Max): a large immersive stage with
+ * glass heads-up overlays — live status with update time, category filters,
+ * a control dock and a details panel. LIGHT THEME ONLY: dark ink on white
+ * glass over a light map (text at least 4.5:1). Motion stops under
+ * prefers-reduced-motion.
+ * ========================================================================== */
+
+.lt-page { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+
+.lt-shell { position: relative; min-width: 0; }
+.lt-shell.is-full,
+.lt-shell:fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: #eef3fa;
+}
+.lt-shell:fullscreen .lt-stage,
+.lt-shell.is-full .lt-stage { height: 100vh; height: 100dvh; border-radius: 0; }
+
+/* ---------- Stage ---------- */
+.lt-stage {
+  --hud-bg: rgba(255, 255, 255, 0.94);
+  --hud-border: rgba(14, 31, 61, 0.14);
+  --hud-text: #0e1f3d;
+  --hud-muted: #4a5d7a;
+  --hud-accent: #1864cc;
+  position: relative;
+  height: max(560px, calc(100vh - 150px));
+  height: max(560px, calc(100dvh - 150px));
+  border-radius: 24px;
+  overflow: hidden;
+  perspective: 1500px;
+  perspective-origin: 50% 32%;
+  display: grid;
+  place-items: center;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  background:
+    radial-gradient(60% 55% at 50% 45%, rgba(24, 100, 204, 0.10), transparent 70%),
+    linear-gradient(180deg, #f6f9fd 0%, #e4ecf7 100%);
+  box-shadow: inset 0 0 0 1px rgba(14, 31, 61, 0.08), 0 24px 48px -24px rgba(14, 31, 61, 0.35);
+  color: var(--hud-text);
+}
+.lt-stage:active { cursor: grabbing; }
+.lt-stage:focus-visible { outline: 3px solid var(--hud-accent); outline-offset: -3px; }
+
+.lt-scene {
+  position: relative;
+  height: 80%;
+  aspect-ratio: 520 / 720;
+  max-width: 70%;
+  transform-style: preserve-3d;
+  transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+  will-change: transform;
+}
+.lt-grid {
+  position: absolute;
+  inset: -55%;
+  transform: translateZ(-28px);
+  background-image:
+    linear-gradient(rgba(24, 100, 204, 0.10) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(24, 100, 204, 0.10) 1px, transparent 1px);
+  background-size: 36px 36px;
+  mask-image: radial-gradient(closest-side, #000 50%, transparent 100%);
+  -webkit-mask-image: radial-gradient(closest-side, #000 50%, transparent 100%);
+}
+.lt-layer { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.lt-land-side { fill: #c3d5ee; stroke: #8fb0de; stroke-width: 1; }
+.lt-land {
+  fill: url(#lt-land-grad);
+  stroke: #1864cc;
+  stroke-width: 2.6;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 4px 10px rgba(24, 100, 204, 0.22));
+}
+.lt-city { fill: #1864cc; }
+.lt-city-label { font-size: 13px; fill: #33507a; font-weight: 500; }
+.lt-city-label.is-capital { font-weight: 800; fill: #0e1f3d; }
+.lt-ring {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  margin: -9px 0 0 -9px;
+  border: 2.5px solid;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+/* ---------- People ---------- */
+.lt-marker {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  transform-origin: 50% 100%;
+  transform-style: preserve-3d;
+  /* Stand upright facing the camera; --spin/--tilt are set on the stage. */
+  transform: translate(-50%, -100%) rotateZ(calc(var(--spin, 0) * -1deg)) rotateX(calc(var(--tilt, 0) * -1deg));
+  min-width: 44px;
+  min-height: 44px;
+  justify-content: flex-end;
+  color: inherit;
+  font: inherit;
+}
+/* No drop-shadow filter: the figure draws its own ground shadow, and a filter
+   on every marker is re-rasterised on each camera move. */
+.lt-person { overflow: visible; }
+.lt-person-shadow { fill: rgba(0, 0, 0, 0.45); }
+.lt-person-badge { font: 900 7.4px/1 var(--font-family); }
+.lt-tag {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #ffffff;
+  border: 1px solid rgba(14, 31, 61, 0.2);
+  color: #0e1f3d;
+  box-shadow: 0 2px 6px -2px rgba(14, 31, 61, 0.3);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.lt-marker.is-selected .lt-tag { background: #1864cc; border-color: #1864cc; color: #ffffff; }
+.lt-marker.is-selected .lt-person { filter: drop-shadow(0 0 6px rgba(24, 100, 204, 0.9)); }
+.lt-marker.is-stale { opacity: 0.55; }
+.lt-marker:focus-visible { outline: 3px solid var(--hud-accent); outline-offset: 2px; border-radius: 10px; }
+.lt-ring.is-stale { opacity: 0.35; animation: none; }
+
+/* ---------- Heads-up overlays (glass) ---------- */
+.lt-hud,
+.lt-dock,
+.lt-panel {
+  position: absolute;
+  background: var(--hud-bg);
+  border: 1px solid var(--hud-border);
+  border-radius: 16px;
+  box-shadow: 0 12px 30px -14px rgba(14, 31, 61, 0.3);
+  cursor: default;
+  z-index: 2;
+}
+.lt-hud-top { top: 16px; left: 16px; padding: 12px 16px; max-width: min(520px, calc(100% - 32px)); }
+.lt-title h2 { margin: 0; font-size: 20px; font-weight: 800; color: #0b3d91; letter-spacing: -0.01em; }
+.lt-sub { font-size: 13px; color: var(--hud-muted); }
+.lt-status { margin: 8px 0 0; display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--hud-muted); flex-wrap: wrap; }
+.lt-status-dot { width: 9px; height: 9px; border-radius: 50%; background: #16a34a; box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.16); }
+.lt-status.is-paused .lt-status-dot { background: #d97706; box-shadow: 0 0 0 4px rgba(217, 119, 6, 0.16); }
+
+.lt-chips { top: 16px; right: 16px; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+.lt-chip {
+  display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 6px 12px 6px 8px;
+  border-radius: 12px; border: 1px solid transparent; background: transparent; color: var(--hud-muted);
+  font: inherit; text-align: left; cursor: pointer; opacity: 0.55;
+}
+.lt-chip.is-on { opacity: 1; background: #f1f6fd; border-color: var(--hud-border); }
+.lt-chip:hover { background: #e8f0fb; }
+.lt-chip-text { display: flex; flex-direction: column; line-height: 1.25; }
+.lt-chip-text strong { color: var(--hud-text); font-size: 14px; }
+.lt-chip-text span { font-size: 12px; }
+.lt-chip .lt-person { filter: none; }
+
+.lt-panel { right: 16px; top: 50%; transform: translateY(-30%); width: 300px; max-width: calc(100% - 32px); padding: 16px; color: var(--hud-text); }
+.lt-panel h3 { margin: 0; font-size: 17px; color: #0b3d91; overflow-wrap: anywhere; }
+.lt-panel p { margin: 10px 0 0; font-size: 13px; line-height: 1.5; color: var(--hud-muted); }
+.lt-help { font-size: 12px !important; }
+.lt-panel-head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; }
+.lt-panel-cat { font-size: 12.5px; color: var(--hud-muted); }
+.lt-panel .lt-person { filter: none; }
+.lt-close {
+  width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--hud-border);
+  background: #f1f6fd; color: var(--hud-text); font-size: 22px; line-height: 1; cursor: pointer;
+}
+.lt-close:hover { background: #e3edfb; }
+.lt-panel dl { margin: 12px 0 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px 12px; font-size: 13.5px; }
+.lt-panel dt { color: var(--hud-muted); font-weight: 600; }
+.lt-panel dd { margin: 0; color: var(--hud-text); overflow-wrap: anywhere; }
+.lt-legend { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; font-weight: 600; font-size: 14px; }
+.lt-legend li { display: flex; align-items: center; gap: 8px; }
+.lt-legend-badge { margin-left: auto; font-size: 12px; color: var(--hud-muted); border: 1px solid var(--hud-border); border-radius: 6px; padding: 0 6px; }
+
+.lt-dock {
+  left: 50%; bottom: 16px; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 6px; padding: 8px; flex-wrap: wrap; justify-content: center;
+  max-width: calc(100% - 32px);
+}
+.lt-btn {
+  min-height: 44px; min-width: 44px; padding: 0 14px; border-radius: 12px;
+  border: 1px solid rgba(14, 31, 61, 0.16); background: #ffffff;
+  color: var(--hud-text); font: inherit; font-weight: 700; font-size: 14px; cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.lt-btn:hover { background: #eef4fd; border-color: rgba(24, 100, 204, 0.4); }
+.lt-btn.is-on { background: #e3edfb; border-color: #1864cc; color: #0b3d91; }
+.lt-btn-primary { background: #1864cc; border-color: #1864cc; color: #ffffff; }
+.lt-btn-primary:hover { background: #1452a8; border-color: #1452a8; }
+.lt-btn:focus-visible, .lt-chip:focus-visible, .lt-close:focus-visible { outline: 3px solid var(--hud-accent); outline-offset: 2px; }
+.lt-sep { width: 1px; height: 26px; background: var(--hud-border); margin: 0 2px; }
+
+/* ---------- Table under the stage ---------- */
+.lt-cat { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; color: var(--ink); font-size: 13px; }
+.lt-table tr.is-selected td { background: #eef4fd; }
+
+/* ---------- Motion ---------- */
+@media (prefers-reduced-motion: no-preference) {
+  .lt-ring { animation: lt-pulse 2.4s ease-out infinite; }
+  .lt-status:not(.is-paused) .lt-status-dot { animation: lt-blink 1.8s ease-in-out infinite; }
+  @keyframes lt-pulse { 0% { transform: scale(0.6); opacity: 0.95; } 100% { transform: scale(2.4); opacity: 0; } }
+  @keyframes lt-blink { 50% { opacity: 0.4; } }
+}
+@media (prefers-reduced-motion: reduce) { .lt-scene { transition: none; } }
+
+/* ---------- Smaller screens: overlays stack ---------- */
+@media (max-width: 1100px) {
+  .lt-panel { top: auto; bottom: 92px; transform: none; }
+}
+@media (max-width: 760px) {
+  .lt-stage { height: max(620px, calc(100dvh - 120px)); border-radius: 18px; }
+  .lt-scene { height: 62%; max-width: 92%; }
+  .lt-hud-top { left: 10px; right: 10px; top: 10px; max-width: none; }
+  .lt-chips { top: auto; right: 10px; left: 10px; bottom: 74px; flex-direction: row; overflow-x: auto; }
+  .lt-chip { flex: 0 0 auto; }
+  .lt-panel { left: 10px; right: 10px; width: auto; bottom: 150px; max-height: 40%; overflow: auto; }
+  .lt-panel:not(:has(.lt-panel-head)) { display: none; }
+  .lt-dock { bottom: 10px; left: 10px; right: 10px; transform: none; max-width: none; overflow-x: auto; flex-wrap: nowrap; justify-content: flex-start; }
+  .lt-sep { display: none; }
+}
+
+.lt-hud-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.lt-dock { flex-wrap: nowrap; overflow-x: auto; }
+/* Black figures get a thicker white outline so they read on busy map areas
+   (a stroke, not a blur filter, so it costs nothing while the map moves). */
+.lt-marker .lt-person-merchandiser path:first-of-type,
+.lt-marker .lt-person-merchandiser ellipse[stroke] { stroke-width: 2.2; }
+.lt-btn { white-space: nowrap; }
+
+/* ==========================================================================
+ * Street map mode — OpenStreetMap tiles on a tiltable 3D plane
+ * ========================================================================== */
+.lt-plane {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform-style: preserve-3d;
+  transform-origin: 50% 50%;
+  transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+  will-change: transform;
+}
+.lt-tiles { position: absolute; inset: 0; overflow: hidden; background: #e8eef6; }
+.lt-tiles-world { position: absolute; left: 0; top: 0; will-change: transform; }
+.lt-tiles img { position: absolute; width: 256px; height: 256px; max-width: none; user-select: none; -webkit-user-drag: none; }
+/* The previous zoom level, scaled, shown under the new tiles while they load. */
+.lt-tiles-back { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+/* Border, rings and people: one layer that only slides while panning.
+   preserve-3d so the markers can still stand upright towards the camera. */
+.lt-world { position: absolute; left: 0; top: 0; transform-style: preserve-3d; will-change: transform; }
+.lt-plane-svg { position: absolute; overflow: visible; pointer-events: none; }
+/* Outside Ghana: a light wash so the country stands out. */
+.lt-outside { fill: rgba(14, 31, 61, 0.14); }
+.lt-border { fill: none; stroke: #1864cc; stroke-width: 3; stroke-linejoin: round; }
+/* Cheap glow: a wide translucent stroke instead of a blur filter. */
+.lt-border-glow { fill: none; stroke: rgba(24, 100, 204, 0.22); stroke-width: 10; stroke-linejoin: round; }
+.lt-stage.is-street { background: #e8eef6; }
+.lt-attribution {
+  position: absolute; left: 12px; bottom: 12px; margin: 0; z-index: 2;
+  padding: 3px 8px; border-radius: 8px; font-size: 12px; color: #33507a;
+  background: rgba(255, 255, 255, 0.9); border: 1px solid var(--hud-border);
+}
+
+.lt-mode, .lt-places, .lt-hud-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.lt-note { margin: 10px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--hud-muted); max-width: 460px; }
+.lt-note strong { color: #b33434; }
+.lt-search { display: flex; gap: 6px; margin-top: 10px; }
+.lt-input {
+  flex: 1; min-width: 0; min-height: 44px; padding: 0 12px; border-radius: 12px;
+  border: 1px solid rgba(14, 31, 61, 0.24); background: #ffffff; color: var(--hud-text); font: inherit; font-size: 14px;
+}
+.lt-input::placeholder { color: #6b7d99; }
+.lt-input:focus-visible { outline: 3px solid var(--hud-accent); outline-offset: 1px; }
+.lt-results { margin-top: 8px; max-height: 200px; overflow: auto; }
+.lt-results ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.lt-results p { margin: 0; font-size: 13px; color: var(--hud-muted); }
+.lt-result {
+  width: 100%; text-align: left; min-height: 44px; padding: 8px 10px; border-radius: 10px;
+  border: 1px solid var(--hud-border); background: #f6f9fd; color: var(--hud-text);
+  font: inherit; font-size: 13px; cursor: pointer; overflow-wrap: anywhere;
+}
+.lt-result span { color: var(--hud-muted); }
+.lt-result:hover { background: #eef4fd; }
+.lt-focus { width: 100%; margin-top: 12px; }
+@media (prefers-reduced-motion: reduce) { .lt-plane { transition: none; } }
+/* While dragging or auto-rotating, follow the pointer directly — a transition
+   on every frame only adds lag. */
+.lt-stage.is-moving .lt-scene,
+.lt-stage.is-moving .lt-plane { transition: none; }
+/* Pause the pulsing rings while the map moves so frames go to the camera. */
+.lt-stage.is-moving .lt-ring { animation-play-state: paused; }
+@media (max-width: 760px) {
+  .lt-hud-top { max-height: 46%; overflow: auto; }
+}
+
+/* ---------- Daily tracking report (under the map) ---------- */
+.lt-report { display: flex; flex-direction: column; gap: 16px; }
+.lt-report-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.lt-report-head h3 { margin: 0; }
+.lt-report-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.lt-report-controls .form-input { width: auto; min-height: 44px; }
+.lt-report-controls .btn { min-height: 44px; }
+.lt-cover { display: inline-flex; align-items: center; gap: 8px; font-variant-numeric: tabular-nums; }
+.lt-cover-bar { width: 64px; height: 6px; border-radius: 999px; background: var(--rule); overflow: hidden; }
+.lt-cover-bar > span { display: block; height: 100%; background: var(--ok); border-radius: inherit; }
+.lt-report-stats { padding: 0 18px; }
+.lt-report-note { margin: 0; padding: 0 18px 16px; font-size: 12.5px; line-height: 1.5; color: var(--ink-2); }

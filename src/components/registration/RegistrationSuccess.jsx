@@ -78,6 +78,12 @@ export default function RegistrationSuccess({ result, onNewRegistration }) {
           <span className="review-label">Company</span>
           <span className="review-value">{result.companyName}</span>
         </div>
+        {result.additionalCompanyNames?.length > 0 && (
+          <div className="success-row">
+            <span className="review-label">Also works for</span>
+            <span className="review-value">{result.additionalCompanyNames.join(', ')}</span>
+          </div>
+        )}
         <div className="success-row">
           <span className="review-label">Staff ID</span>
           <span className="review-value staff-id-value">{result.staffId}</span>

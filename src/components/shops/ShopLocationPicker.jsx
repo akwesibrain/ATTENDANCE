@@ -65,7 +65,7 @@ export default function ShopLocationPicker({ shop, value, onChange }) {
       ) : (
         <p className="slp-off" role="note">
           Automatic location lookup is not configured, so no coordinates are filled in. It can be switched on in
-          Settings → Sales Rep Monitoring → Location services. You can save the shop now and set its location later, or enter the
+          Settings → Merchandiser Monitoring → Location services. You can save the shop now and set its location later, or enter the
           coordinates below.
         </p>
       )}

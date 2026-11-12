@@ -35,3 +35,6 @@ shots/
 *.njsproj
 *.sln
 *.sw?
+
+# Local demo HR login (personal details, not for the repo)
+src/config/hrLogin.js

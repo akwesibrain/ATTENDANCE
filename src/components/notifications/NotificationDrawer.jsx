@@ -20,6 +20,7 @@ import { RESULT_LABELS } from '../sales-monitoring/labels'
 import { StatusBadge, VerificationBadge } from '../attendance/AttendanceBadges'
 import { clockText } from '../attendance/format'
 import { formatAccraDate, formatAccraDateTime, formatAccraTime } from '../../utils/accraTime'
+import { formatDistance } from '../../utils/distance'
 import { NotificationStatusBadge, SeverityBadge } from './NotificationBadges'
 
 function Detail({ label, children }) {
@@ -38,7 +39,7 @@ function titleCase(value) {
 
 const NAV_FOR_CATEGORY = {
   attendance: { nav: 'attendance', label: 'Go to Attendance' },
-  'sales-monitoring': { nav: 'sales-monitoring', label: 'Go to Sales Rep Monitoring' },
+  'sales-monitoring': { nav: 'sales-monitoring', label: 'Go to Merchandiser Monitoring' },
   'employee-shift': { nav: 'employees', label: 'Go to Employees' },
   'system-data': { nav: 'attendance', label: 'Go to Attendance' },
 }
@@ -362,7 +363,7 @@ export default function NotificationDrawer({ notification, user, onClose, onChan
                 <Detail label="Liveness">{titleCase(smsEvent.livenessStatus)}</Detail>
                 <Detail label="GPS verification">{titleCase(smsEvent.gpsVerificationStatus)}</Detail>
                 <Detail label="Distance from shop">
-                  {smsEvent.distanceFromShop != null ? `${smsEvent.distanceFromShop} m (geofence ${shop?.geofenceRadius ?? 150} m)` : 'Not recorded'}
+                  {smsEvent.distanceFromShop != null ? `${formatDistance(smsEvent.distanceFromShop)} from the shop` : 'Not recorded'}
                 </Detail>
                 <Detail label="GPS accuracy">{smsEvent.gpsAccuracy != null ? `±${smsEvent.gpsAccuracy} m` : 'Not recorded'}</Detail>
                 <Detail label="Employee coordinates">Not stored; only the distance is kept</Detail>

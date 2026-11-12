@@ -582,3 +582,10 @@
   .me-grid { grid-template-columns: 1fr; }
   .me-table tbody tr { grid-template-columns: 1fr; }
 }
+
+/* Warehouse break fields in corrections */
+.at-breaks { border: 1px solid var(--rule); border-radius: var(--radius-md); padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; margin: 0; min-width: 0; }
+.at-breaks legend { padding: 0 4px; }
+.at-break-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: 10px; align-items: end; }
+.at-break-row .sh-form-label { display: flex; flex-direction: column; gap: 5px; }
+@media (max-width: 560px) { .at-break-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }

@@ -20,6 +20,8 @@ export const MODULES = [
   { id: 'sales-monitoring', label: 'Sales Rep Monitoring', levels: ['view', 'edit', 'export'] },
   { id: 'shops', label: 'Shop Directory', levels: ['view', 'create', 'edit'] },
   { id: 'reports', label: 'Reports & Analytics', levels: ['view', 'export'] },
+  // Frontend: Payroll module (see docs/backend-payroll.md for the server grants).
+  { id: 'payroll', label: 'Payroll', levels: ['view', 'edit', 'approve', 'export'] },
   { id: 'notifications', label: 'Notifications & Exceptions', levels: ['view', 'edit', 'manage'] },
   { id: 'settings', label: 'Settings', levels: ['view', 'edit', 'manage'] },
   { id: 'audit-logs', label: 'Audit Logs', levels: ['view', 'export'] },

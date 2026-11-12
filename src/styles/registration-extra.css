@@ -1,0 +1,24 @@
+/* Registration extras (frontend-only styles, kept out of registration.css to
+   avoid clashing with backend edits): company step "I also work for …" and
+   the shops step (1 to 7 shops). */
+.landing-also {
+  margin: 16px 0 0;
+  padding: 12px 14px;
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  background: var(--ground);
+}
+.landing-also-title { padding: 0 4px; font-size: 13.5px; font-weight: 700; color: var(--ink); }
+.landing-also-option {
+  display: flex; align-items: center; gap: 10px; min-height: 44px;
+  font-size: 14.5px; color: var(--ink); cursor: pointer;
+}
+.landing-also-option input { width: 20px; height: 20px; flex: none; accent-color: var(--accent); }
+.landing-also-note { margin: 6px 0 0; font-size: 13px; line-height: 1.5; color: var(--ink-2); }
+.landing-also + .landing-continue { margin-top: 16px; }
+
+/* Shops step: several new shops, and a full list (7 chosen). */
+.shop-new + .shop-new { margin-top: 10px; }
+.shop-fieldset .shop-new { margin-top: 12px; }
+.shop-new-title { margin: 0; font-size: 13.5px; font-weight: 700; color: var(--ink); }
+.shop-option.is-disabled { opacity: 0.45; cursor: not-allowed; }

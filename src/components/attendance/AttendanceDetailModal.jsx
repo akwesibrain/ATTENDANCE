@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { RESULT_LABELS } from '../sales-monitoring/labels'
 import { sourceLabel } from '../../constants/attendanceLabels'
-import { GEOFENCE_RADIUS_M } from '../../services/shopsService'
+import { formatDistance } from '../../utils/distance'
 import { DIGITAL_GO_LIVE_DATE } from '../../utils/attendanceRules'
 import {
   HISTORICAL_SOURCE_LABEL,
@@ -15,6 +15,8 @@ import {
   formatAccraTime,
 } from '../../utils/accraTime'
 import { formatTenure, tenureBetween } from '../../utils/tenure'
+import { CATEGORIES } from '../../constants/employeeCategories'
+import { VISIT_RESULT, outletLabel } from '../../services/fieldVisitsService'
 import { SourceTag, StatusBadge, VerificationBadge } from './AttendanceBadges'
 import { arrivalText, clockText, durationText, initials } from './format'
 
@@ -145,6 +147,7 @@ export default function AttendanceDetailModal({ record, canCorrect, onCorrect, o
               <Detail label="Employee ID">{r.employeeId}</Detail>
               <Detail label="Company">{r.companyName}</Detail>
               <Detail label="Job position">{r.position}</Detail>
+              <Detail label="Employee category">{CATEGORIES[r.category]?.single ?? '—'}</Detail>
               <Detail label="Phone number">{r.phone || '—'}</Detail>
               <Detail label="Date joined">
                 {r.joinedOn ? (
@@ -161,7 +164,7 @@ export default function AttendanceDetailModal({ record, canCorrect, onCorrect, o
             <h4 className="sm-section-title">Assignment</h4>
             <div className="sm-detail-grid">
               <Detail label="Assigned shop">
-                {r.shop ? r.shop.shopName : r.isFieldRole ? 'Not assigned' : 'Not applicable (office role)'}
+                {r.shop ? r.shop.shopName : r.isFieldRole ? 'Not assigned' : r.category === 'sales-rep' || r.category === 'supervisor' ? 'Not tied to one shop — visits several outlets' : 'Not applicable'}
               </Detail>
               <Detail label="Shop address">{r.shop?.addressLine || '—'}</Detail>
               <Detail label="Working hours">{r.schedule.startTime}–{r.schedule.endTime}</Detail>
@@ -192,7 +195,9 @@ export default function AttendanceDetailModal({ record, canCorrect, onCorrect, o
                       : '—'}
               </Detail>
               <Detail label="Working duration">
-                {r.clockOutUnknown || r.clockInUnknown ? 'Unknown' : durationText(r.workingMinutes)}
+                {r.clockOutUnknown || r.clockInUnknown ? 'Unknown' : r.breakIssue ? 'Needs review (break return not scanned)' : durationText(r.workingMinutes)}
+                {r.category === 'warehouse' && r.breakMinutes > 0 && !r.breakIssue && <span className="at-sub"> · excludes {durationText(r.breakMinutes)} break</span>}
+                {(r.category === 'sales-rep' || r.category === 'supervisor') && r.workingMinutes != null && <span className="at-sub"> · no scheduled break</span>}
               </Detail>
               <Detail label="Attendance source">{sourceLabel(r.source)}</Detail>
               {r.leave && (
@@ -203,6 +208,43 @@ export default function AttendanceDetailModal({ record, canCorrect, onCorrect, o
               {r.holidayName && <Detail label="Public holiday">{r.holidayName}</Detail>}
             </div>
           </section>
+
+          {r.category === 'warehouse' && (
+            <section className="sm-section">
+              <h4 className="sm-section-title">Breaks</h4>
+              {r.breaks.length === 0 ? (
+                <p className="sm-empty">No break scans on this day.</p>
+              ) : (
+                <div className="sm-detail-grid">
+                  {r.breaks.map((b, i) => (
+                    <Detail key={b.start} label={`Break ${r.breaks.length > 1 ? i + 1 : ''}`}>
+                      Out {formatAccraTime(b.start)} · back {b.end ? formatAccraTime(b.end) : <strong className="at-tone-warn">not scanned</strong>}
+                      {b.end && <span className="at-sub"> · {durationText(Math.round((Date.parse(b.end) - Date.parse(b.start)) / 60000))}</span>}
+                    </Detail>
+                  ))}
+                  <Detail label="Total break">{durationText(r.breakMinutes)}{r.onBreak && <span className="at-sub"> · on break now</span>}</Detail>
+                </div>
+              )}
+            </section>
+          )}
+
+          {(r.category === 'sales-rep' || r.category === 'supervisor') && (
+            <section className="sm-section">
+              <h4 className="sm-section-title">Outlet visits</h4>
+              {r.visits.length === 0 ? (
+                <p className="sm-empty">No outlet visits recorded on this day.</p>
+              ) : (
+                <div className="sm-detail-grid">
+                  {r.visits.map((v) => (
+                    <Detail key={v.id} label={formatAccraTime(v.time)}>
+                      {outletLabel(v.outlet)}
+                      <span className="at-sub"> · {VISIT_RESULT[v.verification?.status]?.short ?? '—'}{v.verification?.distance != null ? ` · ${v.verification.distance} m` : ''}</span>
+                    </Detail>
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
 
           {r.historical && (
             <section className="sm-section">
@@ -247,7 +289,7 @@ export default function AttendanceDetailModal({ record, canCorrect, onCorrect, o
               <Detail label="Location check">{r.gps.label}</Detail>
               <Detail label="Distance from assigned shop">
                 {r.distanceFromShop != null
-                  ? `${r.distanceFromShop} m (geofence ${r.shop?.geofenceRadius ?? GEOFENCE_RADIUS_M} m)`
+                  ? `${formatDistance(r.distanceFromShop)} from the shop`
                   : '—'}
               </Detail>
               <Detail label="GPS accuracy">

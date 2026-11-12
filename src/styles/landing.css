@@ -1,0 +1,132 @@
+/* ==========================================================================
+ * Landing page — 3D Soft Realism (matches the HR portal theme)
+ * White surfaces lit from above, layered soft shadows, tactile options that
+ * lift on hover and sink when pressed, and the Double A logo as a faint
+ * background watermark. Text ≥ 4.5:1; no movement under reduced motion.
+ * Scoped to .landing-page so the registration and check-in screens are not
+ * affected.
+ * ========================================================================== */
+
+.landing-page {
+  --ink-2: #3f4e66;
+  --accent: #1452a8;
+  --focus: #1452a8;
+  --l-edge: rgba(16, 42, 90, 0.08);
+  --l-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  --l-shadow: 0 1px 1px rgba(16, 42, 90, 0.06), 0 3px 6px rgba(16, 42, 90, 0.06), 0 18px 36px -12px rgba(16, 42, 90, 0.22);
+  --l-shadow-lift: 0 2px 2px rgba(16, 42, 90, 0.06), 0 10px 18px rgba(16, 42, 90, 0.08), 0 28px 44px -16px rgba(16, 42, 90, 0.28);
+  --l-blue-top: #1d68d6;
+  --l-blue-bottom: #1452a8;
+  --l-blue-edge: #0d3f86;
+
+  position: relative;
+  isolation: isolate;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background:
+    radial-gradient(1100px 560px at 85% -10%, rgba(29, 104, 214, 0.12), transparent 60%),
+    radial-gradient(900px 480px at -10% 110%, rgba(29, 104, 214, 0.09), transparent 60%),
+    linear-gradient(180deg, #eef3fb, #e2eaf6);
+}
+
+/* Double A logo watermark — fixed behind the content. */
+.landing-page::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: url('../assets/double-a-watermark.webp') no-repeat 50% 52%;
+  background-size: min(96vw, 1180px) auto;
+  opacity: 0.16;
+}
+@media print { .landing-page::before { display: none; } }
+
+/* Brand bar */
+.landing-page .registration-brand { color: var(--brand); }
+.landing-page .registration-brand-mark {
+  background: linear-gradient(180deg, var(--l-blue-top), var(--l-blue-bottom));
+  color: #fff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 2px 0 var(--l-blue-edge), 0 6px 12px rgba(20, 82, 168, 0.3);
+}
+
+/* The main card: slightly see-through so the logo shows faintly behind it. */
+.landing-page .card {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(245, 248, 253, 0.78));
+  border: 1px solid var(--l-edge);
+  border-radius: 24px;
+  box-shadow: var(--l-highlight), var(--l-shadow);
+}
+
+.landing-page .welcome-icon {
+  background: linear-gradient(180deg, var(--l-blue-top), var(--l-blue-bottom));
+  color: #fff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 3px 0 var(--l-blue-edge), 0 10px 20px -6px rgba(20, 82, 168, 0.5);
+}
+.landing-page .step-title { color: var(--brand); }
+.landing-page .step-description { color: var(--ink-2); }
+
+/* Options: tactile tiles */
+.landing-page .home-option {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(243, 247, 253, 0.82));
+  border: 1px solid #d3deee;
+  border-radius: 18px;
+  box-shadow: var(--l-highlight), 0 2px 0 #c9d6ea, 0 8px 16px -8px rgba(16, 42, 90, 0.2);
+}
+.landing-page .home-option:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, #d3deee);
+  box-shadow: var(--l-highlight), 0 2px 0 #c2d1e8, var(--l-shadow-lift);
+}
+.landing-page .home-option:active {
+  box-shadow: inset 0 2px 4px rgba(16, 42, 90, 0.1), inset 0 1px 1px rgba(16, 42, 90, 0.06);
+}
+.landing-page .home-option-icon {
+  background: radial-gradient(circle at 35% 30%, #ffffff, #dbe6f6 75%);
+  color: var(--accent);
+  box-shadow: inset 0 -2px 4px rgba(16, 42, 90, 0.08), 0 2px 6px rgba(16, 42, 90, 0.12);
+}
+.landing-page .home-option-title { color: var(--brand); }
+.landing-page .home-option-desc { color: var(--ink-2); }
+.landing-page .home-option-arrow { color: var(--accent); }
+
+@media (prefers-reduced-motion: no-preference) {
+  .landing-page .home-option {
+    transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.2s cubic-bezier(0.2, 0.8, 0.2, 1), border-color 0.2s;
+  }
+  .landing-page .home-option:hover { transform: translateY(-3px); }
+  .landing-page .home-option:active { transform: translateY(1px); }
+}
+
+.landing-page :focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+
+@media (max-width: 560px) {
+  .landing-page::before {
+    background-position: 50% 55%;
+    background-size: 150vw auto;
+  }
+}
+
+/* "Install the app" card on the home screen (phones). */
+.install-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 20px 0 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--rule);
+  border-radius: 14px;
+  background: var(--accent-soft);
+  color: var(--ink);
+}
+.install-card-icon { flex: none; border-radius: 10px; }
+.install-card-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; font-size: 14px; line-height: 1.4; }
+.install-card-text span { color: var(--ink-2); font-size: 13px; }
+.install-card-btn { flex: none; min-height: 44px; }
+
+/* Policy links under the home screen and elsewhere. */
+.legal-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 16px; margin: 16px 0 0; font-size: 13px; }
+.legal-links a { color: var(--ink-2); min-height: 32px; display: inline-flex; align-items: center; }
+.legal-links a:hover { color: var(--accent); }

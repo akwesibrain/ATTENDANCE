@@ -921,3 +921,15 @@
 .hr-subtab:hover { color: #1d4ed8; }
 .hr-subtab.is-active { color: #1d4ed8; border-bottom-color: #1d4ed8; }
 .hr-subtab:focus-visible { outline: 2px solid #1d4ed8; outline-offset: 2px; border-radius: 4px; }
+
+/* HR login form */
+.ac-form { display: flex; flex-direction: column; gap: 14px; }
+.ac-field { display: flex; flex-direction: column; gap: 6px; }
+.ac-field .sh-form-input { min-height: 46px; font-size: 16px; }
+.ac-password { display: flex; gap: 8px; }
+.ac-password .sh-form-input { flex: 1; min-width: 0; }
+.ac-show { min-width: 64px; }
+.ac-submit { min-height: 46px; width: 100%; }
+
+/* Report: employee category tabs */
+.hr-report-categories { margin: 4px 0 10px; flex-wrap: wrap; }
