@@ -285,3 +285,72 @@ export function trackingSessionRow(employee, event, closesAt, tokenHash) {
     token_hash: tokenHash,
   }
 }
+
+/* --------------------------------------------------------------------------
+ * Outlet visits (Sales Reps and Supervisors)
+ * ------------------------------------------------------------------------ */
+
+/** Failed visit face scans before visits are locked for the day. */
+export const MAX_VISIT_FACE_ATTEMPTS = 5
+
+const tidy = (value) => (typeof value === 'string' ? value.trim().replace(/\s+/g, ' ').slice(0, 120) : '')
+
+/**
+ * The outlet a visit is for: a shop from the directory, or a typed-in outlet.
+ * @returns {{ shopId: string } | { name: string, town: string } | { error: string }}
+ */
+export function parseVisitOutlet(body) {
+  const shopId = typeof body?.shopId === 'string' ? body.shopId.trim().slice(0, 200) : ''
+  if (shopId) return { shopId }
+  const outlet = body?.outlet && typeof body.outlet === 'object' ? body.outlet : null
+  if (!outlet) return { error: 'Choose the outlet you are visiting.' }
+  const name = tidy(outlet.name)
+  const town = tidy(outlet.town)
+  if (name.length < 2) return { error: 'Enter the outlet name.' }
+  if (town.length < 2) return { error: 'Enter the town or area.' }
+  return { name, town }
+}
+
+/** The phone's location at the visit, or null when it was not available. */
+export function parseVisitLocation(body) {
+  const l = body?.location
+  if (!l || typeof l.latitude !== 'number' || typeof l.longitude !== 'number') return null
+  if (!validCoords(l)) return null
+  const accuracy = Number(l.accuracy)
+  return { latitude: l.latitude, longitude: l.longitude, accuracy: Number.isFinite(accuracy) && accuracy >= 0 ? Math.round(accuracy) : null }
+}
+
+/**
+ * The outlet_visits row for a visit. It keeps how far the phone was from the
+ * shop, never the phone's coordinates.
+ */
+export function visitRow({ session, outlet, shop, listIds, location, score, now }) {
+  const shopId = outlet.shopId ?? null
+  return {
+    staff_id: session.staff_id,
+    company_id: session.company_id,
+    session_id: session.id,
+    date: session.date,
+    occurred_at: now.toISOString(),
+    shop_id: shopId,
+    outlet_name: shopId ? null : outlet.name,
+    outlet_town: shopId ? null : outlet.town,
+    on_list: Boolean(shopId && listIds.includes(shopId)),
+    status: location ? 'recorded' : 'location-unavailable',
+    distance_m: location && shop ? distanceMetres(location, shop) : null,
+    gps_accuracy: location?.accuracy ?? null,
+    face_score: Number.isFinite(score) ? score : null,
+  }
+}
+
+/** A stored visit in the shape the API and visitProof use. */
+export function visitFromRow(row) {
+  return {
+    id: row.id,
+    time: row.occurred_at,
+    outlet: { shopId: row.shop_id ?? null, name: row.outlet_name ?? null, town: row.outlet_town ?? null },
+    onList: row.on_list,
+    distanceM: row.distance_m ?? null,
+    status: row.status,
+  }
+}
