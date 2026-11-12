@@ -268,6 +268,7 @@ node scripts/smoke-hr-passwords.mjs   # password resets; uses the logged-in CLI,
 node scripts/smoke-shop-lists.mjs     # shop lists; uses the logged-in CLI, removes its shops, employees and accounts
 node scripts/smoke-live-tracker.mjs   # live tracking, Realtime and the daily report; removes what it creates
 node scripts/smoke-outlet-visits.mjs  # outlet visits; face checks run only when FACE_PROVIDER is faceapi
+node scripts/mobile-check.mjs         # phone layout: no sideways scroll, 44 px taps, 16 px text boxes; screenshots in mobile-screenshots/
 ```
 
 ### Swapping in real services
