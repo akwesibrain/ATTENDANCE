@@ -31,6 +31,7 @@ import {
 } from '../_shared/rules/settings.js'
 import { assertAllCompanies, assertCompany, type HrEnv, type HrUser, requireHr } from './auth.ts'
 import { hrEmployeeRoutes } from './employeeOnboarding.ts'
+import { hrAccessRoutes } from './hrAccess.ts'
 import { loadFacts, loadSettings, syncNotifications } from './facts.ts'
 import { ApiError, applyChange, db, found, invalid, later, must, rateLimit, readJson, sha256Hex } from './lib.ts'
 import { newDisplayId, randomToken } from '../_shared/rules/siteCode.js'
@@ -38,6 +39,7 @@ import { newDisplayId, randomToken } from '../_shared/rules/siteCode.js'
 export const hrRoutes = new Hono<HrEnv>()
 hrRoutes.use('*', requireHr)
 hrRoutes.route('/', hrEmployeeRoutes)
+hrRoutes.route('/', hrAccessRoutes)
 
 type Ctx = Context<HrEnv>
 // deno-lint-ignore no-explicit-any
