@@ -233,6 +233,56 @@ export const SCREENS = [
     name: 'hr-dashboard', path: '/hr#dashboard', hr: true,
     states: [{ name: 'default', setup: withHrSession, act: async (page) => { await page.waitForSelector('.hr-sidebar, .hr-nav', { timeout: 10000 }) } }],
   },
+  // The HR menu on phones: one bar with a menu button; the sections open in a panel.
+  {
+    name: 'hr-menu', path: '/hr#settings', hr: true, states: [
+      {
+        name: 'closed', setup: withHrSession, act: async (page) => {
+          await page.waitForSelector('.hr-menu-btn', { state: 'visible', timeout: 10000 })
+          if (await page.locator('.hr-sidebar .hr-nav').isVisible()) throw new Error('the sideways section strip is still shown')
+          if (!(await page.locator('.hr-current-title', { hasText: 'Settings' }).isVisible())) throw new Error('the bar does not name the current section')
+        },
+      },
+      {
+        name: 'open', setup: withHrSession, act: async (page) => {
+          await page.click('.hr-menu-btn')
+          const panel = page.getByRole('dialog', { name: /menu/i })
+          await panel.waitFor({ state: 'visible', timeout: 5000 })
+          for (const label of ['Dashboard', 'Employees', 'Attendance', 'Settings', 'Sign out', 'Exit']) {
+            if (!(await panel.getByRole('button', { name: label, exact: true }).first().isVisible())) throw new Error(`the menu has no ${label}`)
+          }
+          if ((await page.locator('.hr-menu-btn').getAttribute('aria-expanded')) !== 'true') throw new Error('the menu button does not say it is open')
+          if (!(await panel.getByRole('button', { name: 'Close menu' }).isVisible())) throw new Error('the menu has no visible close button')
+        },
+      },
+      {
+        name: 'close-button', setup: withHrSession, act: async (page) => {
+          await page.click('.hr-menu-btn')
+          const panel = page.getByRole('dialog', { name: /menu/i })
+          await panel.getByRole('button', { name: 'Close menu' }).click({ timeout: 5000 })
+          await panel.waitFor({ state: 'hidden', timeout: 5000 })
+        },
+      },
+      {
+        name: 'escape-closes', setup: withHrSession, act: async (page) => {
+          await page.click('.hr-menu-btn')
+          await page.getByRole('dialog', { name: /menu/i }).waitFor({ state: 'visible', timeout: 5000 })
+          await page.keyboard.press('Escape')
+          await page.getByRole('dialog', { name: /menu/i }).waitFor({ state: 'hidden', timeout: 5000 })
+          if (!(await page.evaluate(() => document.activeElement?.classList.contains('hr-menu-btn')))) throw new Error('focus did not return to the menu button')
+        },
+      },
+      {
+        name: 'pick-section', setup: withHrSession, act: async (page) => {
+          await page.click('.hr-menu-btn')
+          const panel = page.getByRole('dialog', { name: /menu/i })
+          await panel.getByRole('button', { name: 'Employees', exact: true }).click()
+          await panel.waitFor({ state: 'hidden', timeout: 5000 })
+          if (!(await page.locator('.hr-current-title', { hasText: 'Employees' }).isVisible())) throw new Error('picking a section did not open it')
+        },
+      },
+    ],
+  },
   // The other HR screens are kept per company: open Box For Less, as HR would.
   ...['employees', 'attendance', 'live-tracker', 'sales-monitoring', 'sales-rep-monitoring', 'reports', 'payroll', 'settings'].map((section) => ({
     name: `hr-${section}`, path: `/hr#${section}`, hr: true, states: [{

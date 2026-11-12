@@ -445,3 +445,199 @@
   min-width: 200px;
   margin: 18px auto 0;
 }
+
+/* ---------- Phones and small tablets: one bar and a slide-in menu ----------
+ * Below 900px the sidebar becomes a single bar: the logo, the current
+ * section, and a menu button. The sections, the company, Sign out and Exit
+ * open in a panel from the left (HrMenu). Desktop keeps the sidebar. */
+.hr-current-title,
+.hr-layout .hr-menu-btn {
+  display: none;
+}
+
+@media (max-width: 899px) {
+  .hr-layout {
+    flex-direction: column;
+  }
+  .hr-layout .hr-sidebar {
+    position: static;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+    width: auto;
+    height: auto;
+    margin: 10px 10px 0;
+    padding: 10px 12px;
+    border-radius: 18px;
+    max-width: calc(100% - 20px);
+  }
+  .hr-layout .hr-sidebar .hr-nav,
+  .hr-layout .hr-sidebar-footer {
+    display: none;
+  }
+  .hr-layout .hr-brand {
+    flex: none;
+    padding: 0;
+    border: 0;
+  }
+  .hr-layout .hr-brand-text span {
+    display: none;
+  }
+  .hr-current-title {
+    display: block;
+    flex: 1 1 auto;
+    min-width: 0;
+    text-align: center;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--brand);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .hr-layout .hr-menu-btn {
+    display: inline-grid;
+    place-items: center;
+    flex: none;
+    width: 44px;
+    height: 44px;
+  }
+  /* Sign out and Exit move into the menu. */
+  .hr-layout .hr-session-actions,
+  .hr-layout .hr-exit {
+    display: none;
+  }
+}
+
+@media (max-width: 420px) {
+  /* The logo alone leaves room for the section name. */
+  .hr-layout .hr-brand-text {
+    display: none;
+  }
+}
+
+.hr-drawer-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+}
+.hr-drawer-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(10, 25, 50, 0.45);
+  animation: hr-drawer-fade 0.18s ease-out;
+}
+.hr-drawer {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: min(320px, 86vw);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  background: linear-gradient(180deg, #ffffff, #f4f7fd);
+  border-radius: 0 22px 22px 0;
+  box-shadow: var(--s3d-highlight), var(--s3d-shadow-lift);
+  padding: max(14px, env(safe-area-inset-top, 0px)) 14px max(14px, env(safe-area-inset-bottom, 0px)) max(14px, env(safe-area-inset-left, 0px));
+  animation: hr-drawer-slide 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.hr-drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 2px 12px 6px;
+  border-bottom: 1px solid var(--rule);
+}
+/* Its own rule: on small phones hr.css hides .hr-icon-btn to drop the bell. */
+.hr-layout .hr-drawer-close {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 44px;
+  height: 44px;
+}
+.hr-drawer-title {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--brand);
+}
+.hr-drawer-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1 0 auto;
+  padding: 12px 0;
+}
+.hr-drawer-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  padding: 10px 14px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.hr-drawer-item:hover {
+  background: #f0f5fd;
+  color: var(--brand);
+}
+.hr-drawer-item.is-active {
+  background: linear-gradient(180deg, var(--s3d-blue-top), var(--s3d-blue-bottom));
+  color: #fff;
+  font-weight: 700;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 2px 0 var(--s3d-blue-edge), 0 8px 16px -4px rgba(20, 82, 168, 0.45);
+}
+.hr-drawer-item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.hr-drawer-foot {
+  display: grid;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--rule);
+}
+.hr-drawer-company {
+  display: grid;
+  gap: 2px;
+  padding: 0 6px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.hr-drawer-company span {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-2);
+}
+.hr-drawer-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.hr-drawer-actions .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+@keyframes hr-drawer-slide {
+  from { transform: translateX(-100%); }
+  to { transform: none; }
+}
+@keyframes hr-drawer-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hr-drawer,
+  .hr-drawer-backdrop {
+    animation: none;
+  }
+}

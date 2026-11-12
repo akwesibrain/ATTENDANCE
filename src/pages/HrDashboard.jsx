@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { COMPANIES } from '../constants/companies'
 import { listPayPeriods, payPeriodDates } from '../utils/payPeriod'
 import { accraTodayKey, formatAccraDate, formatAccraTime } from '../utils/accraTime'
@@ -22,6 +22,7 @@ import {
 import { listNotifications, unreadCount } from '../services/notificationsService'
 import EmployeeDirectory from '../components/hr/EmployeeDirectory'
 import AssignShopModal from '../components/hr/AssignShopModal'
+import HrMenu from '../components/hr/HrMenu'
 import { StatusBadge } from '../components/attendance/AttendanceBadges'
 import { SectionSkeleton } from '../components/common/Skeletons'
 import useScrollReveal from '../hooks/useScrollReveal'
@@ -147,6 +148,14 @@ function LiveClock() {
 
 function Icon({ name, size = 20 }) {
   const paths = {
+    menu: <path d="M4 6h16M4 12h16M4 18h16" />,
+    close: <path d="M6 6l12 12M18 6L6 18" />,
+    logout: (
+      <>
+        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+        <path d="M16 17l5-5-5-5M21 12H9" />
+      </>
+    ),
     grid: (
       <>
         <rect x="3" y="3" width="7" height="9" rx="1.5" />
@@ -372,6 +381,11 @@ function HrDashboardContent({ onBack, user }) {
     else if (!visibleNav.some((v) => v.id === n.group)) visibleNav.push({ ...GROUP_LABELS[n.group], id: n.group, target: n.id })
   }
   const navItem = NAV.find((n) => n.id === activeNav)
+  // The section shown in the phone bar, and the phone menu's open state.
+  const currentTitle = navItem?.group ? GROUP_LABELS[navItem.group].label : navItem?.label ?? 'Dashboard'
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuButtonRef = useRef(null)
+  const closeMenu = useCallback(() => setMenuOpen(false), [])
   const groupTabs = navItem?.group ? allowedNav.filter((n) => n.group === navItem.group) : []
   const permitted = Boolean(navItem) && can(user, navItem.module, 'view') && myCompanies.length > 0
   const today = accraTodayKey()
@@ -513,6 +527,20 @@ function HrDashboardContent({ onBack, user }) {
           </span>
         </div>
 
+        {/* Phones and small tablets: the current section and a menu button instead of the strip. */}
+        <span className="hr-current-title">{currentTitle}</span>
+        <button
+          type="button"
+          ref={menuButtonRef}
+          className="hr-icon-btn hr-menu-btn"
+          aria-label="Open menu"
+          aria-expanded={menuOpen}
+          aria-controls="hr-menu-panel"
+          onClick={() => setMenuOpen(true)}
+        >
+          <Icon name="menu" />
+        </button>
+
         <nav className="hr-nav" aria-label="HR sections">
           {visibleNav.map((item) => (
             <button
@@ -549,6 +577,44 @@ function HrDashboardContent({ onBack, user }) {
           </span>
         </div>
       </aside>
+
+      <HrMenu
+        open={menuOpen}
+        onClose={closeMenu}
+        returnFocusRef={menuButtonRef}
+        footer={(
+          <>
+            <span className="hr-drawer-company">
+              {isCombined ? myCompanies.map((c) => nameOf(c.id)).join(' & ') : company.name}
+              <span>{user.name} · {user.role}</span>
+            </span>
+            <div className="hr-drawer-actions">
+              <button type="button" className="btn btn-secondary" onClick={() => { closeMenu(); signOut() }}>
+                <Icon name="logout" size={18} /> Sign out
+              </button>
+              <button type="button" className="btn btn-secondary" onClick={() => { closeMenu(); onBack() }}>
+                Exit
+              </button>
+            </div>
+          </>
+        )}
+      >
+        {visibleNav.map((item) => {
+          const active = activeNav === item.id || navItem?.group === item.id
+          return (
+            <button
+              key={item.id}
+              type="button"
+              className={`hr-drawer-item${active ? ' is-active' : ''}`}
+              aria-current={active ? 'page' : undefined}
+              onClick={() => { closeMenu(); goTo(item.target ?? item.id) }}
+            >
+              <Icon name={item.icon} />
+              {item.label}
+            </button>
+          )
+        })}
+      </HrMenu>
 
       {/* Main */}
       <div className="hr-main">
