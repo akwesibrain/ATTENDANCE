@@ -1,23 +1,21 @@
 /** Employee routes. There is no login here, so every route is rate limited. */
 
 import { Hono } from 'npm:hono@4.6.14'
-import { compareFaces, EnrollmentOutdated, enrollFace, FaceServiceUnavailable, type FaceSample, UnusableFaceImage } from '../_shared/faceMatcher.ts'
+import { compareFaces, FaceServiceUnavailable } from '../_shared/faceMatcher.ts'
 import { accraDateKey } from '../_shared/rules/accraTime.js'
 import { attendanceGate, lockoutMessage, MAX_FACE_ATTEMPTS, normalizeStaffId } from '../_shared/rules/checkin.js'
 import { shopFromRow } from '../_shared/rules/facts.js'
-import { parseDescriptor } from '../_shared/rules/faceDescriptor.js'
-import { parseJpegDataUrl } from '../_shared/rules/facePhoto.js'
 import { holidayNameFor } from '../_shared/rules/holidays.js'
 import { checkGeofence, verificationResult } from '../_shared/rules/monitoring.js'
 import { isWorkingDay, overtimeHours } from '../_shared/rules/policy.js'
 import { parseRegistration, requiresShop } from '../_shared/rules/registration.js'
 import { checkSiteCode, makeSitePass, parseSiteCode, randomToken } from '../_shared/rules/siteCode.js'
 import { activeDisplay, type Site, siteFromPass } from './sites.ts'
+import { enrolNewFace, ENROLLMENT_BUCKET, faceSample, readable } from './enrolment.ts'
 import { attendanceRulesInForce, hoursInForce } from '../_shared/rules/settings.js'
 import { loadSettings, syncNotifications } from './facts.ts'
 import { ApiError, applyChange, clientIp, db, discardPhoto, found, invalid, later, must, rateLimit, readJson, rpc, sha256Hex, storePhoto } from './lib.ts'
 
-const ENROLLMENT_BUCKET = 'face-enrollment'
 const ATTENDANCE_BUCKET = 'attendance-photos'
 const NOT_FOUND = 'Staff ID not found. Check the ID and try again, or register first.'
 
@@ -34,28 +32,6 @@ const LIMITS = {
 } as const
 
 export const publicRoutes = new Hono()
-
-/** The photo, and the descriptor the phone worked out from it. */
-function faceSample(body: Record<string, unknown>): FaceSample {
-  const image = parseJpegDataUrl(body.faceImage)
-  if (!image) throw new ApiError(400, 'Face verification is required. Please capture your photo to continue.')
-  return { image, descriptor: parseDescriptor(body.faceDescriptor) }
-}
-
-async function readable<T>(action: () => Promise<T>): Promise<T> {
-  try {
-    return await action()
-  } catch (error) {
-    if (error instanceof UnusableFaceImage) throw new ApiError(422, error.message, { code: 'unusable-photo' })
-    if (error instanceof FaceServiceUnavailable) {
-      throw new ApiError(503, 'The face check is unavailable right now. Please try again in a moment.', { code: 'face-service' })
-    }
-    if (error instanceof EnrollmentOutdated) {
-      throw new ApiError(409, 'Your face photo needs to be registered again. Please contact HR.', { code: 'enrollment-outdated' })
-    }
-    throw error
-  }
-}
 
 async function loadEnrolledPhoto(path: string) {
   const { data, error } = await db.storage.from(ENROLLMENT_BUCKET).download(path)
@@ -151,11 +127,7 @@ publicRoutes.post('/employees/register', async (c) => {
   if (parsed.errors) throw invalid(parsed.errors)
   const form = parsed.value
 
-  const face = faceSample(body)
-  const photoPath = `${form.companyId}/${crypto.randomUUID()}.jpg`
-  const template = await readable(() => enrollFace(face, photoPath))
-
-  await storePhoto(ENROLLMENT_BUCKET, photoPath, face.image)
+  const { template, photoPath } = await enrolNewFace(body, form.companyId)
 
   let employee
   try {
