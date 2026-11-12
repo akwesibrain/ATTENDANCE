@@ -9,7 +9,8 @@
 import { Hono } from 'npm:hono@4.6.14'
 import { randomToken } from '../_shared/rules/siteCode.js'
 import { MAX_POINTS_PER_REQUEST, screenPoints, trackingSessionRow } from '../_shared/rules/tracking.js'
-import { ApiError, clientIp, db, must, rateLimit, rpc, sha256Hex } from './lib.ts'
+import { ApiError, clientIp, db, later, must, rateLimit, rpc, sha256Hex } from './lib.ts'
+import { closePastDays } from './trackingDays.ts'
 
 export const publicTrackingRoutes = new Hono()
 
@@ -106,6 +107,9 @@ publicTrackingRoutes.post('/tracking/points', async (c) => {
       p_latest: { latitude: newest.latitude, longitude: newest.longitude, accuracy: newest.accuracy, recorded_at: newest.recorded_at },
     })
   }
+
+  // Backup for the nightly job: each person's first batch of the day closes any past day still waiting.
+  if (!counted.count) later(closePastDays())
 
   return c.json({ accepted: body.points.length - rejected, rejected, sessionOpen: true })
 })

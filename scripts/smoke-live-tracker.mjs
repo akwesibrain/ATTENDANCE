@@ -223,6 +223,36 @@ try {
   const late = await call('POST', '/tracking/points', { points: [point(now - 2 * MIN)] }, expired)
   const ended = await sql(`select status, closed_reason from public.tracking_sessions where staff_id = '${rep3}'`)
   check('an expired session is refused and closed as day-end', late.status === 409 && ended[0]?.closed_reason === 'day-end', { late, ended })
+
+  /* Yesterday: the report summarises the day, then the trail is deleted */
+  const rep4 = await addRep(hr.token)
+  await sql(`update public.employees set joined_on = '2026-01-01', registered_at = '2026-01-01T08:00:00Z' where staff_id = '${rep4}'`)
+  const yesterday = accraDate(now - 24 * 60 * MIN)
+  const y9 = Date.parse(`${yesterday}T09:00:00Z`)
+  await checkIn(rep4, { clockInMs: y9, closesAtMs: y9 + 14 * 60 * MIN })
+  const ySession = (await sql(`select id from public.tracking_sessions where staff_id = '${rep4}'`))[0].id
+  const yPoints = Array.from({ length: 31 }, (_, m) => `('${ySession}', '${rep4}', '${BFL}', '${yesterday}', ${SHOP.latitude}, ${SHOP.longitude + 20 / METRES_PER_DEG_LNG}, 10, '${new Date(y9 + m * MIN).toISOString()}')`)
+  await sql(`insert into public.location_points (session_id, staff_id, company_id, date, latitude, longitude, accuracy, recorded_at) values ${yPoints.join(', ')}`)
+  await checkOut(rep4, y9 + 60 * MIN, yesterday)
+
+  const report = await call('GET', `/hr/tracking/reports/daily?companyId=${BFL}&date=${yesterday}`, undefined, hr.token)
+  const row = report.json?.rows?.find((r) => r.employeeId === rep4)
+  check('yesterday’s report has the employee’s summary', report.status === 200 && row?.trackedMinutes === 60 && Math.abs((row?.coverage ?? 0) - 0.583) < 0.01 && row?.signalLost === 1 && row?.result === 'poor', { status: report.status, row })
+  check('a 30-minute stay proves the listed shop', row?.shops?.proven === 1 && row?.shops?.listed === 1, row?.shops)
+  check('the report carries no coordinates', !/latitude|longitude/.test(JSON.stringify(report.json)))
+  const leftover = await sql(`select count(*)::int n from public.location_points where session_id = '${ySession}'`)
+  check('yesterday’s trail is deleted', leftover[0].n === 0, leftover)
+  const summary = await sql(`select shop_stays, shop_stays::text as raw from public.tracking_day_summaries where staff_id = '${rep4}' and date = '${yesterday}'`)
+  check('the summary keeps the stay minutes', summary.length === 1 && summary[0].shop_stays?.[SHOP_ID]?.longestMinutes === 30, summary)
+  check('the summary keeps no coordinates', summary.length === 1 && !/latitude|longitude/.test(summary[0].raw), summary)
+
+  const today = await call('GET', `/hr/tracking/reports/daily?companyId=${BFL}&date=${accraDate(now)}`, undefined, hr.token)
+  const todayRow = today.json?.rows?.find((r) => r.employeeId === rep)
+  check('today’s report is worked out live', today.status === 200 && todayRow?.result !== 'not-clocked-in' && todayRow?.points >= 3, todayRow)
+  const future = await call('GET', `/hr/tracking/reports/daily?companyId=${BFL}&date=2099-01-01`, undefined, hr.token)
+  check('a future date is refused', future.status === 400, future)
+  const daa = await makeHr('daa', [DAA])
+  check('another company’s HR cannot read the report', (await call('GET', `/hr/tracking/reports/daily?companyId=${BFL}&date=${yesterday}`, undefined, daa.token)).status === 403)
 } finally {
   await cleanUp()
 }

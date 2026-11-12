@@ -23,7 +23,7 @@ const PAGE = 1000
 
 /** Every matching row, however many pages that takes. */
 // deno-lint-ignore no-explicit-any
-async function allRows(table: string, order: string, filter: (query: any) => any = (q) => q): Promise<any[]> {
+export async function allRows(table: string, order: string, filter: (query: any) => any = (q) => q): Promise<any[]> {
   // deno-lint-ignore no-explicit-any
   const rows: any[] = []
   for (let from = 0; ; from += PAGE) {

@@ -33,6 +33,7 @@ import { assertAllCompanies, assertCompany, type HrEnv, type HrUser, requireHr }
 import { hrEmployeeRoutes } from './employeeOnboarding.ts'
 import { hrAccessRoutes } from './hrAccess.ts'
 import { hrPasswordRoutes } from './hrPasswords.ts'
+import { hrTrackingRoutes } from './trackingDays.ts'
 import { currentShopList, firstShopOps, hrShopListRoutes, shopListOps } from './hrShopLists.ts'
 import { needsShopList } from '../_shared/rules/categories.js'
 import { loadFacts, loadSettings, syncNotifications } from './facts.ts'
@@ -45,6 +46,7 @@ hrRoutes.route('/', hrEmployeeRoutes)
 hrRoutes.route('/', hrAccessRoutes)
 hrRoutes.route('/', hrPasswordRoutes)
 hrRoutes.route('/', hrShopListRoutes)
+hrRoutes.route('/', hrTrackingRoutes)
 
 type Ctx = Context<HrEnv>
 // deno-lint-ignore no-explicit-any

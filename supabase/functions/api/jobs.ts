@@ -8,6 +8,7 @@ import { buildRecord, outsideEmployment, shiftWindowMinutes } from '../_shared/r
 import { hoursInForce } from '../_shared/rules/settings.js'
 import { loadFacts, loadSettings, syncNotifications } from './facts.ts'
 import { ApiError, applyChange, db, found, must, sha256Hex } from './lib.ts'
+import { closePastDays } from './trackingDays.ts'
 
 export const jobRoutes = new Hono()
 
@@ -156,6 +157,9 @@ jobRoutes.post('/close-missed', async (c) => {
   }
   return c.json({ closed: expired.length })
 })
+
+/** Summarise each past day's location trail, then delete it. */
+jobRoutes.post('/tracking-close-day', async (c) => c.json({ days: await closePastDays() }))
 
 jobRoutes.post('/sync-notifications', async (c) => {
   const result = await syncNotifications()
