@@ -226,6 +226,39 @@ export function detectFromRoster(emp, push, shopsById) {
   }
 }
 
+const TRACKING_FLAG_TEXT = {
+  mock: {
+    type: 'tracking-mock-location',
+    what: (n) => `${n} location${n === 1 ? '' : 's'} reported by a fake-location app`,
+  },
+  speed: {
+    type: 'tracking-impossible-speed',
+    what: (n) => `${n} location${n === 1 ? '' : 's'} implying movement faster than 200 km/h`,
+  },
+}
+
+/**
+ * Live tracking flags (fake locations, impossible speeds), one alert per
+ * person, day and kind. A flag is a reason for HR to ask, never misconduct.
+ * @param {Array} flags tracking_flags rows
+ */
+export function detectTrackingFlags(flags, push, rosterById) {
+  flags.forEach((flag) => {
+    const emp = rosterById.get(flag.staff_id)
+    const text = TRACKING_FLAG_TEXT[flag.kind]
+    if (!emp || !text) return
+    push({
+      ...whoFrom(emp),
+      relatedDate: flag.date,
+      sourceKey: `tracking-${flag.kind}:${flag.staff_id}:${flag.date}`,
+      type: text.type,
+      severity: 'high',
+      description: `Live tracking for ${emp.fullName} on ${dayText(flag.date)} recorded ${text.what(flag.points)}, between ${formatAccraTime(flag.first_at)} and ${formatAccraTime(flag.last_at)}. This is a reason to ask, not proof of misconduct. Attendance is not changed.`,
+      occurredAt: flag.first_at,
+    })
+  })
+}
+
 /** @param {Array} entries correction history, each with employeeId and date */
 export function detectCorrections(entries, push, rosterById) {
   const batches = new Map()

@@ -26,6 +26,8 @@ export const NOTIFICATION_TYPES = {
   'outside-geofence': { category: 'sales-monitoring', label: 'Outside assigned shop geofence', severity: 'high', kind: 'exception' },
   'mobile-data-unavailable': { category: 'sales-monitoring', label: 'Mobile data unavailable during verification', severity: 'medium', kind: 'exception' },
   'rep-no-shop': { category: 'sales-monitoring', label: 'Sales representative has no assigned shop', severity: 'high', kind: 'exception' },
+  'tracking-mock-location': { category: 'sales-monitoring', label: 'Fake location reported', severity: 'high', kind: 'exception' },
+  'tracking-impossible-speed': { category: 'sales-monitoring', label: 'Impossible movement speed', severity: 'high', kind: 'exception' },
   // Employee & Shop (no-shift / shift-review are kept only so older
   // notifications still display; they are no longer raised.)
   'no-shift': { category: 'employee-shift', label: 'No assigned shift', severity: 'medium', kind: 'exception' },

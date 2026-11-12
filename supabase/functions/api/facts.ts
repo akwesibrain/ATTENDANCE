@@ -9,7 +9,7 @@ import {
   shopFromRow,
 } from '../_shared/rules/facts.js'
 import {
-  detectCorrections,
+  detectCorrections, detectTrackingFlags,
   detectFromRecord,
   detectFromRoster,
   planNotificationSync,
@@ -102,6 +102,11 @@ export async function syncNotifications(now = new Date()) {
     (q: any) => q.gte('changed_at', since),
   )
   detectCorrections(history.map(correctionHistoryFromRow), push, new Map(roster.map((e) => [e.employeeId, e])))
+
+  // Live tracking flags outlive the deleted trail, so alerts stay after the day.
+  // deno-lint-ignore no-explicit-any
+  const trackingFlags = await allRows('tracking_flags', 'date', (q: any) => q.gte('date', dates[0]).lte('date', today))
+  detectTrackingFlags(trackingFlags, push, new Map(roster.map((e) => [e.employeeId, e])))
 
   const [existing, reviews] = await Promise.all([
     allRows('notifications', 'id'),
