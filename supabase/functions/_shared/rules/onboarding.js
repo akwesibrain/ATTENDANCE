@@ -11,6 +11,8 @@ export const FACE_LINK_HOURS = 168
 export const HR_INVITE_HOURS = 24
 export const PASSWORD_RESET_HOURS = 24
 export const MIN_PASSWORD_LENGTH = 12
+// The sign-in service refuses passwords over 72 bytes.
+export const MAX_PASSWORD_LENGTH = 72
 
 export const LINK_UNUSABLE = 'This link has expired or was already used. Ask HR for a new one.'
 
@@ -60,6 +62,7 @@ export function validateNewPassword(password, confirm) {
   if (typeof password !== 'string' || password.length < MIN_PASSWORD_LENGTH) {
     return `Use at least ${MIN_PASSWORD_LENGTH} characters.`
   }
+  if (new TextEncoder().encode(password).length > MAX_PASSWORD_LENGTH) return `Use at most ${MAX_PASSWORD_LENGTH} characters.`
   if (password !== confirm) return 'The two passwords do not match.'
   return ''
 }
@@ -101,8 +104,18 @@ export function passwordResetRefusal({ actorId, target }) {
 // No 0/O, 1/l/I: the password is read off a screen and typed by hand.
 const TEMP_ALPHABET = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 
-/** A random temporary password like "iNQw-CAha-jnrs-eSHS" (about 92 bits). */
+/**
+ * A random temporary password like "iNQw-CAh4-jnrs-eSHS" (about 92 bits), always
+ * with lower case, upper case and a digit so it passes any character rule.
+ */
 export function temporaryPassword() {
+  for (;;) {
+    const password = randomPassword()
+    if (/[a-z]/.test(password) && /[A-Z]/.test(password) && /[2-9]/.test(password)) return password
+  }
+}
+
+function randomPassword() {
   const limit = 256 - (256 % TEMP_ALPHABET.length)
   const chars = []
   while (chars.length < 16) {

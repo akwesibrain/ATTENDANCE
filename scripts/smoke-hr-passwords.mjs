@@ -129,6 +129,13 @@ async function cleanUp() {
     delete from public.rate_limits where bucket like 'own-password:%' or bucket like 'password-reset:%';`)
 }
 
+/** How many companies a token can read straight from the database, past the API. */
+async function directRows(token) {
+  const response = await fetch(`${URL_BASE}/rest/v1/companies?select=id`, { headers: { apikey: KEY, authorization: `Bearer ${token}` } })
+  const rows = await response.json().catch(() => null)
+  return Array.isArray(rows) ? rows.length : -1
+}
+
 const factorCount = async (id) => (await sql(`select count(*)::int n from auth.mfa_factors where user_id = '${id}'`))[0].n
 
 const startedAt = new Date().toISOString()
@@ -148,15 +155,20 @@ try {
   check('a password-only session cannot reset anyone', (await call('POST', `/hr/users/${actor.id}/password-reset`, { mode: 'temporary' }, noMfa.token)).status === 403)
 
   /* Reset by link */
+  check('before a reset, the target reads the database directly', (await directRows(target.token)) > 0)
   const linked = await call('POST', `/hr/users/${target.id}/password-reset`, { mode: 'link' }, A)
   check('a reset link is created', linked.status === 200 && linked.json?.token?.length > 16, linked)
   check('the target’s old session ends', (await call('GET', '/hr/me', undefined, target.token)).status === 401)
+  check('the old session cannot read the database directly either', (await directRows(target.token)) === 0)
   check('the old password stops working', Boolean((await signIn(target.email, target.password)).error))
   const token = linked.json.token
   const page = await call('GET', `/public/password-reset/${token}`)
   check('the reset page shows who it is for', page.status === 200 && page.json.email === target.email, page)
   const short = await call('POST', `/public/password-reset/${token}`, { password: 'short', confirm: 'short' })
   check('a short password is refused', short.status === 400, short)
+  const tooLong = 'x'.repeat(73)
+  const long = await call('POST', `/public/password-reset/${token}`, { password: tooLong, confirm: tooLong })
+  check('a password over 72 characters gets the right advice', long.status === 400 && /at most 72/.test(long.json?.errors?.password ?? ''), long)
   const newPassword = randomBytes(12).toString('base64url')
   const done = await call('POST', `/public/password-reset/${token}`, { password: newPassword, confirm: newPassword })
   check('the link sets the new password', done.status === 200 && done.json.email === target.email, done)
@@ -172,6 +184,7 @@ try {
   check('the temporary password signs in', !(await signIn(target.email, temp.json.password)).error)
   check('an open reset link stops working after a temporary password', (await call('GET', `/public/password-reset/${second}`)).status === 404)
   check('the earlier session ends after a temporary password', (await call('GET', '/hr/me', undefined, relogged.token)).status === 401)
+  check('and cannot read the database directly', (await directRows(relogged.token)) === 0)
 
   /* Authenticator reset */
   const beforeFactors = await factorCount(target.id)
@@ -197,6 +210,8 @@ try {
   const stay = await call('GET', '/hr/me', undefined, A)
   check('you stay signed in after changing it', stay.status === 200, stay)
   check('your other devices are signed out', (await call('GET', '/hr/me', undefined, otherDevice.token)).status === 401)
+  check('your other devices cannot read the database directly', (await directRows(otherDevice.token)) === 0)
+  check('this device still reads the database', (await directRows(A)) > 0)
   check('the new password signs in', !(await signIn(actor.email, mine)).error)
   check('the old password stops working', Boolean((await signIn(actor.email, actor.password)).error))
 

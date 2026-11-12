@@ -44,7 +44,8 @@ async function setPassword(userId: string, password: string) {
   const { error } = await db.auth.admin.updateUserById(userId, { password })
   if (!error) return
   console.error('password update failed', userId, error.message)
-  if (/password/i.test(error.message)) throw invalid({ password: 'That password was not accepted. Try a longer one.' })
+  // Weak, leaked or too-long passwords: Supabase's own message says what to change.
+  if (error.status === 422 || /password/i.test(error.message)) throw invalid({ password: `That password was not accepted: ${error.message}` })
   throw new ApiError(500, 'Could not change the password. Please try again.')
 }
 

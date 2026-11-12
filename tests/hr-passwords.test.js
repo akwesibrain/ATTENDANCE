@@ -130,3 +130,21 @@ describe('changeMyPassword', () => {
     expect(submit).not.toHaveBeenCalled()
   })
 })
+
+describe('final review fixes', () => {
+  it('refuses passwords longer than the sign-in service accepts', () => {
+    const long = 'x'.repeat(73)
+    expect(validateNewPassword(long, long)).toBe('Use at most 72 characters.')
+    const max = 'x'.repeat(72)
+    expect(validateNewPassword(max, max)).toBe('')
+  })
+
+  it('makes temporary passwords with lower case, upper case and a digit', () => {
+    for (let i = 0; i < 300; i += 1) {
+      const password = temporaryPassword()
+      expect(password).toMatch(/[a-z]/)
+      expect(password).toMatch(/[A-Z]/)
+      expect(password).toMatch(/[2-9]/)
+    }
+  })
+})
