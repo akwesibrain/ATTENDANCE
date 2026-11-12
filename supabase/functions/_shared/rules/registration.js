@@ -11,6 +11,7 @@ import {
 } from './validation.js'
 import { accraTodayKey } from './accraTime.js'
 import { isDateKey } from './tenure.js'
+import { MAX_SHOPS, isFieldSupervisor, needsShopList } from './categories.js'
 
 /** The only three ways the company pays salaries. */
 export const PAYMENT_METHODS = [
@@ -44,11 +45,15 @@ export function validatePersonalInformation(data) {
   }
 }
 
-export function validateJobPosition(data) {
+/**
+ * @param {{ allowFieldSupervisor?: boolean }} options HR may give the three
+ *   field supervisor titles; nobody may self-assign them.
+ */
+export function validateJobPosition(data, { allowFieldSupervisor = false } = {}) {
   const position = data.position?.trim() ?? ''
   if (!position) return 'Please enter your job position to continue.'
   if (position.length < 2) return 'Job position must be at least 2 characters.'
-  if (isPrivilegedPosition(position)) {
+  if (isPrivilegedPosition(position) && !(allowFieldSupervisor && isFieldSupervisor(position))) {
     return 'Administrator, HR and supervisor roles cannot be self-assigned. Enter your operational job title, or contact HR if you believe this is a mistake.'
   }
   return ''
@@ -84,6 +89,57 @@ const MAX_FIELD_LENGTH = 200
 const text = (value) => (typeof value === 'string' ? value.trim().slice(0, MAX_FIELD_LENGTH) : '')
 const nonEmpty = (errors) => Object.fromEntries(Object.entries(errors).filter(([, message]) => message))
 
+const SHOP_REQUIRED = 'An allocated shop is required for this position. Select one, or add a new shop.'
+const TOO_MANY_SHOPS = `Choose at most ${MAX_SHOPS} shops.`
+
+function tidyNewShop(raw) {
+  const shop = raw && typeof raw === 'object' ? raw : {}
+  return {
+    shopName: clean(text(shop.shopName)),
+    town: clean(text(shop.town)),
+    area: clean(text(shop.area)),
+    address: clean(text(shop.address)),
+  }
+}
+
+/**
+ * A field employee's 1 to MAX_SHOPS shops: shops picked from the company's
+ * list (`assignedShopIds`) and shops to create (`newShops`). Falls back to the
+ * old single-shop fields when both lists are empty. Whether the picked shops
+ * belong to the company is checked by the server against the database.
+ * @returns {{ shopIds: string[], newShops: object[] } | { error: string }}
+ */
+export function parseShopList(input) {
+  const body = input && typeof input === 'object' ? input : {}
+  // Read one more than allowed, so a huge array is never walked.
+  const picked = Array.isArray(body.assignedShopIds) ? body.assignedShopIds.slice(0, MAX_SHOPS * 4) : []
+  const added = Array.isArray(body.newShops) ? body.newShops.slice(0, MAX_SHOPS + 1) : []
+  let shopIds = [...new Set(picked.filter((id) => typeof id === 'string').map((id) => text(id)).filter(Boolean))]
+  let newShops = added.map(tidyNewShop)
+
+  if (!shopIds.length && !newShops.length) {
+    if (body.shopMode === 'new') newShops = [tidyNewShop(body.newShop)]
+    else if (text(body.assignedShopId)) shopIds = [text(body.assignedShopId)]
+  }
+  if (!shopIds.length && !newShops.length) return { error: SHOP_REQUIRED }
+  if (shopIds.length + newShops.length > MAX_SHOPS) return { error: TOO_MANY_SHOPS }
+  for (const shop of newShops) {
+    const problems = Object.values(validateNewShop(shop))
+    if (problems.length) return { error: problems[0] }
+  }
+  return { shopIds, newShops }
+}
+
+/** The list with its first shop replaced by shopId (which leaves any later place). */
+export function replaceFirstShop(list, shopId) {
+  return [shopId, ...list.slice(1).filter((id) => id !== shopId)]
+}
+
+/** Whether two shop lists are the same, in the same order. */
+export function sameShopList(a, b) {
+  return a.length === b.length && a.every((id, index) => id === b[index])
+}
+
 /**
  * Check a registration request and tidy its fields. New shops never carry
  * coordinates from here: only HR can confirm where a shop is.
@@ -93,7 +149,7 @@ const nonEmpty = (errors) => Object.fromEntries(Object.entries(errors).filter(([
  * @param {{ faceRequired?: boolean }} options faceRequired is false only when
  *   HR adds an employee without a face; consent is then given at face setup.
  */
-export function parseRegistration(body, { faceRequired = true } = {}) {
+export function parseRegistration(body, { faceRequired = true, addedByHr = false } = {}) {
   const input = body && typeof body === 'object' ? body : {}
   const data = {
     companyId: text(input.companyId),
@@ -111,7 +167,7 @@ export function parseRegistration(body, { faceRequired = true } = {}) {
 
   const errors = nonEmpty({
     ...validatePersonalInformation(data),
-    position: validateJobPosition(data),
+    position: validateJobPosition(data, { allowFieldSupervisor: addedByHr }),
   })
   if (!data.companyId) errors.companyId = 'No company selected. Please go back and select your company.'
   if (!PAYMENT_METHODS.some((method) => method.id === data.paymentMethod)) {
@@ -121,28 +177,17 @@ export function parseRegistration(body, { faceRequired = true } = {}) {
     errors.biometricConsent = 'Biometric consent is required to register.'
   }
 
-  let shopId = null
-  let newShop = null
-  if (requiresShop(data.position)) {
-    if (input.shopMode === 'new') {
-      const raw = input.newShop && typeof input.newShop === 'object' ? input.newShop : {}
-      newShop = {
-        shopName: clean(text(raw.shopName)),
-        town: clean(text(raw.town)),
-        area: clean(text(raw.area)),
-        address: clean(text(raw.address)),
-      }
-      const shopErrors = validateNewShop(newShop)
-      if (Object.keys(shopErrors).length) errors.shop = Object.values(shopErrors)[0]
-    } else {
-      shopId = text(input.assignedShopId) || null
-      if (!shopId) errors.shop = 'An allocated shop is required for this position. Select one, or add a new shop.'
-    }
+  let shopIds = []
+  let newShops = []
+  if (needsShopList(data.position)) {
+    const shops = parseShopList(input)
+    if (shops.error) errors.shop = shops.error
+    else ({ shopIds, newShops } = shops)
   }
 
   if (Object.keys(errors).length) return { errors }
   const fullName = [data.firstName, data.middleName, data.lastName].filter(Boolean).join(' ')
-  return { value: { ...data, fullName, shopId, newShop } }
+  return { value: { ...data, fullName, shopIds, newShops } }
 }
 
 /** The details HR can change after registration. */
