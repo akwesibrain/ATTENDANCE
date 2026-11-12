@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { detectVisitIssues } from '../supabase/functions/_shared/rules/notifications.js'
+import { detectVisitIssues, planNotificationSync } from '../supabase/functions/_shared/rules/notifications.js'
 import { NOTIFICATION_TYPES } from '../supabase/functions/_shared/rules/notificationTypes.js'
 
 const employee = { employeeId: 'BFL-0007', fullName: 'Ama Owusu', companyId: 'box-for-less', companyName: 'Box For Less', position: 'Sales Representative' }
@@ -15,7 +15,7 @@ function run(days) {
 
 describe('visit alerts', () => {
   it('waits for the end of the day before saying a visit was not proven', () => {
-    const day = { employee, date: '2026-11-12', proof: proof({ listed: [listed('s1', 'no-stay')] }) }
+    const day = { employee, date: '2026-11-12', clockedIn: true, tracked: true, proof: proof({ listed: [listed('s1', 'no-stay')] }) }
     expect(run([{ ...day, dayOver: false }])).toEqual([])
     const [issue] = run([{ ...day, dayOver: true }])
     expect(issue.type).toBe('visit-not-proven')
@@ -25,20 +25,36 @@ describe('visit alerts', () => {
   })
 
   it('raises a missed shop only after the day', () => {
-    const day = { employee, date: '2026-11-12', proof: proof({ listed: [listed('s2', 'missed')] }) }
+    const day = { employee, date: '2026-11-12', clockedIn: true, tracked: true, proof: proof({ listed: [listed('s2', 'missed')] }) }
     expect(run([{ ...day, dayOver: true }]).map((i) => [i.type, i.sourceKey])).toEqual([['shop-missed', 'visit-missed:BFL-0007:2026-11-12:s2']])
   })
 
   it('raises off-list and typed-in visits straight away, keyed by visit', () => {
-    const day = { employee, date: '2026-11-12', dayOver: false, proof: proof({ offList: [{ visit: visit('v1', 's9'), status: 'off-list' }, { visit: visit('v2', null, 'Mama Shop'), status: 'not-in-list' }] }) }
+    const day = { employee, date: '2026-11-12', dayOver: false, clockedIn: true, tracked: false, proof: proof({ offList: [{ visit: visit('v1', 's9'), status: 'off-list' }, { visit: visit('v2', null, 'Mama Shop'), status: 'not-in-list' }] }) }
     const issues = run([day])
     expect(issues.map((i) => [i.type, i.sourceKey])).toEqual([['visit-off-list', 'visit-off-list:v1'], ['visit-off-list', 'visit-off-list:v2']])
     expect(issues[1].description).toContain('Mama Shop')
   })
 
   it('raises nothing for proven, pending or unmeasured shops', () => {
-    const day = { employee, date: '2026-11-12', dayOver: true, proof: proof({ listed: [listed('a', 'proven'), listed('b', 'pending'), listed('c', 'unmeasured')] }) }
+    const day = { employee, date: '2026-11-12', dayOver: true, clockedIn: true, tracked: true, proof: proof({ listed: [listed('a', 'proven'), listed('b', 'pending'), listed('c', 'unmeasured')] }) }
     expect(run([day])).toEqual([])
+  })
+
+  it('raises nothing for a day the person did not clock in: rest day, leave, holiday (final review: Critical 1)', () => {
+    const day = { employee, date: '2026-11-10', dayOver: true, clockedIn: false, tracked: false, proof: proof({ listed: [listed('s1', 'missed'), listed('s2', 'missed')] }) }
+    expect(run([day])).toEqual([])
+  })
+
+  it('never says a shop was missed or unproven when there is no tracking for the day', () => {
+    const day = { employee, date: '2026-11-10', dayOver: true, clockedIn: true, tracked: false, proof: proof({ listed: [listed('s1', 'missed'), listed('s2', 'no-stay')] }) }
+    expect(run([day])).toEqual([])
+  })
+
+  it('clears a missed-shop alert raised before this fix once it is no longer detected', () => {
+    const existing = [{ id: 'n1', company_id: 'box-for-less', type: 'shop-missed', related_date: '2026-11-10', source_key: 'visit-missed:BFL-0007:2026-11-10:s1', status: 'new', condition_cleared_at: null }]
+    const plan = planNotificationSync({ existing, issues: [], scannedDates: new Set(['2026-11-10']), preferences: {}, reviews: new Map(), nowIso: '2026-11-12T12:00:00Z' })
+    expect(plan.updates.find((u) => u.id === 'n1')?.patch.condition_cleared_at).toBe('2026-11-12T12:00:00Z')
   })
 
   it('registers the three types under Sales Rep Monitoring', () => {

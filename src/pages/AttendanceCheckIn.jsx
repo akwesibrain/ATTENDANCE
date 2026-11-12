@@ -481,7 +481,7 @@ export default function AttendanceCheckIn({ onBack }) {
             </p>
 
             <div className="success-actions">
-              {result.type === 'check-in' && result.trackingToken && trackingSession() && (
+              {result.type === 'check-in' && result.trackingToken && trackingSession()?.canRecordVisits && (
                 <a className="btn btn-secondary" href="/visit">Record a visit</a>
               )}
               <button type="button" className="btn btn-primary" onClick={onBack}>

@@ -120,11 +120,16 @@ const PAGE = 1000
 
 /** Every row of a table, in pages, in a fixed order. */
 // deno-lint-ignore no-explicit-any
-export async function allRows(table: string, order: string, filter: (query: any) => any = (q) => q): Promise<any[]> {
+export async function allRows(table: string, order: string | string[], filter: (query: any) => any = (q) => q): Promise<any[]> {
   // deno-lint-ignore no-explicit-any
   const rows: any[] = []
+  // Paging needs a unique order, or rows can be skipped or repeated between pages:
+  // pass a tie-breaker column when the first one has repeats.
+  const columns = Array.isArray(order) ? order : [order]
   for (let from = 0; ; from += PAGE) {
-    const page = await must(filter(db.from(table).select('*')).order(order).range(from, from + PAGE - 1)) as unknown[]
+    let query = filter(db.from(table).select('*'))
+    for (const column of columns) query = query.order(column)
+    const page = await must(query.range(from, from + PAGE - 1)) as unknown[]
     rows.push(...page)
     if (page.length < PAGE) return rows
   }

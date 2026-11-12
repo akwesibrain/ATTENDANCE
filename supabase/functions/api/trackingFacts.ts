@@ -30,7 +30,7 @@ export const asPoint = (p: Row) => ({ latitude: p.latitude, longitude: p.longitu
 export async function listsFor(staffIds: string[]) {
   const lists = new Map<string, string[]>()
   if (!staffIds.length) return lists
-  const rows = await allRows('employee_shops', 'position', (q: Row) => q.in('staff_id', staffIds))
+  const rows = await allRows('employee_shops', ['staff_id', 'position'], (q: Row) => q.in('staff_id', staffIds))
   rows.forEach((row: Row) => {
     const list = lists.get(row.staff_id) ?? []
     list.push(row.shop_id)
@@ -62,7 +62,7 @@ function fromSummaryRow(row: Row): DaySummary {
 async function liveSummaries(staffIds: string[], date: string, now: Date, lists: Map<string, string[]>, shops: Map<string, Shop>) {
   const [sessions, points] = await Promise.all([
     found(db.from('tracking_sessions').select('id, staff_id, clock_in_at, clock_out_at, closes_at').in('staff_id', staffIds).eq('date', date)),
-    allRows('location_points', 'recorded_at', (q: Row) => q.in('staff_id', staffIds).eq('date', date)),
+    allRows('location_points', ['recorded_at', 'id'], (q: Row) => q.in('staff_id', staffIds).eq('date', date)),
   ])
   const bySession = new Map<string, Row[]>()
   points.forEach((p: Row) => {
@@ -85,8 +85,10 @@ async function liveSummaries(staffIds: string[], date: string, now: Date, lists:
 /**
  * The tracking side of each attendance record. Records need `employeeId`,
  * `date`, `category`, `clockIn`, `clockOut`, `isToday` and `expectedEnd`.
+ * With `live: false`, today's summaries are not worked out from the trail
+ * (cheaper; used where only visits outside the list are needed).
  */
-export async function loadTrackingDays(records: Row[], now: Date) {
+export async function loadTrackingDays(records: Row[], now: Date, { live = true } = {}) {
   if (!records.length) return []
   const today = accraDateKey(now)
   const staffIds = [...new Set(records.map((r) => r.employeeId as string))]
@@ -95,9 +97,9 @@ export async function loadTrackingDays(records: Row[], now: Date) {
 
   const [lists, visitRows, savedRows, expiredRows] = await Promise.all([
     listsFor(staffIds),
-    allRows('outlet_visits', 'occurred_at', (q: Row) => q.in('staff_id', staffIds).in('date', dates)),
+    allRows('outlet_visits', ['occurred_at', 'id'], (q: Row) => q.in('staff_id', staffIds).in('date', dates)),
     pastDates.length
-      ? allRows('tracking_day_summaries', 'date', (q: Row) => q.in('staff_id', staffIds).in('date', pastDates))
+      ? allRows('tracking_day_summaries', ['staff_id', 'date'], (q: Row) => q.in('staff_id', staffIds).in('date', pastDates))
       : Promise.resolve([]),
     found(db.from('tracking_sessions').select('staff_id, date').in('staff_id', staffIds).in('date', dates).eq('trail_expired', true)),
   ])
@@ -106,7 +108,7 @@ export async function loadTrackingDays(records: Row[], now: Date) {
 
   const summaries = new Map<string, DaySummary>()
   savedRows.forEach((row: Row) => summaries.set(key(row.staff_id, row.date), fromSummaryRow(row)))
-  if (dates.includes(today)) {
+  if (live && dates.includes(today)) {
     ;(await liveSummaries(staffIds, today, now, lists, shops)).forEach((s, staffId) => summaries.set(key(staffId, today), s))
   }
   const expired = new Set(expiredRows.map((row: Row) => key(row.staff_id, row.date)))
@@ -125,9 +127,10 @@ export async function loadTrackingDays(records: Row[], now: Date) {
     const unavailable = Boolean(record.clockIn) && !summary && expired.has(k)
     const dayOver = !unavailable && (!record.isToday || Boolean(record.clockOut) || now.getTime() >= Date.parse(record.expectedEnd))
     const dayVisits = visits.get(k) ?? []
-    const proof = record.category === 'merchandiser'
+    // No clock-in (rest day, leave, holiday, absence): there is no visit proof to give.
+    const proof = record.category === 'merchandiser' || !record.clockIn
       ? null
       : visitProof({ listIds: lists.get(record.employeeId) ?? [], shopsById: shops, visits: dayVisits, stays: summary ? summary.shopStays : null, dayOver })
-    return { record, summary, unavailable, dayOver, proof, visits: dayVisits, shopNames }
+    return { record, summary, unavailable, dayOver, proof, visits: dayVisits, shopNames, clockedIn: Boolean(record.clockIn), tracked: Boolean(summary) }
   })
 }

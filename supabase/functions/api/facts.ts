@@ -102,11 +102,25 @@ export async function syncNotifications(now = new Date()) {
   detectTrackingFlags(trackingFlags, push, new Map(roster.map((e) => [e.employeeId, e])))
 
   // Shop visits against live tracking (Sales Reps and Supervisors), from the same facts as the daily report.
-  const visitRecords = buildRecords(roster, dates, ctx)
-    .map((r: { position: string }) => ({ ...r, category: categoryForPosition(r.position) }))
-    .filter((r: { category: string }) => r.category === 'sales-rep' || r.category === 'supervisor')
-  const visitDays = await loadTrackingDays(visitRecords, now)
-  detectVisitIssues(visitDays.map((d) => ({ employee: d.record, date: d.record.date, dayOver: d.dayOver, proof: d.proof, shopNames: d.shopNames })), push)
+  // Only clocked-in days matter. Today's live trail is read only for people whose day is over (the only
+  // ones a missed or unproven shop can be raised for). A failure here never stops the other alerts.
+  try {
+    // deno-lint-ignore no-explicit-any
+    const visitRecords = buildRecords(roster, dates, ctx)
+      .map((r: any) => ({ ...r, category: categoryForPosition(r.position) }))
+      .filter((r: any) => r.clockIn && (r.category === 'sales-rep' || r.category === 'supervisor'))
+    // deno-lint-ignore no-explicit-any
+    const over = (r: any) => !r.isToday || Boolean(r.clockOut) || now.getTime() >= Date.parse(r.expectedEnd)
+    const visitDays = [
+      ...(await loadTrackingDays(visitRecords.filter(over), now)),
+      ...(await loadTrackingDays(visitRecords.filter((r) => !over(r)), now, { live: false })),
+    ]
+    detectVisitIssues(visitDays.map((d) => ({
+      employee: d.record, date: d.record.date, dayOver: d.dayOver, clockedIn: d.clockedIn, tracked: d.tracked, proof: d.proof, shopNames: d.shopNames,
+    })), push)
+  } catch (error) {
+    console.error('visit alerts skipped this sync', error)
+  }
 
   const [existing, reviews] = await Promise.all([
     allRows('notifications', 'id'),

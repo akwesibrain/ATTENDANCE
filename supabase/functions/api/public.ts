@@ -9,7 +9,7 @@ import { holidayNameFor } from '../_shared/rules/holidays.js'
 import { checkGeofence, verificationResult } from '../_shared/rules/monitoring.js'
 import { isWorkingDay, overtimeHours } from '../_shared/rules/policy.js'
 import { parseRegistration } from '../_shared/rules/registration.js'
-import { needsShopList } from '../_shared/rules/categories.js'
+import { categoryForPosition, needsShopList } from '../_shared/rules/categories.js'
 import { sessionClosesAt } from '../_shared/rules/tracking.js'
 import { openTrackingSession } from './tracking.ts'
 import { checkSiteCode, makeSitePass, parseSiteCode, randomToken } from '../_shared/rules/siteCode.js'
@@ -376,6 +376,11 @@ publicRoutes.post('/attendance/events', async (c) => {
     time: event.occurred_at,
     weekend: event.weekend,
     overtimeHours: event.overtime_hours,
-    ...(tracking ? { trackingToken: tracking.token, trackingClosesAt: tracking.closesAt } : {}),
+    ...(tracking ? {
+      trackingToken: tracking.token,
+      trackingClosesAt: tracking.closesAt,
+      // Sales Reps and Supervisors record outlet visits; Merchandisers are tracked but do not.
+      canRecordVisits: ['sales-rep', 'supervisor'].includes(categoryForPosition(employee.position)),
+    } : {}),
   })
 })

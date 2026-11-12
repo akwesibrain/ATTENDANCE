@@ -23,7 +23,7 @@ const SALES_ALERT_TYPE = {
   'gps-unavailable': 'gps-unavailable',
 }
 
-const DATED_TYPES_CLEARABLE = new Set(['late-clock-in', 'no-clock-in', 'missing-clock-out', 'incomplete-record'])
+const DATED_TYPES_CLEARABLE = new Set(['late-clock-in', 'no-clock-in', 'missing-clock-out', 'incomplete-record', 'visit-not-proven', 'shop-missed'])
 const ROSTER_TYPES = new Set(['rep-no-shop', 'no-shop-required', 'inactive-shop'])
 
 /** Stable notification ID for a source key. */
@@ -265,14 +265,17 @@ const NOT_MISCONDUCT = 'This is a reason to ask, not proof of misconduct. Attend
  * Shop visits against live tracking, for Sales Reps and Supervisors. A listed
  * shop with no 10-minute stay, or not visited at all, is raised only once the
  * working day is over; visits outside the list are raised straight away.
- * @param {Array} days { employee, date, dayOver, proof, shopNames? } — proof from visitProof()
+ * Nothing is raised for a day the person did not clock in (rest day, leave,
+ * holiday), and a shop is never called missed or unproven without tracking for
+ * the day: lost tracking is never a reason to suspect anyone.
+ * @param {Array} days { employee, date, dayOver, clockedIn, tracked, proof, shopNames? } — proof from visitProof()
  */
 export function detectVisitIssues(days, push) {
-  days.forEach(({ employee, date, dayOver, proof, shopNames }) => {
-    if (!proof) return
+  days.forEach(({ employee, date, dayOver, clockedIn, tracked, proof, shopNames }) => {
+    if (!proof || !clockedIn) return
     const who = { ...whoFrom(employee), relatedDate: date }
     const shopName = (id) => shopNames?.get(id) ?? id
-    if (dayOver) {
+    if (dayOver && tracked) {
       proof.listed.forEach((shop) => {
         if (shop.status === 'no-stay') {
           push({

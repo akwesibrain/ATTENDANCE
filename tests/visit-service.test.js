@@ -22,13 +22,20 @@ beforeEach(() => {
 describe('the phone keeps its tracking session', () => {
   it('saves the token from a field employee’s check-in', () => {
     saveTrackingSession({ type: 'check-in', staffId: 'BFL-0007', trackingToken: 't', trackingClosesAt: future })
-    expect(trackingSession()).toEqual({ token: 't', closesAt: future, staffId: 'BFL-0007' })
+    expect(trackingSession()).toEqual({ token: 't', closesAt: future, staffId: 'BFL-0007', canRecordVisits: false })
     expect(SESSION_KEY).toBe('tracking:session')
   })
 
   it('ignores a check-in without a token (not a field role)', () => {
     saveTrackingSession({ type: 'check-in', staffId: 'BFL-0001' })
     expect(trackingSession()).toBeNull()
+  })
+
+  it('remembers whether this person may record visits (final review: Important 4)', () => {
+    saveTrackingSession({ type: 'check-in', staffId: 'BFL-0009', trackingToken: 't', trackingClosesAt: future, canRecordVisits: false })
+    expect(trackingSession().canRecordVisits).toBe(false)
+    saveTrackingSession({ type: 'check-in', staffId: 'BFL-0007', trackingToken: 't', trackingClosesAt: future, canRecordVisits: true })
+    expect(trackingSession().canRecordVisits).toBe(true)
   })
 
   it('forgets it at check-out', () => {

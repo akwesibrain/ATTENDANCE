@@ -25,7 +25,7 @@ export function saveTrackingSession(event) {
   if (!event) return
   try {
     if (event.type === 'check-in' && event.trackingToken) {
-      localStorage.setItem(SESSION_KEY, JSON.stringify({ token: event.trackingToken, closesAt: event.trackingClosesAt, staffId: event.staffId }))
+      localStorage.setItem(SESSION_KEY, JSON.stringify({ token: event.trackingToken, closesAt: event.trackingClosesAt, staffId: event.staffId, canRecordVisits: event.canRecordVisits === true }))
     }
     if (event.type === 'check-out') forget()
   } catch { /* storage unavailable: visits will ask the person to clock in */ }
