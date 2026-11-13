@@ -110,7 +110,7 @@ describe('registration', () => {
   it('accepts a valid form and builds the full name', () => {
     const { value } = parseRegistration(valid)
     expect(value.fullName).toBe('Ama Mensah')
-    expect(value.shopId).toBeNull()
+    expect(value.shopIds).toEqual([])
   })
 
   it('requires consent, a payment method and a phone number', () => {
@@ -125,14 +125,14 @@ describe('registration', () => {
   it('requires a shop for field positions only', () => {
     expect(requiresShop(' sales representative ')).toBe(true)
     expect(parseRegistration({ ...valid, position: 'Merchandiser' }).errors.shop).toMatch(/required/)
-    expect(parseRegistration({ ...valid, assignedShopId: 'shop-1' }).value.shopId).toBeNull()
-    expect(parseRegistration({ ...valid, position: 'Merchandiser', assignedShopId: 'shop-1' }).value.shopId).toBe('shop-1')
+    expect(parseRegistration({ ...valid, assignedShopId: 'shop-1' }).value.shopIds).toEqual([])
+    expect(parseRegistration({ ...valid, position: 'Merchandiser', assignedShopId: 'shop-1' }).value.shopIds).toEqual(['shop-1'])
   })
 
   it('checks a new shop and drops any coordinates sent with it', () => {
     const shop = { shopName: 'Melcom', town: 'Kumasi', area: 'Adum', latitude: 1, longitude: 2 }
     const { value } = parseRegistration({ ...valid, position: 'Merchandiser', shopMode: 'new', newShop: shop })
-    expect(value.newShop).toEqual({ shopName: 'Melcom', town: 'Kumasi', area: 'Adum', address: '' })
+    expect(value.newShops).toEqual([{ shopName: 'Melcom', town: 'Kumasi', area: 'Adum', address: '' }])
     expect(parseRegistration({ ...valid, position: 'Merchandiser', shopMode: 'new', newShop: { shopName: 'M' } }).errors.shop).toBeDefined()
   })
 

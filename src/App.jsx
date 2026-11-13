@@ -15,6 +15,11 @@ const LocationSharingBar = lazy(() => import('./components/tracking/LocationShar
 const LegalPage = lazy(() => import('./pages/LegalPage'))
 const VerifyCheck = lazy(() => import('./pages/VerifyCheck'))
 const WorkplaceDisplay = lazy(() => import('./pages/WorkplaceDisplay'))
+const EnrolFace = lazy(() => import('./pages/EnrolFace'))
+const HrSetup = lazy(() => import('./pages/HrSetup'))
+const PasswordReset = lazy(() => import('./pages/PasswordReset'))
+const RecordVisit = lazy(() => import('./pages/RecordVisit'))
+const SetShopLocation = lazy(() => import('./pages/SetShopLocation'))
 
 const VIEW = {
   home: 'home',
@@ -58,12 +63,45 @@ function viewFromLocation() {
 
 const VERIFY_PATH = /^\/verify\/([^/]+)$/
 const DISPLAY_PATH = /^\/display(?:\/setup\/([^/]+))?\/?$/
+const ENROL_PATH = /^\/enroll\/([^/]+)$/
+const HR_SETUP_PATH = /^\/hr\/setup\/([^/]+)$/
+const PASSWORD_RESET_PATH = /^\/hr\/reset\/([^/]+)$/
+const VISIT_PATH = /^\/visit\/?$/
+const SHOP_LOCATION_PATH = /^\/shop-location\/?$/
 
 function App() {
   const path = window.location.pathname
   const verifyToken = path.match(VERIFY_PATH)?.[1]
   if (verifyToken) {
     return <Suspense fallback={<PageSkeleton label="Loading verification" />}><VerifyCheck token={verifyToken} /></Suspense>
+  }
+  const enrolToken = path.match(ENROL_PATH)?.[1]
+  if (enrolToken) {
+    return <Suspense fallback={<PageSkeleton label="Loading face setup" />}><EnrolFace token={enrolToken} /></Suspense>
+  }
+  const hrSetupToken = path.match(HR_SETUP_PATH)?.[1]
+  if (hrSetupToken) {
+    return <Suspense fallback={<PageSkeleton label="Loading your invite" />}><HrSetup token={hrSetupToken} /></Suspense>
+  }
+  const resetToken = path.match(PASSWORD_RESET_PATH)?.[1]
+  if (resetToken) {
+    return <Suspense fallback={<PageSkeleton label="Loading your reset link" />}><PasswordReset token={resetToken} /></Suspense>
+  }
+  if (VISIT_PATH.test(path)) {
+    return (
+      <>
+        <Suspense fallback={<PageSkeleton label="Loading your shops" />}><RecordVisit /></Suspense>
+        <Suspense fallback={null}><LocationSharingBar /></Suspense>
+      </>
+    )
+  }
+  if (SHOP_LOCATION_PATH.test(path)) {
+    return (
+      <>
+        <Suspense fallback={<PageSkeleton label="Loading your shops" />}><SetShopLocation /></Suspense>
+        <Suspense fallback={null}><LocationSharingBar /></Suspense>
+      </>
+    )
   }
   const display = path.match(DISPLAY_PATH)
   if (display) {

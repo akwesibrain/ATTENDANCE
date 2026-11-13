@@ -10,6 +10,7 @@ import { employeeJoinedOn } from '../../services/registrationService'
 import { accraTodayKey, formatAccraDate } from '../../utils/accraTime'
 import { formatTenure, tenureBetween } from '../../utils/tenure'
 import EmployeeDetailsModal from './EmployeeDetailsModal'
+import AddEmployeeModal from './AddEmployeeModal'
 import LeaveModal from './LeaveModal'
 import { CATEGORIES, categoryForPosition } from '../../constants/employeeCategories'
 import { currentOrNextLeave } from '../../services/leaveView'
@@ -110,6 +111,7 @@ function EmployeeCard({ emp, onAssignShop, onViewAttendance, onEditDetails, onLe
             {emp.status}
           </span>
         </div>
+        {!emp.facePhotoPath && <span className="emp-card-face-missing">Face not set up</span>}
         <h3 className="emp-card-name">{emp.fullName}</h3>
         <p className="emp-card-position">{emp.position}</p>
         <span className={`emp-card-category emp-cat-${categoryForPosition(emp.position)}`}>{CATEGORIES[categoryForPosition(emp.position)].single}</span>
@@ -230,8 +232,9 @@ function EmployeeCard({ emp, onAssignShop, onViewAttendance, onEditDetails, onLe
  * pagination. Each card shows the information the employee gave at
  * registration.
  */
-export default function EmployeeDirectory({ employees, onAssignShop, onViewAttendance, onEmployeeChanged }) {
+export default function EmployeeDirectory({ employees, companyId, canAddEmployees, onAssignShop, onViewAttendance, onEmployeeChanged }) {
   const [search, setSearch] = useState('')
+  const [adding, setAdding] = useState(false)
   const [editing, setEditing] = useState(null)
   const [leaveFor, setLeaveFor] = useState(null)
   const [, setLeaveVersion] = useState(0)
@@ -286,6 +289,9 @@ export default function EmployeeDirectory({ employees, onAssignShop, onViewAtten
           onChange={(e) => handleSearch(e.target.value)}
           aria-label="Search employees"
         />
+        {canAddEmployees && companyId && (
+          <button type="button" className="btn btn-primary emp-add-btn" onClick={() => setAdding(true)}>Add employee</button>
+        )}
       </div>
       <div className="sm-tabs emp-category-filter" role="tablist" aria-label="Employee category">
         {['', 'warehouse', 'sales-rep', 'merchandiser', 'supervisor', 'office'].map((c) => {
@@ -297,6 +303,14 @@ export default function EmployeeDirectory({ employees, onAssignShop, onViewAtten
           )
         })}
       </div>
+
+      {adding && (
+        <AddEmployeeModal
+          companyId={companyId}
+          onClose={() => setAdding(false)}
+          onCreated={(created) => { setSaved(`Added ${created.fullName} (${created.staffId}).`); onEmployeeChanged?.(created) }}
+        />
+      )}
 
       {saved && <p className="emp-saved" role="status">{saved}</p>}
       {editing && (

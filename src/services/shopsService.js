@@ -3,7 +3,8 @@
  * records reference a shop by ID only.
  *
  * Coordinates are never invented: only HR can set them, from a lookup they
- * confirmed, a map pin or their own entry.
+ * confirmed, a map pin, their own entry, or a GPS reading a field employee
+ * took at the shop.
  */
 
 import {
@@ -24,6 +25,7 @@ export const LOCATION_SOURCES = {
   geocoded: 'found by location lookup and confirmed by HR',
   'map-adjusted': 'placed on the map by HR',
   manual: 'entered by HR',
+  captured: 'captured at the shop and confirmed by HR',
 }
 
 const clean = (value) => (value ?? '').trim().replace(/\s+/g, ' ')
@@ -86,4 +88,39 @@ export function listShops(companyId, { activeOnly = true } = {}) {
 
 export function listAllShops() {
   return allShops()
+}
+
+/** Readings taken at shops that HR has not decided on yet, keyed by shop, oldest first. */
+export function pendingLocationProposals() {
+  const names = new Map(rows('employees').map((e) => [e.staff_id, e.full_name]))
+  const byShop = new Map()
+  rows('shop_location_proposals').filter((p) => p.status === 'pending').forEach((p) => {
+    const list = byShop.get(p.shop_id) ?? []
+    list.push({
+      id: p.id,
+      shopId: p.shop_id,
+      staffId: p.staff_id,
+      proposer: names.get(p.staff_id) || p.staff_id,
+      latitude: p.latitude,
+      longitude: p.longitude,
+      accuracyM: p.accuracy_m,
+      proposedAt: p.proposed_at,
+    })
+    byShop.set(p.shop_id, list)
+  })
+  return byShop
+}
+
+/** Use a reading taken at the shop as its location. @returns {Promise<{ ok: true } | { errors: object }>} */
+export async function acceptLocationProposal(shopId, proposalId) {
+  const result = await submit(`/hr/shops/${encodeURIComponent(shopId)}/location`, { method: 'PATCH', body: { proposalId } })
+  await refresh('shops', 'shop_location_proposals', 'audit_events')
+  return result
+}
+
+/** Decide a reading is not the shop's location. The shop is not changed. */
+export async function dismissLocationProposal(proposalId) {
+  const result = await submit(`/hr/shop-location-proposals/${encodeURIComponent(proposalId)}/dismiss`, { method: 'POST' })
+  await refresh('shop_location_proposals', 'audit_events')
+  return result
 }

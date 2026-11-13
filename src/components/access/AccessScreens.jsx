@@ -13,6 +13,7 @@ import {
   verifyMfa,
 } from '../../services/permissionsService'
 import { securitySettings } from '../../services/settingsService'
+import { gateStep } from './gateStep'
 
 function Shell({ title, children, onExit }) {
   return (
@@ -100,6 +101,7 @@ function SignInForm({ onDone, onExit, reason }) {
         {error && <p className="at-form-alert" role="alert">{error}</p>}
         <SubmitButton busy={busy}>Sign in</SubmitButton>
       </form>
+      <p className="ac-note">Forgot your password? Ask another HR user to reset it in Settings → HR users.</p>
     </Shell>
   )
 }
@@ -120,6 +122,7 @@ function MfaVerify({ onDone, onExit }) {
         {error && <p className="at-form-alert" role="alert">{error}</p>}
         <SubmitButton busy={busy} disabled={code.length !== 6}>Continue</SubmitButton>
       </form>
+      <p className="ac-note">Lost or changed your phone? Ask another HR user to reset your authenticator in Settings → HR users.</p>
     </Shell>
   )
 }
@@ -214,9 +217,19 @@ export function HrGate({ onExit, children }) {
     }
   }, [ready])
 
-  switch (state.status) {
-    case 'ready':
-      return children(getSessionUser())
+  const user = getSessionUser()
+  const step = gateStep(state.status, user)
+  useEffect(() => {
+    if (step !== 'recheck') return
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- re-reads the session once; check() sets the outcome.
+    setState({ status: 'loading', reason: null })
+    check()
+  }, [step, check])
+
+  switch (step) {
+    case 'portal':
+      return children(user)
+    case 'recheck':
     case 'loading':
       return <Shell title="Loading…"><p className="ac-lead" role="status">Opening the HR portal.</p></Shell>
     case 'mfa-enroll':

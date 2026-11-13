@@ -1,10 +1,15 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { CATEGORIES, categoryForPosition } from '../constants/employeeCategories'
+import { useCacheVersion } from '../services/backend/cache'
 import { listAttendanceRecords } from '../services/attendanceRecordsService'
 import { VISIT_RESULT, outletLabel, visitDistance } from '../services/fieldVisitsService'
 import { GPS_TOLERANCE_M, formatDistance } from '../utils/distance'
-import { visitProofForRecord } from '../services/trackingReportService'
-import { MIN_STAY_MINUTES, OFF_LIST, SHOP_RESULT, getVisitList, mockSaveVisitList } from '../services/visitListService'
+import {
+  fetchTrackingDailyReport,
+  hydrateServerProof,
+  visitProofForRecord,
+} from '../services/trackingReportService'
+import { MIN_STAY_MINUTES, OFF_LIST, SHOP_RESULT, getVisitList, saveVisitList } from '../services/visitListService'
 import { MAX_SHOPS, MIN_SHOPS } from '../utils/shopSelection'
 import { listShops } from '../services/shopsService'
 import { can } from '../services/permissionsService'
@@ -16,14 +21,13 @@ import '../styles/attendance.css'
 /**
  * Sales Representative / Supervisor monitoring.
  *
- * Each person has a fixed list of shops (at least MIN_SHOPS) to visit every
+ * Each person has a fixed list of shops (1 to MAX_SHOPS) to visit every
  * working day, set by HR here. No pass/fail radius: HR sees how far people
  * were. A listed shop is PROVEN when live tracking shows a stay of
  * MIN_STAY_MINUTES+ at it (within GPS_TOLERANCE_M, an allowance for GPS error).
- * Visits without a stay, missed shops, shops not on the list and typed-in
- * outlets are flagged for HR.
  */
 export default function FieldVisitsMonitoring({ company, category, user, onOpenAttendance }) {
+  const dataVersion = useCacheVersion()
   const meta = CATEGORIES[category]
   const today = accraTodayKey()
   const [date, setDate] = useState(today)
@@ -31,20 +35,54 @@ export default function FieldVisitsMonitoring({ company, category, user, onOpenA
   const [open, setOpen] = useState(null)
   const [editing, setEditing] = useState(null)
   const [version, setVersion] = useState(0)
+  const [serverProofs, setServerProofs] = useState({ key: '', byEmp: {} })
   const canEditLists = can(user, 'shops', 'edit')
+
+  const requestKey = `${company.id}|${date}|${category}|${version}`
+
+  useEffect(() => {
+    let cancelled = false
+    const load = () => {
+      fetchTrackingDailyReport(company.id, date, category)
+        .then((report) => {
+          if (cancelled) return
+          const byEmp = {}
+          ;(report.rows ?? []).forEach((row) => {
+            if (row.proof) byEmp[row.employeeId] = hydrateServerProof(row.proof)
+          })
+          setServerProofs({ key: requestKey, byEmp })
+        })
+        .catch(() => {
+          // Keep cached fallback on transient network hiccup.
+        })
+    }
+    load()
+    if (date !== today) return () => { cancelled = true }
+    const timer = setInterval(() => {
+      if (!document.hidden) load()
+    }, 30000)
+    return () => {
+      cancelled = true
+      clearInterval(timer)
+    }
+  }, [company.id, date, category, today, requestKey])
 
   const records = useMemo(
     () => listAttendanceRecords({ companyId: company.id, dates: [date] })
-      // The backend's records carry the position; the category comes from it.
       .map((r) => ({ ...r, category: r.category ?? categoryForPosition(r.position), visits: r.visits ?? [] }))
       .filter((r) => r.category === category),
-    [company.id, date, category],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [company.id, date, category, dataVersion],
   )
   const proofs = useMemo(
-    () => Object.fromEntries(records.map((r) => [r.employeeId, visitProofForRecord(r)])),
-    // version: recalculate after a list is edited.
+    () => {
+      const fromServer = serverProofs.key === requestKey ? serverProofs.byEmp : {}
+      return Object.fromEntries(
+        records.map((r) => [r.employeeId, fromServer[r.employeeId] ?? visitProofForRecord(r)]),
+      )
+    },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [records, version],
+    [records, version, dataVersion, serverProofs, requestKey],
   )
   const shown = employeeId ? records.filter((r) => r.employeeId === employeeId) : records
   const visits = shown.flatMap((r) => r.visits.map((v) => ({ ...v, record: r }))).sort((a, b) => a.time.localeCompare(b.time))
@@ -101,7 +139,6 @@ export default function FieldVisitsMonitoring({ company, category, user, onOpenA
           key={editing.employeeId}
           record={editing}
           company={company}
-          user={user}
           onClose={() => setEditing(null)}
           onSaved={() => { setEditing(null); setVersion((v) => v + 1) }}
         />
@@ -163,10 +200,11 @@ export default function FieldVisitsMonitoring({ company, category, user, onOpenA
                 <thead><tr><th scope="col">Shop</th><th scope="col">Result</th><th scope="col">Visit recorded</th><th scope="col">Stay at the shop (live tracking)</th></tr></thead>
                 <tbody>
                   {openProof.listed.map((l) => {
-                    const res = SHOP_RESULT[l.status]
+                    const res = SHOP_RESULT[l.status] ?? SHOP_RESULT.pending
+                    const closest = l.closest ?? l.closestM ?? null
                     return (
                       <tr key={l.shopId}>
-                        <td data-label="Shop">{l.shop?.shopName ?? l.shopId}</td>
+                        <td data-label="Shop">{l.shop?.shopName ?? l.shopName ?? l.shopId}</td>
                         <td data-label="Result"><span className={`at-badge at-tone-${res.tone}`} title={res.label}>{res.short}</span></td>
                         <td data-label="Visit recorded">
                           {l.first
@@ -175,8 +213,8 @@ export default function FieldVisitsMonitoring({ company, category, user, onOpenA
                         </td>
                         <td data-label="Stay at the shop">
                           {l.stayMinutes == null
-                            ? <span className="at-none">{l.shop?.latitude == null ? 'Shop has no map location' : 'No live tracking'}</span>
-                            : <span className="at-stack">{l.stayMinutes} min<span className="at-sub">{l.closest != null ? `closest ${formatDistance(l.closest)}` : ''}</span></span>}
+                            ? <span className="at-none">{l.shop?.latitude == null && l.hasMapLocation === false ? 'Shop has no map location' : 'No live tracking'}</span>
+                            : <span className="at-stack">{l.stayMinutes} min<span className="at-sub">{closest != null ? `closest ${formatDistance(closest)}` : ''}</span></span>}
                         </td>
                       </tr>
                     )
@@ -193,8 +231,8 @@ export default function FieldVisitsMonitoring({ company, category, user, onOpenA
                   <thead><tr><th scope="col">Time</th><th scope="col">Outlet</th><th scope="col">Result</th><th scope="col">Phone location</th><th scope="col">Distance</th></tr></thead>
                   <tbody>
                     {openProof.offList.map(({ visit, status, distance }) => {
-                      const res = OFF_LIST[status]
-                      const loc = VISIT_RESULT[visit.verification?.status] ?? VISIT_RESULT['location-unavailable']
+                      const res = OFF_LIST[status] ?? OFF_LIST['off-list']
+                      const loc = VISIT_RESULT[visit.verification?.status ?? visit.status] ?? VISIT_RESULT['location-unavailable']
                       return (
                         <tr key={visit.id}>
                           <td data-label="Time" className="at-time">{formatAccraTime(visit.time)}</td>
@@ -228,7 +266,7 @@ export default function FieldVisitsMonitoring({ company, category, user, onOpenA
               <thead><tr><th scope="col">Time</th><th scope="col">Employee</th><th scope="col">Outlet</th><th scope="col">Phone location</th><th scope="col">Distance from shop</th></tr></thead>
               <tbody>
                 {visits.map((v) => {
-                  const res = VISIT_RESULT[v.verification?.status] ?? VISIT_RESULT['location-unavailable']
+                  const res = VISIT_RESULT[v.verification?.status ?? v.status] ?? VISIT_RESULT['location-unavailable']
                   return (
                     <tr key={v.id}>
                       <td data-label="Time" className="at-time">{formatAccraTime(v.time)}</td>
@@ -250,18 +288,42 @@ export default function FieldVisitsMonitoring({ company, category, user, onOpenA
 }
 
 /** HR chooses the shops a Sales Rep / Supervisor visits every working day. */
-function VisitListEditor({ record, company, user, onClose, onSaved }) {
+function VisitListEditor({ record, company, onClose, onSaved }) {
   const shops = listShops(company.id)
   const [selected, setSelected] = useState(() => new Set(getVisitList(record.employeeId)))
+  const [query, setQuery] = useState('')
+  const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const toggle = (id) => setSelected((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n })
-  const save = () => {
+
+  const filteredShops = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return shops
+    return shops.filter((sh) =>
+      selected.has(sh.shopId) ||
+      sh.shopName.toLowerCase().includes(q) ||
+      (sh.town ?? '').toLowerCase().includes(q) ||
+      (sh.area ?? '').toLowerCase().includes(q),
+    )
+  }, [shops, query, selected])
+
+  const toggle = (id) => setSelected((s) => {
+    const n = new Set(s)
+    if (n.has(id)) n.delete(id)
+    else n.add(id)
+    return n
+  })
+
+  const save = async () => {
     if (selected.size < MIN_SHOPS) { setError('Choose at least one shop.'); return }
     if (selected.size > MAX_SHOPS) { setError(`Choose up to ${MAX_SHOPS} shops.`); return }
-    const r = mockSaveVisitList({ employeeId: record.employeeId, fullName: record.fullName, companyId: company.id, shopIds: [...selected] }, user)
+    setSaving(true)
+    setError('')
+    const r = await saveVisitList({ employeeId: record.employeeId, shopIds: [...selected] })
+    setSaving(false)
     if (r.error) { setError(r.error); return }
     onSaved()
   }
+
   return (
     <section className="sm-panel fv-editor" aria-labelledby="fv-editor-title">
       <div className="sm-panel-head">
@@ -269,15 +331,25 @@ function VisitListEditor({ record, company, user, onClose, onSaved }) {
           <h3 id="fv-editor-title">Daily shop list — {record.fullName}</h3>
           <span className="sm-muted">The shops {record.fullName.split(' ')[0]} must visit every working day — 1 to {MAX_SHOPS} shops.</span>
         </div>
+        {shops.length > 10 && (
+          <input
+            type="search"
+            className="form-input"
+            placeholder="Filter shops by name, town or area…"
+            aria-label="Filter shops"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        )}
       </div>
       {shops.length === 0 ? (
         <p className="sm-empty">{company.name} has no shops in the Shop Directory yet.</p>
       ) : (
         <ul className="fv-shop-list">
-          {shops.map((sh) => (
+          {filteredShops.map((sh) => (
             <li key={sh.shopId}>
               <label className={`fv-shop${selected.has(sh.shopId) ? ' is-on' : ''}`}>
-                <input type="checkbox" checked={selected.has(sh.shopId)} onChange={() => toggle(sh.shopId)} />
+                <input type="checkbox" checked={selected.has(sh.shopId)} onChange={() => toggle(sh.shopId)} disabled={saving} />
                 <span className="at-stack">
                   <span>{sh.shopName}</span>
                   <span className="at-sub">{[sh.area, sh.town].filter(Boolean).join(', ') || '—'}</span>
@@ -291,8 +363,8 @@ function VisitListEditor({ record, company, user, onClose, onSaved }) {
       {error && <p className="field-error" role="alert">{error}</p>}
       <div className="fv-editor-actions">
         <span className="sm-muted">{selected.size} shop{selected.size === 1 ? '' : 's'} selected</span>
-        <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
-        <button type="button" className="btn btn-primary" onClick={save}>Save list</button>
+        <button type="button" className="btn btn-secondary" onClick={onClose} disabled={saving}>Cancel</button>
+        <button type="button" className="btn btn-primary" onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save list'}</button>
       </div>
     </section>
   )

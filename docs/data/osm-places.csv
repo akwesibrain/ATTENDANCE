@@ -1,0 +1,854 @@
+Type,Name,Town,Area,Address,Latitude,Longitude,OpenStreetMap ID
+Mall,Jubilee Mall,Kumasi,Commercial Link,Commercial Link,6.682543,-1.575659,w378474316
+Mall,Kumasi City Mall,Kumasi,Hudson Road,Hudson Road,6.672867,-1.607145,w390247008
+Mall,EU China Mall,Tamale,Choggu Roundabout,Choggu Roundabout,9.421061,-0.853849,n12000040978
+Mall,Achimota Retail Centre,Accra,,,5.638114,-0.240984,w381513764
+Mall,Ghana International Mall,Accra,,,5.633713,-0.125667,n6855802912
+Mall,Shalom Shopping Mall,Accra,,,5.620668,-0.227702,n3495826831
+Mall,Anaji Choice Mart,,St. Francis Street Anaji,St. Francis Street Anaji,4.928296,-1.779449,n7929303092
+Mall,City Galleria,,Spintex Road,152 Spintex Road,5.621253,-0.172646,w1137453837
+Mall,Osu Forico Mall,,Mission Street,Mission Street,5.559443,-0.178203,w203652725
+Mall,A&C Corner,,,,5.632225,-0.153196,n12690662796
+Mall,A&C Mall,,,,5.641737,-0.151894,w177953977
+Mall,Accra Mall,,,,5.622184,-0.173263,r8418096
+Mall,Adenta Shopping Mall,,,,5.705573,-0.14891,n2152138362
+Mall,AfriMall,,,,5.830493,0.023658,w1334489509
+Mall,American House,,,,5.647175,-0.149519,w935530365
+Mall,C.25 Mall,,,,5.738166,0.033793,n4534031483
+Mall,Chances Mall,,,,6.6022,0.446771,w1122806331
+Mall,China Mall,,,,5.71564,-0.307959,n9602395868
+Mall,Elisa Mall,,,,6.631324,-1.648535,w1030449134
+Mall,EU Chinatown Shopping Center,,,,5.557587,-0.298301,n10855599202
+Mall,Haatso Plaza,,,,5.666728,-0.204505,n12558617211
+Mall,Legon City Mall,,,,5.653443,-0.178819,w665125607
+Mall,Lizmart Shopping Centre,,,,6.20749,-1.682239,w694335313
+Mall,Makola Shopping Mall,,,,5.546949,-0.206694,w775919000
+Mall,Marina Mall,,,,5.603099,-0.176179,n1985884554
+Mall,Max Mart Shopping Center,,,,5.591275,-0.180391,n10559533306
+Mall,Melcom,,,,5.686693,-0.116284,n12458969551
+Mall,Melcome,,,,5.686713,-0.116255,n12658062867
+Mall,North Mall,,,,5.368848,-0.62888,n12085608082
+Mall,Oxford Street Mall,,,,5.56052,-0.182552,w259080346
+Mall,Rana Plaza,,,,5.628813,-0.089534,n4005598619
+Mall,SG Mall,,,,6.688166,-1.579195,n11125622605
+Mall,Shopping Mall,,,,6.058104,-0.259773,n9337523246
+Mall,SIC Life Mall,,,,5.544974,-0.20646,w663805657
+Mall,Takoradi Mall,,,,4.90738,-1.77021,w635366894
+Mall,The Junction Mall,,,,5.613347,-0.072005,w490882256
+Mall,West Hill Mall,,,,5.544682,-0.343916,w444487588
+Supermarket,American Bay,Accra,East Legon,69 Adjringanor Road,5.645834,-0.142164,n10262634964
+Supermarket,Goil Mart,Accra,Alogboshie,,5.62181,-0.230797,n5969633907
+Supermarket,JAWA MAM MART,Accra,Palace Street,Palace Street,5.579395,-0.228238,n13594123922
+Supermarket,Lairms,Accra,Nima Market,Al-Waleed Bin-Talal Highway,5.579319,-0.200071,n6983629824
+Supermarket,Maxmart Supermarket,Accra,Patrice Lumumba Road,Patrice Lumumba Road,5.609206,-0.182635,n1861364524
+Supermarket,Melcom,Accra,Atomic Hills Estate Street,Atomic Hills Estate Street,5.688976,-0.23177,n13316132834
+Supermarket,Memo Supermarket Sowutuom,Accra,Kwashieman-Ofankor Road,Kwashieman-Ofankor Road,5.615775,-0.275845,n14292940786
+Supermarket,Decorzone Ghana Limited,Accra Weija,Winneba Road,Aku Sika Plaza Winneba Road,5.551526,-0.358577,n9988084083
+Supermarket,Aliasadex Provisions And More,Agbozume,Somey Senior High School Avenue,Somey Senior High School Avenue,6.079544,1.045541,n13686546250
+Supermarket,Antitor Provision Store,Agbozume,Opposite Agbozume Market,Opposite Agbozume Market,6.07384,1.036651,n9121242242
+Supermarket,Ayuba’s Washing Bay,Agbozume,N1,N1,6.075045,1.039684,n13686474223
+Supermarket,Dehart Brothers Ventures,Agbozume,Ehie Road,Ehie Road,6.079507,1.036721,n9121243911
+Supermarket,Fafa Store,Agbozume,Ehie Road,Ehie Road,6.078044,1.036378,n13686487227
+Supermarket,Jiro Enterprise,Agbozume,Somey Senior High School Avenue,Somey Senior High School Avenue,6.07941,1.046003,n13686500193
+Supermarket,Klenam Stores,Agbozume,Amukoe Avenue,Amukoe Avenue,6.075334,1.035495,n13681638866
+Supermarket,Leni Boutique,Agbozume,Kpota Avenue,Kpota Avenue,6.073521,1.034697,n13667965299
+Supermarket,Peace and Love Shop,Agbozume,Somey Senior High School Avenue,Somey Senior High School Avenue,6.079458,1.04608,n13686500194
+Supermarket,RozzyBeads Store,Agbozume,Anglican Avenue,Anglican Avenue,6.073136,1.034804,n13686539478
+Supermarket,Sena Store,Agbozume,Amukoe Avenue,Amukoe Avenue,6.073433,1.034451,n13668092332
+Supermarket,The Young Shall Grow,Agbozume,Somey Senior High School Avenue,Somey Senior High School Avenue,6.079439,1.046051,n13686548127
+Supermarket,Mafia Super market,Ajumako,Accra - Assasane,2 Accra - Assasane,5.428595,-0.957941,w672669045
+Supermarket,Peace Pot,Akatsi,4QJW+2PC,4QJW+2PC,6.130018,0.796815,n13042099757
+Supermarket,Rain In Supermarket,Bolgatanga,Commercial Street,Commercial Street,10.786978,-0.853089,n7057171054
+Supermarket,Mama Jane Retail Shop,oshiyie,Prof. J.E.A. Mills Bypass,Prof. J.E.A. Mills Bypass,5.50554,-0.352961,n13309820611
+Supermarket,Ropeak Ltd,Sunyani,Sunyani - Kumasi,Sunyani - Kumasi,7.302244,-2.296888,w1169395216
+Supermarket,Engyae Mpaebo Da Ent.,Tarkwa,Brahabobom Road,0249142520 Brahabobom Road,5.300506,-1.999731,w574596522
+Supermarket,"GUSSS Commercial Centre, UEW.",Winneba,Faculty Road,Faculty Road,5.369395,-0.628748,w1123907984
+Supermarket,Awo Boansi ENT,Accra,,,5.724229,-0.168964,n13339017037
+Supermarket,Melcom,Agona Swedru,,,5.537041,-0.697202,n1736670235
+Supermarket,Heaven Helps Store,Akatsi,,,6.128592,0.804263,n6620530018
+Supermarket,R. Plus Ventures,Kumasi,,,6.674054,-1.550337,w1228749833
+Supermarket,Simon Enterprise,Lawra,,,10.640794,-2.898571,w1283351819
+Supermarket,A-Life Supermarket,Obuasi,,,6.198588,-1.664513,w702232807
+Supermarket,Maa Lydiaa,Sekyere,,,6.922938,-1.375276,n9978186472
+Supermarket,Market,Sekyere,,,6.922611,-1.375759,w1089299688
+Supermarket,Carlos Plus,Takoradi,,,4.898779,-1.76207,n3782580427
+Supermarket,Garden Mart,Takoradi,,,4.896816,-1.758296,n3781036115
+Supermarket,Community 25 Supermarket,Tema,,,5.723287,0.017803,n6466793971
+Supermarket,Betket Prepaid Vendor,,"WS-277-2164, Kansawrodo,Takoradi","WS-277-2164, Takoradi WS-277-2164, Kansawrodo,Takoradi",4.961287,-1.764288,n10088957834
+Supermarket,Care for Tommorow Need,,Tanoku Avenue,Tanoku Avenue,5.822403,-2.823815,n8105355297
+Supermarket,Edrolali Fashion Design,,Srohume Avenue,Srohume Avenue,6.072819,1.03311,n13702708151
+Supermarket,Faustina Sabin's Trading Company,,Labour Roundabout,Labour Roundabout,6.689131,-1.613034,n13645089143
+Supermarket,Fosua Enterprise,,Goaso High Street,Goaso High Street,6.803833,-2.516389,n6312962811
+Supermarket,Franko Trading Enterprise Bolga,,Commercial Street,Commercial Street,10.786747,-0.852866,n7063608405
+Supermarket,G K Boakye,,Kofi Solo Avenue,14 Kofi Solo Avenue,6.805686,-2.517727,w597916190
+Supermarket,Healthy Taste Naturals Enterprise,,Tempane,Kpedika Street,10.809646,-0.084749,w773768551
+Supermarket,Madame Dede Sɛ Nyame Be Hene,,Tanor Boadi Street,Tanor Boadi Street,5.82314,-2.821767,n8156394216
+Supermarket,Mawulorm Special Drinks,,Ehie Road,Ehie Road,6.079068,1.03515,n13686511439
+Supermarket,Melcom,,Post Office Road,Post Office Road,9.406034,-0.841521,w154050366
+Supermarket,Melcom,,Prempeh II Avenue,Prempeh II Avenue,6.692379,-1.621935,w576454653
+Supermarket,Melcom,,Ketu South,,6.112759,1.198015,n3188482435
+Supermarket,Melcom Plus,,Spintex Road,Spintex Road,5.626434,-0.151423,w449320967
+Supermarket,MiG Mart East Legon,,Jungle Avenue,10 Jungle Avenue,5.635247,-0.149951,n13087541201
+Supermarket,Naasei Boakye Enterprise,,Goaso High Street,Goaso High Street,6.804079,-2.516489,n7285551039
+Supermarket,Palace Hypermarket,,Spintex Road,Spintex Road,5.629777,-0.149252,w449320970
+Supermarket,Sneda Shopping,,Spintex Road,Spintex Road,5.626521,-0.15116,w449320971
+Supermarket,Yoo Mart,,Adenta Dodowa Road,Adenta Dodowa Road,5.724905,-0.161755,n6575334287
+Supermarket,Zenique Company Limited,,Accra Aflao road,Accra Aflao road,6.111967,1.123302,n4562951289
+Supermarket,A-Life Supermarket,,,,5.594011,-0.093583,n3986237938
+Supermarket,Adiza Enterprise,,,,5.692857,-0.147463,n6253491676
+Supermarket,Adjosec,,,,5.522016,-0.483793,n10284288064
+Supermarket,Adom Enterprise,,,,7.875714,-2.313945,n7047381595
+Supermarket,Afa Hudu Supermaket,,,,9.395923,-0.826435,w556149005
+Supermarket,Afrifa Junction,,,,6.675595,-1.55359,n11395274096
+Supermarket,Agwils Supermarket,,,,4.995866,-1.680553,n10998436018
+Supermarket,Aidec Supplies Ltd,,,,5.670247,-0.151307,n6254302539
+Supermarket,Akosombo store,,,,7.792775,-0.060358,n5938286598
+Supermarket,Akrantiebesa Station,,,,6.62504,-1.20874,n5717944004
+Supermarket,Alhassan Supermarket,,,,9.219135,-1.858332,n5832319638
+Supermarket,All Needs Supermarket,,,,5.642822,-0.186122,w353697483
+Supermarket,All Needs Supermarkt,,,,5.533688,-0.699896,n1559411310
+Supermarket,Ama Mmra SuperMart,,,,5.807151,-2.434528,w705207722
+Supermarket,Amadia Shopping Center,,,,5.641127,-0.076573,w1107838587
+Supermarket,American Premium,,,,5.645492,-0.148638,w607982195
+Supermarket,Amigo's Mart,,,,5.67414,-0.203627,n7695384255
+Supermarket,Ani Coldstore,,,,5.599685,-0.080693,n9429528428
+Supermarket,Anloga Shopping Centre,,,,5.793934,0.905344,n6031613364
+Supermarket,Anntoinette Convenience Store,,,,5.651915,-0.215995,n13479488006
+Supermarket,Ante Comfort's store,,,,6.876054,-2.429982,n5331125921
+Supermarket,Aunty Olivia Provision Store,,,,5.652071,-0.215341,n13479459165
+Supermarket,Awem Yami Suoermarket,,,,5.579877,-0.22905,n5955241387
+Supermarket,Ayanfuri market center,,,,5.962752,-1.895378,n5137174723
+Supermarket,Ayigbe Store (Mighty Jesus Store),,,,5.70655,-0.157384,w1547906463
+Supermarket,Baatsona Total,,,,5.627263,-0.087365,n6746230483
+Supermarket,Bec's Enterprise,,,,5.685857,-0.150753,n6234120416
+Supermarket,Benbetty Golden Supermarket,,,,5.313593,-1.980135,w671124294
+Supermarket,Besco SuperMart,,,,6.67559,-1.563035,n10590045508
+Supermarket,Best Buy,,,,5.281168,-2.001727,n5141525024
+Supermarket,Bethel Supermarket,,,,5.551449,-0.330396,n6956193681
+Supermarket,Bethel Villa Store,,,,6.18262,-0.472453,n7804755859
+Supermarket,Better Days Ahead Supermarket,,,,10.06484,-2.499542,n8223753019
+Supermarket,Bien Vida,,,,6.684133,-1.574044,n13227472473
+Supermarket,Bonzali daa,,,,9.445883,-0.85612,n12644732865
+Supermarket,Buzz - rite Mart,,,,5.658962,-0.00975,n4286157307
+Supermarket,C&J Supermarket,,,,6.089619,-0.255885,n6394491435
+Supermarket,Cash Down,,,,5.567945,-0.242963,n3073613435
+Supermarket,CEO MART,,,,5.721702,-0.292478,n10704164500
+Supermarket,Charle's Mini Supermarket,,,,9.400709,-0.814488,n9111017049
+Supermarket,Choppies Supermarket,,,,5.682135,-0.193277,n5017201475
+Supermarket,City Dia,,,,5.555295,-0.170491,n4917253677
+Supermarket,Citydia,,,,5.608208,-0.207663,n6100970621
+Supermarket,Citydia Supermarket,,,,5.593227,-0.09076,n4830568667
+Supermarket,Cocobod,,,,7.33327,-2.327936,n2026025141
+Supermarket,Container,,,,5.575228,-0.139185,n4699262792
+Supermarket,Continental Supermarket,,,,6.675794,-1.563398,n5459571454
+Supermarket,Cooland Supermarket,,,,5.681423,-0.19304,n7188543083
+Supermarket,CoolGuy,,,,6.454768,-1.577952,n5060788187
+Supermarket,Danak Supermarket,,,,5.809139,-0.124141,n9938220927
+Supermarket,Deffizzy Mall,,,,5.722791,-0.204001,n10246594297
+Supermarket,Diplomatic Shop,,,,5.608105,-0.17899,n1276048666
+Supermarket,Divine Organic Hub,,,,5.61324,-0.071561,n9447858187
+Supermarket,El Max Loy Supermarket,,,,5.679367,-0.192494,n5732666890
+Supermarket,Elix Goods,,,,9.467589,-0.870479,w734785253
+Supermarket,ELMA Shopping Centre,,,,4.924807,-1.783119,n1378720194
+Supermarket,Evergreen Supermarket,,,,5.658202,-0.011134,n4286174393
+Supermarket,FairLady,,,,5.575042,-0.309093,n4462281589
+Supermarket,Fairway Mini Market,,,,5.573193,-0.165842,n6387882565
+Supermarket,family health shio,,,,5.648047,-0.1788,w503106587
+Supermarket,farmers market,,,,5.734935,0.03773,n7169591085
+Supermarket,Felasino Supermarket,,,,5.673441,-0.190266,n5209797328
+Supermarket,Finest,,,,5.568723,-0.174633,n6937678140
+Supermarket,Flemingo Duty Free Shop,,,,5.602386,-0.190536,n3037520188
+Supermarket,Fobas Enterprise,,,,10.787001,-0.848915,n7063608412
+Supermarket,Foka Enterprise,,,,10.062054,-2.501385,n4497535789
+Supermarket,Forsmuel Shopping Centre,,,,9.403894,-0.84103,n1791501051
+Supermarket,Frank Supermarket,,,,5.611106,-1.549811,n10266610823
+Supermarket,Franky-Jay Shopping Mall,,,,6.698369,-1.682415,n6936371350
+Supermarket,Freedom Supermarket,,,,5.616806,-0.101282,n4588855257
+Supermarket,Frimata Supermarket,,,,5.646451,-0.226835,n9581393109
+Supermarket,Galibons Supermarket,,,,5.675736,-0.016317,n4313556915
+Supermarket,Garden Mart Supermarket,,,,5.643912,-0.111588,n6502580012
+Supermarket,Georgilll,,,,10.885003,-1.098891,n9442052405
+Supermarket,GhanaMart Pickup depot,,,,5.579034,-0.231739,n4581488632
+Supermarket,Gilfred Supermarket,,,,5.647398,-0.133866,n5760823660
+Supermarket,Godliebzema Enterprise,,,,10.79255,-0.80903,n7089606986
+Supermarket,Goshen Supermarket,,,,5.357785,-0.633872,n7453375980
+Supermarket,Great Wall Supermarket,,,,5.567556,-0.180534,n2666879971
+Supermarket,Happy Supermarket,,,,5.535995,-0.701461,n1654762617
+Supermarket,Honesty Store,,,,5.9207,0.991979,n3303349666
+Supermarket,house shop,,,,5.958209,-1.778795,n5315798622
+Supermarket,Indece Supermarket,,,,6.67779,-1.571924,n3077253134
+Supermarket,Jesus is my Last Stop,,,,7.875639,-2.313989,n7047381594
+Supermarket,Joko store,,,,5.305989,-1.995287,n3791990879
+Supermarket,Joserko Supermarket,,,,7.451805,-2.584748,n6140901163
+Supermarket,Joy Mart,,,,5.773753,0.006098,n6303278285
+Supermarket,JV Supermarket,,,,5.702628,-0.042585,n9848072517
+Supermarket,K. Kusi Enterprise,,,,5.611149,-1.549808,n10266610824
+Supermarket,kabfarmgh Achimota,,,,5.61623,-0.229136,n7033934885
+Supermarket,Kairos Business Centre,,,,5.589414,-0.106381,n4530665289
+Supermarket,Koala Supermarket,,,,5.57728,-0.165161,n4884077521
+Supermarket,Korania market,,,,10.839636,-1.097828,n4365874001
+Supermarket,Kotokraba Market,,,,5.114011,-1.246618,n6518396627
+Supermarket,Kumasa,,,,5.685136,-0.162508,n4400510593
+Supermarket,Kuuks Mart,,,,5.64691,-0.134587,n5756412267
+Supermarket,Lara Mart,,,,5.555493,-0.182264,n1631117186
+Supermarket,Lava Market,,,,5.634089,-0.013397,n738980919
+Supermarket,Le Champion,,,,4.92328,-1.784738,n10998442149
+Supermarket,Lizz Dee Shopping Mall,,,,6.62219,0.493699,n10778213354
+Supermarket,Lomnava Super Market,,,,5.531114,-0.263566,n2026403686
+Supermarket,Maa Gina,,,,5.6095,-0.184052,n1839965810
+Supermarket,Makola Shoping Mail,,,,5.546819,-0.206254,n1390293382
+Supermarket,Mama Dee Enterprise,,,,5.583418,-0.27093,w673938172
+Supermarket,Maple Mart,,,,5.64614,-0.005835,n4350176761
+Supermarket,Marina Supermarket,,,,5.688771,-0.171017,w1231573196
+Supermarket,Max Mart,,,,5.653338,-0.179041,n2068163030
+Supermarket,Maxmart Shopping Center,,,,5.591253,-0.180447,n1183555461
+Supermarket,Melcom Factory Outlet,,,,6.090397,-0.257145,n6256567178
+Supermarket,Melcom Kumasi Adiebeba Branch,,,,6.662285,-1.617421,n3125427528
+Supermarket,Melcom Plus,,,,5.585147,-0.2221,n1276388996
+Supermarket,Melcom Supermarket,,,,5.106948,-1.241381,n6135163485
+Supermarket,Mikkimart Supermarket,,,,9.456456,-0.845985,n6485771888
+Supermarket,Minash Supermarket,,,,9.452088,-0.865551,n6407048507
+Supermarket,Modern City Shop,,,,9.404328,-0.841416,n1791501057
+Supermarket,Modex Supermarket,,,,5.605462,-0.259136,n3154394318
+Supermarket,Mosco Supermarket,,,,5.11377,-1.291588,n9062458741
+Supermarket,Motorway Supermarket,,,,5.689916,-0.012969,n4400510789
+Supermarket,Mrs. Donkor Supermarket,,,,6.658967,-1.535565,w964300153
+Supermarket,Nasant Ventures,,,,9.407453,-0.840189,w154173057
+Supermarket,Night Market,,,,5.690702,-0.035133,w931986048
+Supermarket,NN Ventures,,,,5.63192,-0.066153,n12246770560
+Supermarket,Novelty supermarket,,,,5.611786,-0.198593,n4231748740
+Supermarket,Oguaa Koto Shopping Center,,,,5.112923,-1.248044,n6490544182
+Supermarket,Oli Enterprise,,,,10.06414,-2.503795,n5164919122
+Supermarket,Onyame Adom,,,,5.645742,-0.149309,n5910232098
+Supermarket,Opoku Trading Limited,,,,6.689929,-1.623624,w579971601
+Supermarket,Opoku Trading Supermarket,,,,6.679277,-1.573292,n3077301832
+Supermarket,Palace,,,,5.544317,-0.342429,n3257341295
+Supermarket,Palace Hypermarket,,,,5.625263,-0.153857,w449320969
+Supermarket,PM Mart,,,,5.622104,-0.249521,n9593617622
+Supermarket,Quafey Supermarket,,,,5.555452,-0.340112,n5759255879
+Supermarket,Quality First (Main),,,,9.402327,-0.840078,n1880325623
+Supermarket,Quality First Supermarket,,,,9.404066,-0.841207,n1791501042
+Supermarket,Queen Sacks Plaza Enterprise,,,,9.426612,-0.857969,n2509309008
+Supermarket,Ramani Supermarket,,,,6.454656,-1.578336,n5060774793
+Supermarket,Ransbet Super Center,,,,5.302615,-1.986593,w620739603
+Supermarket,Ransbet Supermarket,,,,5.306128,-1.995202,n3089947672
+Supermarket,Ransbrt Supermaket,,,,5.299851,-2.002036,n11700770981
+Supermarket,Razak Store,,,,9.084875,-1.818065,n6535684626
+Supermarket,Ressy Collections,,,,5.566253,-0.287658,n7075907766
+Supermarket,Rice & Suggar Supermarket,,,,5.571702,-0.115241,w190125152
+Supermarket,Ridge Stop Over Supermarket,,,,5.602968,-0.186013,n1175333219
+Supermarket,Royal Mart,,,,5.575552,-0.138359,n4881657500
+Supermarket,Saagar Supermarket,,,,5.564875,-0.182108,n3667771291
+Supermarket,Samsung shop,,,,5.637651,-0.18445,n7147443580
+Supermarket,Sekyere Market,,,,6.922539,-1.37571,n443430378
+Supermarket,Shop n Save Supermarket,,,,4.895088,-1.80766,n4035478048
+Supermarket,Shopit,,,,5.739872,-0.1543,n8346369277
+Supermarket,Shoprite,,,,5.621655,-0.173729,n493756516
+Supermarket,Sister Fausty Supermarket,,,,6.659719,-1.536482,w964300142
+Supermarket,Sister Marta's Supermarket,,,,6.658625,-1.537775,w964300143
+Supermarket,Sly Mart,,,,5.114876,-1.292061,n6554579369
+Supermarket,Somovision,,,,9.404684,-0.841441,w154064651
+Supermarket,Sonturk Supermarket,,,,5.13951,-1.281841,n6416654026
+Supermarket,Spar,,,,5.65192,-0.129255,n5214318809
+Supermarket,Springs of Life Supermarket,,,,10.791391,-0.845672,n7091231937
+Supermarket,Stadium Shopping Mall,,,,6.604002,0.466367,n2319237325
+Supermarket,"Store Complex, Asamankese",,,,5.861314,-0.666667,n4889258621
+Supermarket,Stu's Supermarket,,,,5.559499,-0.259741,n4443298589
+Supermarket,Supermarket,,,,5.803397,-2.447943,n12136277144
+Supermarket,Supersave,,,,5.554637,-0.309263,w1245216746
+Supermarket,The Fountain Supermarket,,,,5.114731,-1.292713,n8362040968
+Supermarket,TikaMall,,,,5.73258,0.02889,n7813219770
+Supermarket,Total Filling Station,,,,5.538308,-0.403199,w611685455
+Supermarket,U84,,,,4.899023,-1.761162,n2024377698
+Supermarket,Uni-Life Supermarket,,,,5.666034,-0.164757,n6425994487
+Supermarket,Walbat Shopping Centre,,,,9.433,-0.868034,n6259954064
+Supermarket,Yoo! Mart,,,,5.527423,-0.454198,w401291057
+Supermarket,Zambang Mart,,,,5.637269,-0.15,n4349001983
+Supermarket,Zion Supermarket,,,,6.683648,-1.51427,n11368549214
+Supermarket,Zuks Multi Mart,,,,9.403774,-0.84286,n6260034030
+Shop,5 Sisters Enterprise,Accra,Nima,Kanda Highway,5.577442,-0.196924,n6983704730
+Shop,Adom Store,Accra,Nima,Obaakrowa Close,5.587765,-0.20521,n6987753302
+Shop,Agnes Enterprise,Accra,Nii Boi Town,Teiku Baah Street,5.61258,-0.244907,n6290813390
+Shop,Arimas Enterprise,Accra,Commandos,,5.580385,-0.204013,n7017660104
+Shop,Awurade Ne Ye Dimafo,Accra,Nima Post Office,Yahaya Seidu Street,5.582256,-0.199449,n7007698655
+Shop,Ba Iko Allah,Accra,Nima,Oku Street,5.581454,-0.203773,n6984618072
+Shop,Bameiyi Shei Allah,Accra,Nima,Reverend Dogbe Street,5.581561,-0.202185,n6984618062
+Shop,Bata Awurade Ho,Accra,Agbajena,Obaakrowa Close,5.587944,-0.205985,n6987742176
+Shop,Batuacami Entreprise,Accra,Nima,Al-Waleed Bin-Talal Highway,5.585106,-0.197593,n6987287997
+Shop,BJ's Wholesale and Retail of General Goods,Accra,Nima Market,Alhaji Norga Street,5.581619,-0.197324,n6975166291
+Shop,Broadway Provisions Store,Accra,Akweteyman,,5.614812,-0.244272,n6277016165
+Shop,Buy and Save,Accra,Alaska,Al-Waleed Bin-Talal Highway,5.585693,-0.197207,n6976961654
+Shop,By The Grace of God Provision,Accra,Nima,,5.584911,-0.204344,n7020608846
+Shop,Chamba Store,Accra,Market,Al-Waleed Bin-Talal Highway,5.583803,-0.197743,n6976961631
+Shop,ChrisGlad Ventures,Accra,Kusuntu Lane,Reverend Dogbe Street,5.581701,-0.203024,n6984618031
+Shop,Cilia Ventures,Accra,Freedom,New Town Road,5.583248,-0.208225,n7015538754
+Shop,De Joint Rentals,Accra,Akweteyman,Ruby's Street,5.617302,-0.239035,n6279111341
+Shop,Dinniset Ventures,Accra,Accra New Town,Akoa Ndor Street,5.582071,-0.20832,n7015538775
+Shop,Ebenezer Shop,Accra,Akweteyman,3 Oil Lane,5.61804,-0.240203,w633294270
+Shop,Emmanuel,Accra,Upper Cloud,Nii Sentse Street,5.585339,-0.205178,n6992705028
+Shop,Faith Over Fear Enterprise,Accra,Alaska,Al-Waleed Bin-Talal Highway,5.585157,-0.197366,n6976961605
+Shop,Faithful is the Lord,Accra,Nima,Kanda Highway,5.57801,-0.19662,n6983704720
+Shop,Faride Enterprise,Accra,441,Hilla Limann Highway,5.58462,-0.193726,n6990163024
+Shop,Felicia Mini Mart,Accra,Akweteyman,Kwashie Bezrot Street,5.613167,-0.238019,n6283471340
+Shop,Ghana Shop,Accra,Kotobabi,,5.589364,-0.204494,n6970189767
+Shop,God is Good All the Time,Accra,Nima,,5.578676,-0.19676,n6983704731
+Shop,God is Great,Accra,Gutter,Al-Waleed Bin-Talal Highway,5.588219,-0.196423,n6989978808
+Shop,God is Love,Accra,Kotobabi Police Station,Briahema Gyemila Crescent,5.590311,-0.203731,n6970189775
+Shop,God Time Is the best,Accra,Nima,,5.579299,-0.199259,n7064180269
+Shop,God's Gift Enterprise,Accra,Alogboshie,,5.624936,-0.230579,w609572296
+Shop,Gods Time Is The Best,Accra,Frankies Down,,5.578736,-0.196694,n6983704708
+Shop,Gye Nyame,Accra,Akweteyman,Tienyo Street,5.615901,-0.238626,n6285774209
+Shop,Hajia Fati Respect Ventures,Accra,Nima,Mallam Murtala Street,5.584476,-0.201241,n6992328729
+Shop,Hajia Lucky Enterprise,Accra,Timber Market,Ajakroba Street,5.584498,-0.206841,n6984515263
+Shop,Hajia Wasila Enterprise,Accra,15 Bob,Al-Waleed Bin-Talal Highway,5.588502,-0.196413,n6983737327
+Shop,Hasbunalla Wanimal Wakeel,Accra,Kotobabi,,5.589605,-0.204846,n6970189686
+Shop,Hasbunallah Wanimal Wakeel,Accra,Agbajena,Obaakrowa Close,5.587684,-0.204733,n6987753320
+Shop,Haseid Enterprise,Accra,Gutter,Al-Waleed Bin-Talal Highway,5.58758,-0.196658,n6989978155
+Shop,Holy Ghost Fire Supermarket,Accra,Akweteyman,Mbomou Street,5.611469,-0.237322,n6283471293
+Shop,Iko Sei Allah,Accra,Kotobabi,Asafoianye Amarkai Street,5.589508,-0.205384,n6970189711
+Shop,Jah Bless,Accra,Nima,Obaakrowa Close,5.587861,-0.205629,n6987753317
+Shop,Jarakotoku Enterprise,Accra,Nima,Al-Waleed Bin-Talal Highway,5.582433,-0.198163,n6991143582
+Shop,JBM Enterprise,Accra,New Town Commandos,Akoa Ndor Street,5.580772,-0.20587,n7016371106
+Shop,Jehovah Covenant,Accra,Market,Al-Waleed Bin-Talal Highway,5.582157,-0.198201,n6991143528
+Shop,Jesus Never fails,Accra,Akweteyman,Kolente Street,5.615798,-0.24086,n6279110705
+Shop,Kamp G. Limited,Accra,New Town,Odoitso Street,5.58687,-0.207282,n6983626714
+Shop,MacCoffee Barack Enterprise,Accra,Nima,Al-Waleed Bin-Talal Highway,5.587435,-0.196732,n6989978793
+Shop,Many Means,Accra,Market,Al-Waleed Bin-Talal Highway,5.583843,-0.197723,n6976961661
+Shop,Mawulawue Mini Mart,Accra,Sweet Apple,Ataa Mensah Close,5.588865,-0.205318,n6987753335
+Shop,Mayima Enterprise,Accra,Nafiu,Kanda Highway,5.588869,-0.191885,n6979983152
+Shop,Mokat Entreprise,Accra,Market,Al-Waleed Bin-Talal Highway,5.584508,-0.197763,w715101129
+Shop,My God Is Able,Accra,Nima,Oku Street,5.580009,-0.203329,n6984620590
+Shop,No Shaking,Accra,Kotobabi Down,Asafoianye Amarkai Street,5.590286,-0.204859,n6970174082
+Shop,Nyame Adom,Accra,Akweteyman,Tshuapa Street,5.610669,-0.236088,n6283473088
+Shop,Nyame Aron Enterprise,Accra,Akweteyman,Aaye Ayee Fee Avenue,5.612045,-0.233442,n6285113306
+Shop,Nyame Na Aye Provision Store,Accra,Kotobabi,,5.589672,-0.204912,n6970189776
+Shop,Pickmix,Accra,Nima,Al-Waleed Bin-Talal Highway,5.585645,-0.197464,n6987284862
+Shop,Rahima Enterprise,Accra,Nafiu,Kanda Highway,5.588715,-0.191992,n6979983141
+Shop,S. A. Sherifa Enterprise,Accra,Alaska,Al-Waleed Bin-Talal Highway,5.585227,-0.197361,n6976961616
+Shop,Seidu Yakubu Enterprise,Accra,Market,Al-Waleed Bin-Talal Highway,5.583355,-0.197883,n6991147487
+Shop,Shadow Enterprise,Accra,Market,Al-Waleed Bin-Talal Highway,5.58431,-0.197797,n6987284863
+Shop,Sharppip Ventures,Accra,Sweet Apple,NewTown Road,5.589022,-0.206721,n7019452304
+Shop,Sister Baby Store,Accra,Akweteyman,Mbomou Street,5.611716,-0.237389,n6283465073
+Shop,Sister's Catering Services,Accra,Nima,Oku Street,5.580061,-0.20333,n6984620594
+Shop,Small London,Accra,Commandos,Akoa Ndor Street,5.579902,-0.204298,w705714341
+Shop,Splendid Queen Mother,Accra,Accra New Town,New Town Road,5.583547,-0.208172,n6984515216
+Shop,Sun Set Shopping Center,Accra,Alafia,Oku Street,5.579361,-0.20226,n6985230142
+Shop,The Hour of Restoration Mini Mart,Accra,Nafiu,,5.588758,-0.192336,n6979983147
+Shop,Toboase Trading Enterprise,Accra,Market,Alhaji Norga Street,5.581873,-0.197806,n6991143544
+Shop,Toboase Trading Enterprise,Accra,German Base,Oku Street,5.585181,-0.201906,n7012078827
+Shop,Unigroup Ghana Limited,Accra,New Town Commandos,Akoa Ndor Street,5.580501,-0.20541,n7016366365
+Shop,Wacy Baby Wholesale & Retail,Accra,Nima,,5.58895,-0.206433,n6987753285
+Shop,Wallahu Ya,Accra,Nima,Mallam Futa Street,5.578596,-0.198499,w705961197
+Shop,Wazawaza MiniMart,Accra,Alafia,Oku Street,5.578924,-0.201241,n6976820680
+Shop,What Is Written Is Written Enterprise,Accra,Kusuntu Lane,Reverend Dogbe Street,5.58165,-0.202129,n6976555983
+Shop,Zaitifa Enterprise,Accra,Alaska,Al-Waleed Bin-Talal Highway,5.586078,-0.19711,n6976961627
+Shop,Yesu Akpe Store,Agbozume,Somey Fiaga Street,Somey Fiaga Street,6.074441,1.033338,n13702790890
+Shop,Bonjour,Bolgatanga,Bawku Road,Bawku Road,10.783575,-0.847448,n6853286961
+Shop,Adako Mall,Kumasi,KSTU Campus Road,KSTU Campus Road,6.727624,-1.492046,n12941783778
+Shop,Aseda Ye Nyame Dea Ent.,Kunsu,Tepa - Goaso Road,Tepa - Goaso Road,6.827108,-1.887741,n7797369352
+Shop,Engyae Mpae Bor Da,Tarkwa,Brahabobom Road,0249142520 Brahabobom Road,5.300508,-1.999728,n5351799253
+Shop,Borga Supermarket,Tema,Community 23,,5.678102,-0.062618,n12199078673
+Shop,Abdela Junction,,Annor Assemah High Street,Annor Assemah High Street,5.803333,-2.823636,n14088322101
+Shop,Aunty Moda Shop,,Nyormor Nm?? Avenue,B639/23 Nyormor Nm?? Avenue,5.602402,-0.248777,n14101527196
+Shop,Benbetty Supermarket,,North Tarkwa Highway,North Tarkwa Highway,5.306828,-1.994673,n3870689693
+Shop,Bonjour,,Liberation Road,Liberation Road,5.591946,-0.181099,n5464042125
+Shop,Danco Enterprise,,Annor Assemah High Street,Annor Assemah High Street,5.804625,-2.824838,n8358965095
+Shop,Delaliam Enterprise,,Poly street,Poly street,6.5927,0.470563,n11146624929
+Shop,Eno Mary Store,,Goaso High Street,Goaso High Street,6.803939,-2.516684,n6313832012
+Shop,Enso Nyame Ye,,Pawpaw Street,Pawpaw Street,5.646361,-0.152964,n12554905562
+Shop,Ɛyɛ Adom Enterprise,,Tanor Boadi Street,Tanor Boadi Street,5.82328,-2.822103,n8246379691
+Shop,Format Ent,,Tsui Bleo Bush Road,Tsui Bleo Bush Road,5.59065,-0.110495,n6417876786
+Shop,Franco Ent,,Kofi Solo Avenue,Kofi Solo Avenue,6.8047,-2.517566,n6292901185
+Shop,Goil Café,,Spintex Road,Spintex Road,5.634094,-0.13423,n5083433637
+Shop,Hajia Fati Enterprise,,Kweku Kyeame Lane,3 Kweku Kyeame Lane,5.821485,-2.821347,n8172229502
+Shop,Jeroady Enterprise Fan Milk Agent,,Barnes Avenue,Barnes Avenue,5.547204,-0.203785,n11310004470
+Shop,Last Hour Provisions,,Allubulu Street,Allubulu Street,5.823404,-2.824878,n8015020928
+Shop,Mejub,,Spintex Road,Spintex Road,5.637477,-0.126065,n5088587323
+Shop,Nasagla Enterprise,,Wa West,,9.867914,-2.440875,n9934224344
+Shop,Nyame Ne Me Boafo Ent,,Mim-Kukuom Road,Mim-Kukuom Road,6.797203,-2.517433,n6313007825
+Shop,St Peter's Shopping Mall,,Dr. Obour Boffah Link,Dr. Obour Boffah Link,6.801068,-2.517731,w642093737
+Shop,"Start Strong, Finish Strong",,Hospital/Salaga Road,Hospital/Salaga Road,9.387724,-0.810287,n12082038369
+Shop,Store,,Council Yard Crescent,Council Yard Crescent,6.803276,-2.519671,n6745989111
+Shop,Tampaalipaani,,Wa - Busa road,Wa - Busa road,10.061035,-2.48438,n5700175316
+Shop,2 Guys Supermarket,,,,5.628015,-0.171744,n8572190318
+Shop,A. Alhassan Enterprise,,,,10.061332,-2.505628,n8281691642
+Shop,Abu Store,,,,9.215647,-1.857627,n5832931502
+Shop,Abuakwa Shell Select,,,,6.700656,-1.717244,w1105524450
+Shop,Adept Frozen Foods and Mini Mart,,,,6.143012,0.054783,n8431904558
+Shop,Adjentes,,,,5.606242,-0.185843,n3078225347
+Shop,Adom Shop,,,,5.112734,-1.291575,n13893858408
+Shop,Adonai Mart,,,,5.688037,-0.194504,n8082071083
+Shop,Aegis Mart,,,,5.085649,-1.503305,n11261552748
+Shop,Afro Impressions,,,,5.114224,-1.29174,n13893900355
+Shop,Agbo Spot,,,,5.669932,-0.17974,n5209798231
+Shop,Alhaji Alhassan Store,,,,9.219166,-1.858366,n5832319639
+Shop,Alhaji Mind Your Own,,,,9.494861,-2.41929,n13265139718
+Shop,Alicia Bakery and Mart,,,,5.669166,-0.111693,n12434152027
+Shop,Amata Enterprise,,,,9.838288,-2.609236,n13196265700
+Shop,Amaze Stores,,,,5.300612,-1.993495,n4947289853
+Shop,Amazing Grace supermarket,,,,5.812181,-0.007872,n13722657433
+Shop,American Groceries,,,,5.643155,-0.158914,n12451859526
+Shop,Amshawu Ent.,,,,9.388538,-0.815322,n6477182957
+Shop,Amshawu Enterprise,,,,9.388497,-0.815321,n6477271495
+Shop,Anaafo Local Market,,,,5.106452,-1.241217,n6135163585
+Shop,Ascension,,,,5.575672,-0.153191,n9146856062
+Shop,Aseebu Market,,,,5.392876,-0.647791,n4756872321
+Shop,AT. Ventures,,,,6.789382,-2.516425,n6450571804
+Shop,Atule,,,,10.781193,-0.78431,n7793508538
+Shop,AUNTIE GRACE,,,,5.615737,-0.13161,n12372755422
+Shop,Auntie Salima's Shop,,,,5.640357,-0.331336,n11368589738
+Shop,B.B's,,,,5.112855,-1.325077,w881814365
+Shop,Baakomi Enterprise,,,,9.390188,-0.815416,n12081309480
+Shop,Babona Mart,,,,5.555812,-0.305103,n7777481073
+Shop,Backy Enterprise,,,,5.672452,-0.122799,n13078669220
+Shop,Bantaa Royal Ventures,,,,10.050086,-2.501792,n13477101847
+Shop,Bantama dwom,,,,5.298961,-2.003104,w1431418598
+Shop,Barbs Mart,,,,5.616044,-0.26074,n6314328020
+Shop,Benzola Supermarket and Mini Restaurant,,,,5.647889,-0.185441,n6153180354
+Shop,Big Asante,,,,6.687174,-1.574047,n10771555999
+Shop,Big Nic Enterprise,,,,10.564657,-2.708001,n11335771449
+Shop,Blanko Mart,,,,6.110965,1.161025,n14086074371
+Shop,Blessed Local Market,,,,5.812814,-0.12228,n9938220928
+Shop,Blue Pillars Supermarket,,,,6.725117,-1.640586,w601144606
+Shop,Bonjour,,,,5.56374,-0.140427,n5548620426
+Shop,Bonjour Haatso,,,,5.668094,-0.205536,n7634541772
+Shop,Bottle Water,,,,5.622468,-0.091081,n7046135645
+Shop,Breakthrough Supermarket,,,,5.659985,-0.301765,n7799313097
+Shop,BS Food and Cold Store,,,,5.670217,-0.11848,n13078655060
+Shop,C & M Baasakor Limited,,,,5.114395,-1.291874,n13893643464
+Shop,Cash Mart,,,,5.267166,-1.017133,n10284381793
+Shop,City Migro,,,,5.619046,-0.250145,n5923782769
+Shop,Confidence,,,,5.828693,-2.818028,n10119746049
+Shop,Convenience Store,,,,5.614943,-0.130844,n7203680185
+Shop,Convenienz,,,,5.682833,-0.192973,n7721944030
+Shop,CP,,,,6.221834,-0.365536,n5535788539
+Shop,D-Man Enterprise,,,,9.867134,-2.43916,n9934224345
+Shop,Davi store,,,,5.683342,-0.181797,n10289599375
+Shop,De Bless Ventures,,,,5.522474,-0.478804,n9595225675
+Shop,Dede Store,,,,5.598959,-0.115603,n11132666697
+Shop,Deviame Palm Grove Inn,,,,5.885989,0.982876,n10311584409
+Shop,Devine Provisional Shop,,,,9.426203,-0.866937,n2509301562
+Shop,Divine Mercy,,,,5.120983,-1.285207,n4968607368
+Shop,Dogo Dagi market,,,,7.849485,-0.799606,n7191135385
+Shop,Domingo,,,,6.111478,1.161424,n14086074370
+Shop,Don Enterprise,,,,9.440333,-0.007055,n6820953250
+Shop,Don't Mind The Body Provision Store,,,,5.680825,-0.194439,n5728894503
+Shop,DSTv,,,,5.612837,-0.176804,n1270713533
+Shop,Duty Free Shop,,,,6.11295,1.198565,n5268248324
+Shop,Dzialets Limited,,,,6.621893,0.472822,n6554714026
+Shop,Ecomog Supermarket,,,,5.680777,-0.203628,n7823677684
+Shop,Edem's Mini Mart,,,,5.639716,-0.056584,n6355343085
+Shop,Efforts Mart,,,,5.848795,-0.047971,n12458845488
+Shop,El Tarsh Ventires,,,,5.674053,-0.190834,n5792048835
+Shop,Emmacajosh Enterprise,,,,6.661445,-1.563889,n12135921671
+Shop,Emmanuel Ice Cream and Cold Store,,,,5.682545,-0.181819,n10289599390
+Shop,Emmanuel Shop,,,,5.58328,-0.130629,n11088942105
+Shop,Enkaakyi Enterprise,,,,6.683646,-1.578301,n11290294646
+Shop,EV Mart,,,,5.623201,-0.072482,n3678130672
+Shop,every,,,,5.607053,-0.215195,n14234979343
+Shop,Eye Awurade,,,,6.792443,-2.510932,n7291702585
+Shop,Fairway Butchery & Mini Mart,,,,5.633146,-0.133426,n6618912343
+Shop,Family Mart,,,,5.6896,-0.196348,n8883762057
+Shop,Family Paradise Mart,,,,5.707067,-0.024729,n8870340271
+Shop,Faustina's Enterprise,,,,5.563913,-0.309883,n6543079855
+Shop,Flaia Store,,,,5.297486,-1.999868,n4769339221
+Shop,Flant Ent,,,,5.675695,-0.178573,n10296275125
+Shop,FOB Supermarket,,,,5.682455,-0.193343,n7767832679
+Shop,Food,,,,6.604548,0.477265,n11897080170
+Shop,Franko Lit,,,,7.342554,-2.320094,n2199502864
+Shop,Frimps Mart,,,,5.631869,-0.243874,n7406322658
+Shop,Fruit seller,,,,5.677235,-0.18149,n10284442210
+Shop,Fulera Provisions,,,,9.218181,-1.858466,n5832349383
+Shop,General needs,,,,5.296221,-2.000005,n4769247521
+Shop,General Store,,,,7.365757,0.489985,w353262473
+Shop,Glory be to Allah,,,,5.681374,-0.180298,n10608576933
+Shop,GN Bank,,,,5.6916,-0.035791,n4286137007
+Shop,Go Café,,,,5.579856,-0.155656,n6448342771
+Shop,"Go Mart, Haatso-Atomic",,,,5.666653,-0.186601,w1124510727
+Shop,God’s Ent Ent,,,,6.23231,1.001951,n8488420317
+Shop,God's Way,,,,6.572877,0.364945,n8541546617
+Shop,Goil Cafe,,,,5.597497,-0.081877,n6493148328
+Shop,Good Morning Ent,,,,5.597181,-0.197698,n8567115618
+Shop,Goodness and Mercy,,,,5.68293,-0.182783,n10289599352
+Shop,Grace Mini Mart,,,,5.618377,-0.250062,n5626467383
+Shop,Grace of God Minimart,,,,5.686311,-0.194405,n8082059418
+Shop,Grains Depot,,,,5.772356,-0.00201,n6564299586
+Shop,Groceries Shop,,,,5.116164,-1.280945,n13873179449
+Shop,Hajia Mariyama's Shop,,,,10.276199,0.207292,n13531155084
+Shop,Hajia Ramatu Enterprise,,,,9.381756,-0.812125,n12083139505
+Shop,Hakzed Shopping Center,,,,9.431735,-0.860888,n1820548376
+Shop,Happy Mart,,,,5.81109,-0.12326,n9938220929
+Shop,Helena Store,,,,5.611495,-0.106652,n7102234384
+Shop,Henakus Annex,,,,10.910011,-1.089659,n8179969859
+Shop,Hetty Johet Enterprise,,,,5.614326,-0.190794,n9594042257
+Shop,Hot Bread Joint,,,,6.008613,0.623188,n5322583987
+Shop,Humano Mart,,,,6.616836,-1.162636,n7537551935
+Shop,Hwɛ Deɛ Onyame Ayɛ,,,,5.941339,-2.946976,n8917682424
+Shop,I can do,,,,5.673764,-0.189631,n10603839416
+Shop,Ibn Kamara Enterprises,,,,9.219403,-1.86015,n5831870584
+Shop,In God We Trust Enterprise,,,,9.464612,-2.322712,n13474984889
+Shop,Insah Allah,,,,5.618479,-0.096825,n7067081585
+Shop,It is God,,,,5.261475,-2.004677,n5658109245
+Shop,Jablin Supermarket,,,,6.727629,-1.642895,n6169124119
+Shop,Janet Enterprise Abruso,,,,5.296561,-2.000535,n4769263139
+Shop,Jemeca Store,,,,5.632745,-0.32526,n8017288774
+Shop,JM & Sons Limited,,,,5.327459,-1.981428,n10593480529
+Shop,Joe Bel Enterprise,,,,5.822528,-2.823695,n8258783039
+Shop,Kamas Enterprise,,,,5.277426,-1.995075,n9602375360
+Shop,Kɛse Wo Kan Store,,,,5.29625,-2.000672,n4769253034
+Shop,Kismart,,,,5.298064,-2.003752,n4683383684
+Shop,Kissmart Coca-Cola Stand,,,,5.297983,-2.003087,n4919886491
+Shop,Kofidi Enterprise,,,,6.688165,-1.59331,n11062109574
+Shop,Kojo Imoru's Shop,,,,10.275384,0.207937,w1474934158
+Shop,Korkudi,,,,5.6011,-0.079133,n6504259927
+Shop,La Fiesta Hacienda,,,,5.659516,-0.165856,n1775844714
+Shop,Lady Gee,,,,5.618956,-0.249785,n7991117269
+Shop,Laiyash Enterprise,,,,5.678621,-0.180903,n10296275165
+Shop,Las Vegas Cold Store and Groceries,,,,6.675642,-1.562106,n10596968406
+Shop,Last Hour Enterprise,,,,5.568212,-0.244224,n4993054931
+Shop,Latex Foam,,,,5.687901,-0.03258,n4286153293
+Shop,Let Your Light Shine Enterprise,,,,5.690577,-0.198604,n8362669936
+Shop,Lioness Mart,,,,5.672582,-0.125482,n13078638731
+Shop,Maa Bea's mini store,,,,6.734352,-1.577026,w1429188119
+Shop,Maa bee,,,,5.54103,-0.384544,n5745561754
+Shop,Maaj Mart & Cold Store,,,,5.652264,-0.076511,n10957259146
+Shop,Madam Marry Shop,,,,10.792062,-0.791647,w725256392
+Shop,Mama Tee,,,,5.546595,-0.403702,w1137553938
+Shop,Mama Wagon,,,,5.319521,-1.985859,n5383016934
+Shop,Manty Food and Meat,,,,5.681662,-0.183896,n10286038649
+Shop,Marian Shop,,,,5.677158,-0.17818,n10296275127
+Shop,Maswa Shop,,,,6.597267,0.474169,n6554705849
+Shop,Mawufemor Ent.,,,,6.478811,0.722246,n8201474118
+Shop,Maxx Mart,,,,11.003515,-0.341611,n14203376204
+Shop,Member Store,,,,6.110161,1.175247,n5074866857
+Shop,Mensange Ent,,,,5.619057,-0.09524,n6476723491
+Shop,Meridian Supermarket,,,,5.657819,0.025974,n4350212046
+Shop,Mimi's Supermart,,,,5.676632,-0.176188,n10650608001
+Shop,Minimarket,,,,5.627798,-0.146324,n5543537622
+Shop,Murash Dream,,,,5.678518,-0.180945,n10296275162
+Shop,My Brother,,,,4.937652,-2.349206,n5239750192
+Shop,N-Nakan Seidu Shop,,,,10.275907,0.207113,n13531154904
+Shop,Nekman Unisex Salon,,,,5.111981,-1.291692,n13893643465
+Shop,Nimble Mart,,,,5.643277,-0.113598,n5536382399
+Shop,Noka Shopping Center,,,,7.602429,-1.933785,n10875110568
+Shop,Nuntaa Alhassan,,,,10.060691,-2.504944,n13420241299
+Shop,Nyame Ne Boafoɔ,,,,5.82094,-2.829667,n9501911032
+Shop,Nyame Su Supermarket and Cold Store,,,,6.664111,-1.514029,n11009058402
+Shop,NYF Snacks,,,,6.684454,-1.603909,n11155023667
+Shop,Oakland Supermarket,,,,5.579569,-0.228286,n5717930974
+Shop,OB A,,,,5.861281,-0.666236,n8807442417
+Shop,Obolo And Sons,,,,6.589228,0.469883,n12484418769
+Shop,Ofori Mati,,,,5.590519,-0.110729,n6690500388
+Shop,omega store,,,,5.999477,0.595074,n6720139986
+Shop,Options,,,,5.599226,-0.225014,n6384169285
+Shop,Options Mart,,,,5.627884,-0.17232,w741104437
+Shop,Paambo Mahama Hudu,,,,9.949159,-2.390051,n11409637922
+Shop,Pambros Salt Production,,,,5.557204,-0.298899,n4739904325
+Shop,Paradise Inn,,,,10.869908,-1.078799,n9925092317
+Shop,Peace Bee,,,,5.677334,-0.178662,n10296275149
+Shop,Peace Care,,,,5.721958,-0.056081,n9846988417
+Shop,PearlHouse Supermarket,,,,5.680839,-0.192868,n5210898986
+Shop,Peek Mary,,,,5.578524,-0.238953,n14124900670
+Shop,Perfect Way Enterprise,,,,5.306185,-1.995183,n9684591344
+Shop,Premium Pharmacy and Mart,,,,5.552415,-0.17834,n6700363806
+Shop,Provisions and More,,,,5.681642,-0.192701,n5732865976
+Shop,Psalm 27,,,,5.604603,-0.085194,n6476651485
+Shop,Rabena Korean Shop,,,,5.66875,-0.014122,n1285191266
+Shop,Ransbet,,,,5.337829,-1.970604,n10309429117
+Shop,Resurrection Shop,,,,5.296413,-2.000112,n4769240123
+Shop,Rizqa,,,,5.683044,-0.182521,n10289599353
+Shop,Romerick Enterprise,,,,5.676114,-0.19117,n5210898990
+Shop,Rontel,,,,5.600383,-0.078952,n6504259929
+Shop,Royal Bow Company Limited,,,,5.30183,-2.001306,n4788225136
+Shop,Safe Way Enterprise,,,,6.823189,-1.86717,n7720119013
+Shop,Samanti Supermarket,,,,5.608082,-0.242387,n5922393579
+Shop,Select,,,,5.594288,-0.180661,n5540927823
+Shop,Shell Select,,,,6.686724,-1.623798,n6052584304
+Shop,Shell Shop,,,,5.609237,-0.107651,n8097021506
+Shop,Shepherd Store,,,,5.297027,-1.999876,n4769241022
+Shop,Shop Express,,,,5.684328,-0.193976,n7721947294
+Shop,Siba Provision Shop,,,,9.218834,-1.857902,n5832009084
+Shop,Silver Link Mart,,,,6.601062,0.45152,n9214642417
+Shop,Simon's store,,,,10.792208,-0.792196,w700435270
+Shop,Sinaba,,,,10.783171,-0.784547,n8926351573
+Shop,Sis. Adjoa's Shop,,,,5.112829,-1.325376,w881814363
+Shop,Sister Baby’s Store,,,,6.422595,-0.870024,n12049183979
+Shop,Sister Dede Supermarket,,,,5.659188,0.026012,n5670015422
+Shop,Sister Yaa's Store,,,,5.702168,-0.202431,n8718188845
+Shop,Slow But Sure,,,,9.21789,-1.858058,n5832931494
+Shop,Small Market,,,,6.107719,1.160445,n5126680083
+Shop,Smile Ventures,,,,5.614485,-0.190667,n9594058803
+Shop,Solrob,,,,5.299979,-2.004157,n5397155189
+Shop,Special Rice,,,,4.9325,-1.714665,n9595225669
+Shop,Spenex Enterprise,,,,6.708741,-1.637202,n6702059005
+Shop,St. Joe Enterprise,,,,6.804612,-2.516074,n8381061617
+Shop,Star Mart,,,,5.82294,-0.122063,w1354896832
+Shop,Star Oil,,,,6.31738,-0.474909,n6943570074
+Shop,Stevo,,,,6.849813,-1.395673,n4598937089
+Shop,Store,,,,6.815377,-2.53144,n6760298128
+Shop,Tahiru Enterprise,,,,9.858835,-2.247935,n13192500114
+Shop,Tax & Duty Free,,,,5.606296,-0.171586,n5089650223
+Shop,This And This Cold Store,,,,5.114053,-1.30273,n13867807543
+Shop,Timugna Ventures,,,,10.055321,-2.505163,n14061795172
+Shop,Tina's Store,,,,5.296327,-2.000635,n4769253036
+Shop,To God Be the Glory,,,,5.677928,-0.183681,n10284604587
+Shop,Tomary Ventures,,,,5.891607,0.98489,n6032339452
+Shop,Tonifel,,,,5.600101,-0.079104,n6504259932
+Shop,Too Ice Mini Mart,,,,5.644833,-0.078107,n12077052573
+Shop,Total,,,,5.535416,-0.211111,w777942074
+Shop,Total Mart,,,,5.588174,-0.099448,n7600588294
+Shop,Trinity Enterprise,,,,5.30775,-1.994331,n3815416176
+Shop,Trinity Mini Mart,,,,5.562015,-0.30813,n6431375614
+Shop,Vardhi Eyecare,,,,5.112273,-1.291656,n13893865394
+Shop,Vidot Enterprise,,,,6.804691,-2.515814,n6373962921
+Shop,Warif Mart,,,,5.567735,-0.234761,n5994876739
+Shop,Winners,,,,5.67277,-0.182078,n10604767532
+Shop,Xpress,,,,5.631947,-0.140092,n6502583843
+Shop,Yellow Store,,,,10.063983,-2.507345,n13990257220
+Shop,Young Men,,,,5.684409,-0.051757,n6416919190
+Shop,Zakaria Iddris,,,,10.057446,-2.506685,n11510559050
+Shop,Zulfaw Provisions,,,,9.220021,-1.857829,n5832433149
+Market,Dansoman Market,Accra,1st Exhibition Street,1st Exhibition Street,5.541503,-0.265177,n1000064927
+Market,Galilea Market,Accra,Winneba Road,Winneba Road,5.537461,-0.400335,w622248248
+Market,Mallam Atta Market,Accra,Mallata Street,Mallata Street,5.579815,-0.208306,w414615655
+Market,Nima Market,Accra,Nima Market,Al-Waleed Bin-Talal Highway,5.58025,-0.199006,n5291947251
+Market,Battor Market,Battor,Battor Road,Battor Road,6.066104,0.401285,w1217727469
+Market,Tanoso market Entrance,kumasi,Sunyani Road,Sunyani Road,6.698119,-1.692035,n7476292360
+Market,Achimota Market,Accra,,,5.619948,-0.232198,w742340748
+Market,Dome Market,Accra,,,5.643696,-0.23674,w677779281
+Market,Kpassa Market,Kpassa,,,8.498229,0.302099,w1424167963
+Market,KOKOTE MARKET,OFFINSO,,,6.933008,-1.683975,n14321035959
+Market,Amanful Clothing Line,Takoradi,,,4.899594,-1.761415,n3780985692
+Market,CoDE market,,Kwapro Road,Kwapro Road,5.121766,-1.294324,n13372226002
+Market,Enchi New Market,,D.C. Binney Road,D.C. Binney Road,5.813005,-2.836543,w884938390
+Market,Kaneshie Market Complex,,Dr. Busia Highway,Dr. Busia Highway,5.566221,-0.236507,w276981508
+Market,37 Market,,,,5.588934,-0.180017,n7038826393
+Market,Abeka Market,,,,5.600595,-0.239728,w301530833
+Market,Abokobi Market,,,,5.730327,-0.20422,n9989569790
+Market,Aboso Market,,,,5.363726,-1.945891,n9102548009
+Market,Abrefakrom Market Centre,,,,7.477612,-2.170341,w675605815
+Market,Abrepo Market,,,,6.724173,-1.654914,w639086831
+Market,Abuakwa Main Market,,,,6.700117,-1.717465,w1105526278
+Market,Aburaso Market Square,,,,6.660532,-1.673357,w893835658
+Market,Achimfo Market,,,,5.782437,-2.726298,n10635309525
+Market,Ada Foah Market,,,,5.782974,0.636667,n901048063
+Market,Adweso,,,,6.06652,-0.252426,w1311678892
+Market,Adweso Market,,,,6.066579,-0.252487,n6330190233
+Market,Afariwa,,,,5.707376,-0.015974,n1603831969
+Market,Aflao Border Market,,,,6.111914,1.195213,n4623471463
+Market,Aflao Market,,,,6.117621,1.187228,w247234130
+Market,Africana,,,,5.110345,-1.291818,n6510998982
+Market,Agbogbloshie Onion Market,,,,5.55503,-0.226407,w295106221
+Market,Agbozume Market,,,,6.073684,1.037465,n3958701435
+Market,Agogo Market,,,,6.652764,-1.58674,n2167621800
+Market,Agona Market,,,,4.89171,-1.967769,w178069380
+Market,Agormanya Market,,,,6.147121,0.015401,w1395327524
+Market,Ahodwo Market,,,,6.659353,-1.617408,n2169660910
+Market,ahwerase market,,,,5.863784,-0.162702,w1296085405
+Market,Ahwiaa New Moro Market,,,,6.759678,-1.586606,w1549974151
+Market,Ajumako Market,,,,5.428123,-0.957997,w672669047
+Market,Akatsi Market,,,,6.118296,0.804043,w293202111
+Market,Akim Abodom Market Square,,,,6.16079,-0.817456,w686100418
+Market,Akosombo Market,,,,6.801468,-1.0859,w1510774641
+Market,Akuse Market,,,,6.100713,0.128109,n9532190612
+Market,Akwatia Market,,,,6.040556,-0.806194,n7133445776
+Market,Amasaman Market,,,,5.706072,-0.30348,n6279736266
+Market,Amedzofe Market,,,,6.847477,0.435576,w775616474
+Market,Anloga Market,,,,5.796656,0.897972,w78054183
+Market,Anomangyefie Market,,,,6.727733,-1.64239,w558326820
+Market,Aprade Market,,,,6.709283,-1.538307,w675627220
+Market,Asafo Market,,,,6.688432,-1.615994,w301642691
+Market,Asamankese Market,,,,5.861798,-0.666359,w893103741
+Market,Aseseɛso Market,,,,6.009757,-0.05461,w1355011169
+Market,Ashaiman Main Market,,,,5.689525,-0.030805,w386992570
+Market,Asikuma Market,,,,6.407201,0.17393,n8653745526
+Market,Asokore Mampong market,,,,6.708323,-1.567913,w908922202
+Market,Asokore Market(Main Wing),,,,6.846069,-1.386814,w1177342719
+Market,Asokore Market(Wing A),,,,6.846185,-1.386769,w1177342717
+Market,Asokore Market(Wing B),,,,6.846352,-1.386714,w1177342718
+Market,Asuoso Market,,,,6.476937,-0.656892,w505642875
+Market,Atonsu Market,,,,6.655128,-1.590499,n2167621813
+Market,Atonsu New Market,,,,6.659368,-1.59421,n2167621805
+Market,Ayeduase Market,,,,6.675578,-1.557602,w973181090
+Market,Ayigya Market,,,,6.689765,-1.572667,w585726548
+Market,Baatsona market,,,,5.626442,-0.078819,n4468696772
+Market,Babile Market,,,,10.530052,-2.839,w345605013
+Market,Bamboo Market,,,,5.64994,-0.254094,n7151868818
+Market,Bantama Market,,,,6.703215,-1.634868,w579620573
+Market,Bawku Central Market,,,,11.060798,-0.241041,w224215817
+Market,Beads Market,,,,6.078701,-0.25126,w712504699
+Market,Beat and Boot Market,,,,10.797933,-0.808964,w769048493
+Market,Bekwai Main Market,,,,6.45412,-1.577772,n5060765005
+Market,Berekum Market,,,,7.450946,-2.581969,n5143641890
+Market,Bibiani Market,,,,6.453888,-2.31783,w665900516
+Market,Boadi Market,,,,6.675314,-1.542096,n13056041763
+Market,Bogoso Market,,,,5.568782,-2.017796,n4851957898
+Market,Bohyen Market,,,,6.719956,-1.648176,w682492904
+Market,Bokro Market,,,,6.641958,-1.590777,n5187443509
+Market,Bonakye Market,,,,8.403179,0.400517,w1453383502
+Market,Bonyere market,,,,5.017086,-2.728222,w469042719
+Market,Brabahumi market,,,,10.506147,-2.852912,w675614855
+Market,Brewaniase Market,,,,8.002577,0.558684,w1214091405
+Market,Bussie market,,,,10.480792,-2.500042,w1360399499
+Market,Caws marketplace,,,,10.270042,0.208242,w1427522805
+Market,Central Market,,,,6.091031,-0.256571,w615838217
+Market,Chantan New Market,,,,5.60813,-0.256411,n2148020792
+Market,Choggu Mmanaayilli Common Market,,,,9.427845,-0.858645,n2509309025
+Market,CODE Market,,,,5.122399,-1.294102,n13433534401
+Market,Community 1 Market,,,,5.64541,-0.000003,n2622097829
+Market,Community 4 Night Market,,,,5.65623,-0.005241,n4544612301
+Market,Community 8 Market,,,,5.66955,-0.012902,n4151841338
+Market,Community 9 market,,,,5.678087,-0.015419,w963198873
+Market,Daboase New Market Centre,,,,5.136725,-1.657349,w789268983
+Market,Dambai Market,,,,8.072018,0.176035,n5210318862
+Market,Damongo Weekly Market,,,,9.076888,-1.816012,n7241179294
+Market,Danso - Roadside Market,,,,7.46696,-1.967621,n4327072600
+Market,Denu Market,,,,6.098533,1.14558,w245994461
+Market,Dzodze Market,,,,6.23255,0.996811,w546230900
+Market,Edumadze,,,,5.26724,-1.018605,n11157775940
+Market,Effiduase Market,,,,6.109965,-0.268472,n6330231586
+Market,Effiduasi Market,,,,6.848752,-1.395423,w290465366
+Market,Ejura Market,,,,7.381041,-1.365514,n3880608226
+Market,Enchi Old Market,,,,5.822607,-2.820026,n8015044993
+Market,European Fish Market,,,,5.645395,0.015989,n1285191171
+Market,Everyday Market,,,,5.683816,-2.025288,w536397821
+Market,Fish Market,,,,5.341304,-0.618622,n2018583445
+Market,Food vendors,,,,5.651066,-0.192115,n6761602282
+Market,Gatsonya Market,,,,6.216944,-0.11076,n13853347616
+Market,Gbangbapon Market,,,,9.849467,0.304471,w446296435
+Market,Gbintiri Market,,,,10.307443,-0.099826,w1484182821
+Market,General Market,,,,9.440838,-0.007799,w218967472
+Market,Goaso Market,,,,6.807133,-2.515567,n5753044222
+Market,Haatso Yam Market,,,,5.66918,-0.205928,n6504659829
+Market,Ho Central Market,,,,6.620105,0.472443,w1164702714
+Market,Hohoe Market,,,,7.151158,0.468118,w1453909314
+Market,Horsey Park Market,,,,6.204647,-1.669973,w888417950
+Market,Huni-Valley Market,,,,5.469539,-1.917609,n12805964335
+Market,Hweakwai Market,,,,6.342947,-1.053123,w593204876
+Market,Janga Market,,,,10.027738,-0.978628,w441195268
+Market,Kade Market,,,,6.100572,-0.836466,n6775864187
+Market,Kaleo New Market,,,,10.172498,-2.543298,w965886391
+Market,Kandiga market,,,,10.897405,-0.962763,n7793484656
+Market,Kantamanto Market,,,,5.549512,-0.213128,w666914878
+Market,Kejetia,,,,6.698663,-1.623016,w351926830
+Market,Kejetia Market,,,,6.695833,-1.621046,n3577283350
+Market,Keta Market,,,,5.922276,0.991616,w247200311
+Market,Kintampo Old Market,,,,8.054421,-1.729649,n11418168155
+Market,Kisseman Market,,,,5.63926,-0.213842,n2148020840
+Market,KNH Market,,,,5.117008,-1.279514,w445031196
+Market,Koforidua Zongo Market,,,,6.107456,-0.254502,w944053953
+Market,Kongo Market,,,,10.840139,-0.707419,w729341442
+Market,Konongo Market,,,,6.623873,-1.211654,w1356772077
+Market,Kornokli Market,,,,6.211387,-0.110888,n13853347645
+Market,Kpandai Market,,,,8.466972,-0.012039,w764688536
+Market,Kpando Market Centre,,,,6.995356,0.293991,w213212234
+Market,Kpatia market,,,,10.760822,-0.746605,n7874003110
+Market,Kpedze Market,,,,6.841508,0.497464,w824157602
+Market,Kpikpira Market,,,,10.810969,-0.085084,n6060769749
+Market,Kropo Market,,,,6.716304,-1.640676,w645557887
+Market,Kukuo market,,,,9.395891,-0.823938,w1116598609
+Market,Kunka New Town Market,,,,6.213702,-1.69022,n6497645858
+Market,Kwabeng Market,,,,6.318476,-0.588999,w585378077
+Market,Kwapra Market,,,,6.759837,-1.628991,w1138305103
+Market,La Main Market,,,,5.560776,-0.156924,n2151944575
+Market,Lapaz Street Market,,,,5.60747,-0.248009,n3154426148
+Market,Lawra Market,,,,10.64441,-2.898345,w983057492
+Market,Maakro Market,,,,6.72879,-1.634558,w616419489
+Market,Madina Market,,,,5.679082,-0.169477,w419698151
+Market,Mafi Kumase Market,,,,6.27363,0.569597,n8969013656
+Market,Makola Market,,,,5.548074,-0.206932,n7514623108
+Market,Malata Market (Crab Seller),,,,5.579911,-0.208048,n7784362297
+Market,Mallam Market,,,,5.571825,-0.279737,w672860270
+Market,Mandela Market,,,,5.536858,-0.696482,w407916163
+Market,Mangoase,,,,5.66402,-0.173653,w745381279
+Market,Marché de Dakola,,,,10.99804,-1.114396,n5879351044
+Market,Market,,,,6.092503,-0.257893,w615838215
+Market,Market Square,,,,5.203314,-1.057736,w1248795542
+Market,Marketplace,,,,9.219365,-1.859092,n6652093701
+Market,Mentor Business Center,,,,5.115164,-1.292123,n13887521843
+Market,Mepe Market,,,,6.077873,0.434314,n8043155073
+Market,mini market,,,,10.019787,-2.547294,w441195183
+Market,Moro Market,,,,6.723116,-1.613605,n7302436795
+Market,Mpohor Market,,,,4.969374,-1.891537,n11746999895
+Market,Nakom Market,,,,11.034389,-0.082649,w1485877709
+Market,Nalerigu Market,,,,10.526891,-0.370698,n7133434578
+Market,Namoo Market,,,,10.972118,-0.851739,n2295251492
+Market,Nandom Market,,,,10.853204,-2.757136,n6504341900
+Market,New market,,,,7.557,-1.708781,w834252288
+Market,New Tafo Market,,,,6.222551,-0.366524,n8437369663
+Market,Nii Adjor Market/ Lorry Terminal,,,,5.686998,-0.03341,n13606024901
+Market,Nkaseim Market,,,,6.863775,-2.447064,w788341977
+Market,Nkawkaw Agbogbloshi Market,,,,6.550796,-0.767849,w1144696760
+Market,Nkawkaw Central Market,,,,6.552286,-0.765847,n5806003932
+Market,Nkurakan Market,,,,6.126718,-0.213079,w882031223
+Market,Nkwanta Market,,,,8.262262,0.52226,w930637435
+Market,Noyem Market,,,,6.454718,-0.931861,n13556393589
+Market,Nsuansa Market,,,,5.730751,-0.853644,w1152735003
+Market,Nsuta Market,,,,7.008925,-1.380349,w506032990
+Market,Nungua Market,,,,5.600469,-0.079296,n2151944591
+Market,Odawna Market,,,,5.565303,-0.217225,w664056985
+Market,Odoornaa Market,,,,5.568639,-0.216862,n3109282498
+Market,Odumase Market,,,,5.66802,-0.303958,w1255043671
+Market,Oduponkpehe Ofaakor New Market,,,,5.553216,-0.435012,w204809586
+Market,Ofankor Market,,,,5.659334,-0.276337,n6763212690
+Market,Old Market,,,,10.784509,-0.850612,w441130996
+Market,Old Site Market,,,,5.105085,-1.286784,n13440817901
+Market,Onion Market,,,,6.68181,-1.592596,n8916511825
+Market,Paga Market,,,,10.973784,-1.103023,n7774247306
+Market,Peki market,,,,6.535678,0.231819,n12023837946
+Market,Piisi Market,,,,9.968177,-2.459702,w1361888597
+Market,Pishigu Market,,,,9.964712,-0.64165,w441137493
+Market,Ponyentanga Market,,,,9.870688,-2.46169,w421812619
+Market,Prestea Central Market,,,,5.434905,-2.1425,n5657419572
+Market,previous market square,,,,6.171355,-0.427418,w1393280876
+Market,Race Course,,,,6.706102,-1.63024,w670881371
+Market,Rawlings Market,,,,7.451502,-2.580675,n14134815018
+Market,saboba market,,,,9.699674,0.318704,n12591050530
+Market,saboba new market,,,,9.69937,0.317379,w1360181438
+Market,Sabon Zongo Market,,,,5.552326,-0.237656,n2148021097
+Market,sabuli market,,,,10.570274,-2.514865,w1360398523
+Market,Salaga Market,,,,5.540155,-0.20965,w202488344
+Market,Sampa Market,,,,7.949725,-2.693899,w507503098
+Market,Sankana Market,,,,10.203183,-2.598316,n10566526210
+Market,Sankara Market,,,,6.115524,-3.032411,n11061700730
+Market,Santasi Market,,,,6.65535,-1.641761,w1298650037
+Market,Savelugu Market,,,,9.628027,-0.8288,w244834756
+Market,Science Market,,,,5.115062,-1.292481,w441984754
+Market,Sepe market,,,,6.721138,-1.596196,n6975278346
+Market,Sewum Market,,,,5.671294,-2.822451,w1359711396
+Market,Sinogo Market,,,,11.014286,-0.093612,n13621817543
+Market,Sogakope Market,,,,5.998787,0.596326,w473876665
+Market,Street Market,,,,6.699546,-1.710203,n6942670411
+Market,Suame Market,,,,6.712515,-1.629019,n5792682957
+Market,Suame Market (Post Office),,,,6.722322,-1.634368,w612674959
+Market,super market;Abomosu Market,,,,6.304136,-0.72441,w1235383052
+Market,Tafo 4 Miles Market,,,,6.735718,-1.612887,w1245393386
+Market,Taifa market,,,,5.658434,-0.253057,n6975566633
+Market,Takoradi Market Circle,,,,4.898179,-1.760233,w590730785
+Market,Tamale Central Market,,,,9.404626,-0.842678,w762109752
+Market,Tamso Market,,,,5.279506,-2.001836,w1002026047
+Market,Tarkwa Main Market( market circle),,,,5.297538,-1.990866,w202641039
+Market,Tease Crop Market,,,,6.934069,-0.253392,n8520137082
+Market,Techiman Market,,,,7.582438,-1.944612,w240463644
+Market,Tibung market,,,,9.569228,-1.068373,w1118173733
+Market,Timber Market,,,,10.788117,-0.828132,w753634397
+Market,Tongo market,,,,10.707745,-0.803625,n12010346223
+Market,Tsui Bleo Market,,,,5.587605,-0.106767,w397552322
+Market,Tubong market,,,,10.825746,-0.071799,n6060269077
+Market,Tuesday Market,,,,5.530892,-0.234544,w261185626
+Market,Tumu market,,,,10.883078,-1.978947,n4379740592
+Market,Twifman Market,,,,5.481422,-1.531889,w1246159367
+Market,Twifo Praso New Market,,,,5.598903,-1.543413,w676614048
+Market,Wa Market,,,,10.063293,-2.505868,w441210957
+Market,Wednesday Market,,,,7.3352,-2.319109,w370588860
+Market,Wenchi New Market,,,,7.733257,-2.107794,w240464666
+Market,Wenchiki Market,,,,10.276047,0.207861,w1426915202
+Market,Winneba Market,,,,5.346989,-0.626006,w790943802
+Market,Yam Market,,,,7.758688,-0.988416,w1335748298
+Market,Yentie Obiaa Market,,,,5.610155,-1.55007,n10242246409
+Market,Zaari Market,,,,10.775423,-0.130842,w760734824
+Market,Zebilla Market,,,,10.939129,-0.48406,n5628294804
+Market,Zintaapuor,,,,10.109656,-2.572952,n10566212072
+Market,Zonno Market,,,,10.784603,-0.784367,w734177466
+Market,Zorkor,,,,10.908779,-0.902641,n7895103485
+Market,Zuarungu Central Market,,,,10.791946,-0.79206,w724595842

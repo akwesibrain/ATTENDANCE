@@ -23,7 +23,7 @@ const SALES_ALERT_TYPE = {
   'gps-unavailable': 'gps-unavailable',
 }
 
-const DATED_TYPES_CLEARABLE = new Set(['late-clock-in', 'no-clock-in', 'missing-clock-out', 'incomplete-record'])
+const DATED_TYPES_CLEARABLE = new Set(['late-clock-in', 'no-clock-in', 'missing-clock-out', 'incomplete-record', 'visit-not-proven', 'shop-missed'])
 const ROSTER_TYPES = new Set(['rep-no-shop', 'no-shop-required', 'inactive-shop'])
 
 /** Stable notification ID for a source key. */
@@ -224,6 +224,92 @@ export function detectFromRoster(emp, push, shopsById) {
       occurredAt: since,
     })
   }
+}
+
+const TRACKING_FLAG_TEXT = {
+  mock: {
+    type: 'tracking-mock-location',
+    what: (n) => `${n} location${n === 1 ? '' : 's'} reported by a fake-location app`,
+  },
+  speed: {
+    type: 'tracking-impossible-speed',
+    what: (n) => `${n} location${n === 1 ? '' : 's'} implying movement faster than 200 km/h`,
+  },
+}
+
+/**
+ * Live tracking flags (fake locations, impossible speeds), one alert per
+ * person, day and kind. A flag is a reason for HR to ask, never misconduct.
+ * @param {Array} flags tracking_flags rows
+ */
+export function detectTrackingFlags(flags, push, rosterById) {
+  flags.forEach((flag) => {
+    const emp = rosterById.get(flag.staff_id)
+    const text = TRACKING_FLAG_TEXT[flag.kind]
+    if (!emp || !text) return
+    push({
+      ...whoFrom(emp),
+      relatedDate: flag.date,
+      sourceKey: `tracking-${flag.kind}:${flag.staff_id}:${flag.date}`,
+      type: text.type,
+      severity: 'high',
+      description: `Live tracking for ${emp.fullName} on ${dayText(flag.date)} recorded ${text.what(flag.points)}, between ${formatAccraTime(flag.first_at)} and ${formatAccraTime(flag.last_at)}. This is a reason to ask, not proof of misconduct. Attendance is not changed.`,
+      occurredAt: flag.first_at,
+    })
+  })
+}
+
+const NOT_MISCONDUCT = 'This is a reason to ask, not proof of misconduct. Attendance is not changed.'
+
+/**
+ * Shop visits against live tracking, for Sales Reps and Supervisors. A listed
+ * shop with no 10-minute stay, or not visited at all, is raised only once the
+ * working day is over; visits outside the list are raised straight away.
+ * Nothing is raised for a day the person did not clock in (rest day, leave,
+ * holiday), and a shop is never called missed or unproven without tracking for
+ * the day: lost tracking is never a reason to suspect anyone.
+ * @param {Array} days { employee, date, dayOver, clockedIn, tracked, proof, shopNames? } — proof from visitProof()
+ */
+export function detectVisitIssues(days, push) {
+  days.forEach(({ employee, date, dayOver, clockedIn, tracked, proof, shopNames }) => {
+    if (!proof || !clockedIn) return
+    const who = { ...whoFrom(employee), relatedDate: date }
+    const shopName = (id) => shopNames?.get(id) ?? id
+    if (dayOver && tracked) {
+      proof.listed.forEach((shop) => {
+        if (shop.status === 'no-stay') {
+          push({
+            ...who,
+            sourceKey: `visit-no-stay:${employee.employeeId}:${date}:${shop.shopId}`,
+            type: 'visit-not-proven',
+            description: `${employee.fullName} recorded a visit to ${shopName(shop.shopId)} on ${dayText(date)}, but live tracking does not show a 10-minute stay there. ${NOT_MISCONDUCT}`,
+            occurredAt: null,
+          })
+        }
+        if (shop.status === 'missed') {
+          push({
+            ...who,
+            sourceKey: `visit-missed:${employee.employeeId}:${date}:${shop.shopId}`,
+            type: 'shop-missed',
+            description: `${employee.fullName} did not visit ${shopName(shop.shopId)}, on their shop list, on ${dayText(date)}. ${NOT_MISCONDUCT}`,
+            occurredAt: null,
+          })
+        }
+      })
+    }
+    proof.offList.forEach(({ visit, status }) => {
+      const where = status === 'off-list'
+        ? `${shopName(visit.outlet.shopId)}, which is not on their shop list`
+        : `${visit.outlet.name}, ${visit.outlet.town}, an outlet typed in by hand that is not in the shop directory`
+      push({
+        ...who,
+        sourceKey: `visit-off-list:${visit.id}`,
+        type: 'visit-off-list',
+        description: `${employee.fullName} recorded a visit to ${where} on ${dayText(date)}. ${NOT_MISCONDUCT}`,
+        occurredAt: visit.time,
+      })
+    })
+  })
 }
 
 /** @param {Array} entries correction history, each with employeeId and date */

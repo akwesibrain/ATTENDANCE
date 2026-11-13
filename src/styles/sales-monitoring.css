@@ -805,6 +805,28 @@
   white-space: nowrap;
 }
 
+/* A field employee's reading at the shop is waiting for HR. */
+.sm-shop-suggested {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 6px;
+  min-height: 32px;
+  padding: 4px 12px;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--warn);
+  background: var(--warn-soft);
+  border: 1px solid currentColor;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+}
+
+.sm-shop-suggested:hover {
+  filter: brightness(0.97);
+}
+
 .sm-shop-status::before {
   content: '';
   width: 7px;

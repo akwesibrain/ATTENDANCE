@@ -12,6 +12,8 @@ import {
 } from '../components/settings/SettingsSections'
 import HolidaysSection from '../components/settings/HolidaysSection'
 import WorkplaceDisplaysSection from '../components/settings/WorkplaceDisplaysSection'
+import HrUsersSection from '../components/settings/HrUsersSection'
+import MyPasswordSection from '../components/settings/MyPasswordSection'
 import AuditLogs from './AuditLogs'
 import '../styles/sales-monitoring.css'
 import '../styles/shifts.css'
@@ -30,6 +32,8 @@ const SECTIONS = [
   { id: 'monitoring', label: 'Sales Rep Monitoring', hint: 'Verification rules' },
   { id: 'notifications', label: 'Notification Settings', hint: 'Alerts and roles' },
   { id: 'security', label: 'Security Settings', hint: 'Access policy' },
+  { id: 'hr-users', label: 'HR users', hint: 'Who can use the HR portal' },
+  { id: 'my-password', label: 'My password', hint: 'Change your sign-in password' },
   { id: 'data', label: 'Data Management', hint: 'Counts and exports' },
   { id: 'audit', label: 'Audit Logs', hint: 'Read-only history', module: 'audit-logs' },
 ]
@@ -78,6 +82,8 @@ export default function Settings({ user, company, initialSection = 'general', on
           {section === 'monitoring' && <MonitoringSection {...props} />}
           {section === 'notifications' && <NotificationSection {...props} />}
           {section === 'security' && <SecuritySection {...props} />}
+          {section === 'hr-users' && <HrUsersSection {...props} />}
+          {section === 'my-password' && <MyPasswordSection />}
           {section === 'data' && <DataSection {...props} />}
           {section === 'audit' && <AuditLogs user={user} />}
         </div>

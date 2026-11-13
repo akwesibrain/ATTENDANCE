@@ -1,0 +1,161 @@
+/*
+ * Mobile layer: what every screen needs on a phone, without changing the look.
+ * Loaded after every other stylesheet. It only ever raises sizes, so it uses
+ * !important to win over the many specific rules that set smaller ones, and it
+ * applies on touch screens and narrow windows, the same condition as the touch
+ * rule in index.css. Checked by `node scripts/mobile-check.mjs`.
+ */
+
+/* The page never scrolls sideways; a long word or link wraps instead. */
+html,
+body {
+  overflow-x: clip;
+}
+
+h1,
+h2,
+h3,
+p,
+li,
+dd,
+.step-description,
+.review-value {
+  /* break-word, not anywhere: anywhere lets tables squeeze columns to one letter. */
+  overflow-wrap: break-word;
+}
+
+img,
+video,
+canvas {
+  max-width: 100%;
+}
+
+/* A link styled as a button reads as a button, not as underlined text. */
+a.btn,
+a.btn:hover {
+  text-decoration: none;
+}
+
+@media (pointer: coarse), (max-width: 760px) {
+  /* Text boxes at 16px or more: iPhones zoom in on anything smaller. */
+  input:not([type='radio']):not([type='checkbox']):not([type='range']):not([type='color']),
+  select,
+  textarea {
+    font-size: max(16px, 1em) !important;
+  }
+
+  /* Every control is at least 44×44px. */
+  button,
+  [role='button'],
+  [role='tab'],
+  [role='radio'],
+  a.btn,
+  .btn,
+  select,
+  input:not([type='radio']):not([type='checkbox']):not([type='range']):not([type='color']):not([type='hidden']) {
+    min-height: 44px !important;
+  }
+
+  /* A radio or checkbox is tapped through its label: the whole row is the target. */
+  :where(label):has(> input[type='radio']),
+  :where(label):has(> input[type='checkbox']) {
+    min-height: 44px;
+  }
+
+  /* A dropdown never runs past the screen; long options are cut inside it. */
+  select {
+    min-width: 0 !important;
+    max-width: min(100%, calc(100vw - 32px)) !important;
+  }
+
+  /* Links that act as buttons, outside a sentence. */
+  .landing-back-link,
+  .shop-add-link,
+  .hr-link,
+  footer a,
+  nav a,
+  .legal-nav a,
+  .landing-footer a {
+    display: inline-flex !important;
+    align-items: center;
+    min-height: 44px !important;
+  }
+}
+
+@media (max-width: 640px) {
+  /* Room for the iPhone notch and home bar (index.html sets viewport-fit=cover). */
+  html .registration-page,
+  html .landing-page {
+    padding-left: max(16px, env(safe-area-inset-left));
+    padding-right: max(16px, env(safe-area-inset-right));
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
+  }
+
+  /* Main actions: full width, primary at the bottom within thumb reach. */
+  html .step-actions,
+  html .success-actions {
+    flex-direction: column-reverse;
+    gap: 10px;
+  }
+
+  html .step-actions .btn,
+  html .success-actions .btn {
+    width: 100%;
+  }
+
+  /* Camera buttons stack too, so their labels stay on one line. */
+  html .camera-controls {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  html .camera-controls .btn {
+    width: 100%;
+  }
+
+  /* The camera fills the width, in portrait like the face it frames. */
+  html .scanner-frame,
+  html .camera-frame {
+    width: 100%;
+    max-width: none;
+    aspect-ratio: 3 / 4;
+  }
+
+  html .scanner-corners::before,
+  html .scanner-corners::after {
+    width: 72%;
+  }
+
+  /* Reports: the month, employee, view and export controls wrap to fit. */
+  html .hr-report-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    width: 100%;
+    min-width: 0;
+  }
+
+  html .hr-report-actions > * {
+    max-width: 100%;
+  }
+
+  html .hr-report-actions select,
+  html .hr-report-actions .hr-report-btn {
+    flex: 1 1 100%;
+  }
+
+  /* Wide tables scroll inside their own box rather than the page. */
+  html .table-scroll,
+  html .sm-table-wrap,
+  html .at-table-wrap {
+    overflow-x: auto;
+    max-width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scanner-frame *,
+  .is-scanning * {
+    animation: none !important;
+  }
+}

@@ -1,23 +1,24 @@
 /** Employee routes. There is no login here, so every route is rate limited. */
 
 import { Hono } from 'npm:hono@4.6.14'
-import { compareFaces, EnrollmentOutdated, enrollFace, FaceServiceUnavailable, type FaceSample, UnusableFaceImage } from '../_shared/faceMatcher.ts'
+import { compareFaces } from '../_shared/faceMatcher.ts'
 import { accraDateKey } from '../_shared/rules/accraTime.js'
 import { attendanceGate, lockoutMessage, MAX_FACE_ATTEMPTS, normalizeStaffId } from '../_shared/rules/checkin.js'
 import { shopFromRow } from '../_shared/rules/facts.js'
-import { parseDescriptor } from '../_shared/rules/faceDescriptor.js'
-import { parseJpegDataUrl } from '../_shared/rules/facePhoto.js'
 import { holidayNameFor } from '../_shared/rules/holidays.js'
-import { checkGeofence, verificationResult } from '../_shared/rules/monitoring.js'
+import { measureShopDistance, verificationResult } from '../_shared/rules/monitoring.js'
 import { isWorkingDay, overtimeHours } from '../_shared/rules/policy.js'
-import { parseRegistration, requiresShop } from '../_shared/rules/registration.js'
+import { parseRegistration } from '../_shared/rules/registration.js'
+import { categoryForPosition, needsShopList } from '../_shared/rules/categories.js'
+import { sessionClosesAt } from '../_shared/rules/tracking.js'
+import { openTrackingSession } from './tracking.ts'
 import { checkSiteCode, makeSitePass, parseSiteCode, randomToken } from '../_shared/rules/siteCode.js'
 import { activeDisplay, type Site, siteFromPass } from './sites.ts'
+import { enrolNewFace, faceSample, loadEnrolledPhoto, readable, registerEmployee, shopListOf } from './enrolment.ts'
 import { attendanceRulesInForce, hoursInForce } from '../_shared/rules/settings.js'
 import { loadSettings, syncNotifications } from './facts.ts'
-import { ApiError, applyChange, clientIp, db, discardPhoto, found, invalid, later, must, rateLimit, readJson, rpc, sha256Hex, storePhoto } from './lib.ts'
+import { allRows, ApiError, applyChange, clientIp, db, discardPhoto, found, invalid, later, must, rateLimit, readJson, rpc, sha256Hex, storePhoto } from './lib.ts'
 
-const ENROLLMENT_BUCKET = 'face-enrollment'
 const ATTENDANCE_BUCKET = 'attendance-photos'
 const NOT_FOUND = 'Staff ID not found. Check the ID and try again, or register first.'
 
@@ -35,40 +36,7 @@ const LIMITS = {
 
 export const publicRoutes = new Hono()
 
-/** The photo, and the descriptor the phone worked out from it. */
-function faceSample(body: Record<string, unknown>): FaceSample {
-  const image = parseJpegDataUrl(body.faceImage)
-  if (!image) throw new ApiError(400, 'Face verification is required. Please capture your photo to continue.')
-  return { image, descriptor: parseDescriptor(body.faceDescriptor) }
-}
 
-async function readable<T>(action: () => Promise<T>): Promise<T> {
-  try {
-    return await action()
-  } catch (error) {
-    if (error instanceof UnusableFaceImage) throw new ApiError(422, error.message, { code: 'unusable-photo' })
-    if (error instanceof FaceServiceUnavailable) {
-      throw new ApiError(503, 'The face check is unavailable right now. Please try again in a moment.', { code: 'face-service' })
-    }
-    if (error instanceof EnrollmentOutdated) {
-      throw new ApiError(409, 'Your face photo needs to be registered again. Please contact HR.', { code: 'enrollment-outdated' })
-    }
-    throw error
-  }
-}
-
-async function loadEnrolledPhoto(path: string) {
-  const { data, error } = await db.storage.from(ENROLLMENT_BUCKET).download(path)
-  if (error || !data) {
-    console.error('enrolled photo unavailable', error?.message)
-    throw new FaceServiceUnavailable()
-  }
-  return new Uint8Array(await data.arrayBuffer())
-}
-
-function slug(value: string) {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
-}
 
 /** The server clock, so a workplace display can correct its own. */
 publicRoutes.get('/public/time', (c) => c.json({ now: new Date().toISOString() }))
@@ -123,12 +91,11 @@ publicRoutes.get('/public/shops', async (c) => {
   await rateLimit(`shops:ip:${clientIp(c)}`, ...LIMITS.shops)
   const companyId = c.req.query('companyId')
   if (!companyId) throw new ApiError(400, 'Choose a company first.')
-  const shops = await found(
-    db.from('shops')
-      .select('shop_id, company_id, shop_name, town, area, address')
-      .eq('company_id', companyId)
-      .eq('status', 'active')
-      .order('shop_name'),
+  const shops = await allRows(
+    'shops',
+    ['shop_name', 'shop_id'],
+    // deno-lint-ignore no-explicit-any
+    (q: any) => q.eq('company_id', companyId).eq('status', 'active'),
   )
   return c.json({
     shops: shops.map((s) => ({
@@ -151,41 +118,8 @@ publicRoutes.post('/employees/register', async (c) => {
   if (parsed.errors) throw invalid(parsed.errors)
   const form = parsed.value
 
-  const face = faceSample(body)
-  const photoPath = `${form.companyId}/${crypto.randomUUID()}.jpg`
-  const template = await readable(() => enrollFace(face, photoPath))
-
-  await storePhoto(ENROLLMENT_BUCKET, photoPath, face.image)
-
-  let employee
-  try {
-    employee = await rpc<Record<string, string | null>>('register_employee', {
-      p_employee: {
-        company_id: form.companyId,
-        full_name: form.fullName,
-        position: form.position,
-        payment_method: form.paymentMethod,
-        phone: form.phone,
-        email: form.email,
-        address: form.address,
-        emergency_contact_name: form.emergencyContactName,
-        emergency_contact_phone: form.emergencyContactPhone,
-        face_photo_path: photoPath,
-      },
-      p_template: template,
-      p_shop_id: form.shopId,
-      p_new_shop: form.newShop && {
-        shop_id: `shop-${slug(form.companyId)}-${slug(`${form.newShop.shopName} ${form.newShop.area}`)}-${crypto.randomUUID().slice(0, 8)}`,
-        shop_name: form.newShop.shopName,
-        town: form.newShop.town,
-        area: form.newShop.area,
-        address: form.newShop.address,
-      },
-    })
-  } catch (error) {
-    await discardPhoto(ENROLLMENT_BUCKET, photoPath)
-    throw error
-  }
+  const face = await enrolNewFace(body, form.companyId)
+  const employee = await registerEmployee(form, face)
 
   return c.json({
     staffId: employee.staff_id,
@@ -196,6 +130,7 @@ publicRoutes.post('/employees/register', async (c) => {
     position: employee.position,
     paymentMethod: employee.payment_method,
     assignedShopId: employee.assigned_shop_id,
+    assignedShopIds: await shopListOf(employee.staff_id as string),
     registeredAt: employee.registered_at,
   }, 201)
 })
@@ -242,6 +177,7 @@ async function kioskDay(
     loadSettings(),
   ])
   const hours = hoursInForce(settings, employee.company_id, date)
+  const rules = attendanceRulesInForce(settings, date)
   const gate = attendanceGate({
     fullName: employee.full_name,
     status: employee.status,
@@ -249,13 +185,13 @@ async function kioskDay(
     now,
     holiday,
     hours,
-    rules: attendanceRulesInForce(settings, date),
+    rules,
     site,
     companyId: employee.company_id,
-    // Field staff work at shops, which have no display; SMS checks cover them.
-    siteRequired: Boolean(settings.workplaceCodeRequired[employee.company_id]) && !requiresShop(employee.position),
+    // Field staff work at shops, which have no display; live tracking covers them.
+    siteRequired: Boolean(settings.workplaceCodeRequired[employee.company_id]) && !needsShopList(employee.position),
   })
-  return { date, events, failed, gate, dayOff: !isWorkingDay(now, { holiday, hours }) }
+  return { date, events, failed, gate, hours, rules, dayOff: !isWorkingDay(now, { holiday, hours }) }
 }
 
 /** Only what the kiosk needs before a face scan: no photo and no contact details. */
@@ -311,7 +247,7 @@ publicRoutes.get('/verify/:token', async (c) => {
   })
 })
 
-/** One answer per link. The geofence is checked here, against the assigned shop. */
+/** One answer per link. Distance is measured to the nearest listed shop (no pass/fail radius). */
 publicRoutes.post('/verify/:token', async (c) => {
   await rateLimit(`verify:ip:${clientIp(c)}`, ...LIMITS.verify)
   const check = await openCheck(c.req.param('token'))
@@ -334,12 +270,15 @@ publicRoutes.post('/verify/:token', async (c) => {
   )
   if (!claimed.length) throw new ApiError(410, EXPIRED_LINK)
 
-  const shop = check.event.shop_id
-    ? await must(db.from('shops').select('*').eq('shop_id', check.event.shop_id).maybeSingle())
-    : null
+  const listIds = await shopListOf(check.event.employee_id)
+  const shopIds = [...new Set([...listIds, ...(check.event.shop_id ? [check.event.shop_id] : [])])]
+  const shopRows = shopIds.length
+    ? await found(db.from('shops').select('*').in('shop_id', shopIds))
+    : []
+  const shops = shopRows.map(shopFromRow)
   const gps = settings.monitoring.gpsRequired
-    ? checkGeofence(body, shop && shopFromRow(shop))
-    : { status: 'not-required', distance: null }
+    ? measureShopDistance(body, shops)
+    : { status: 'not-required', distance: null, shopId: null }
   const result = verificationResult(facePassed, gps.status)
   const accuracy = typeof body.accuracy === 'number' && Number.isFinite(body.accuracy) ? Math.round(body.accuracy) : null
 
@@ -348,6 +287,7 @@ publicRoutes.post('/verify/:token', async (c) => {
     op: 'update',
     match: { event_id: check.eventId },
     row: {
+      shop_id: gps.shopId ?? check.event.shop_id,
       responded_at: now,
       face_verification_status: !settings.monitoring.faceRequired ? 'not-required' : facePassed ? 'passed' : 'failed',
       // The current matcher cannot tell a live person from a photo.
@@ -374,7 +314,7 @@ publicRoutes.post('/attendance/events', async (c) => {
 
   const now = new Date()
   const site = await siteFromPass(body.sitePass)
-  const { date, events, gate, dayOff } = await kioskDay(employee, now, site)
+  const { date, events, gate, dayOff, hours, rules } = await kioskDay(employee, now, site)
   if (gate.blockedReason) throw new ApiError(409, gate.blockedReason, { code: 'blocked' })
 
   const face = faceSample(body)
@@ -422,6 +362,22 @@ publicRoutes.post('/attendance/events', async (c) => {
     throw error
   }
 
+  // Field staff share their location until clock-out. A tracking failure never undoes the check-in.
+  const tracking = event.type === 'check-in'
+    ? await openTrackingSession(employee, { date: String(event.date), occurred_at: String(event.occurred_at) }, sessionClosesAt(date, hours, rules))
+    : null
+  if (event.type === 'check-out') {
+    later(
+      must(
+        db.from('verification_schedule')
+          .update({ dispatched_at: now.toISOString() })
+          .eq('employee_id', employee.staff_id)
+          .eq('date', date)
+          .is('dispatched_at', null),
+      ),
+    )
+  }
+
   return c.json({
     id: event.id,
     staffId: employee.staff_id,
@@ -434,5 +390,11 @@ publicRoutes.post('/attendance/events', async (c) => {
     time: event.occurred_at,
     weekend: event.weekend,
     overtimeHours: event.overtime_hours,
+    ...(tracking ? {
+      trackingToken: tracking.token,
+      trackingClosesAt: tracking.closesAt,
+      // Sales Reps and Supervisors record outlet visits; Merchandisers are tracked but do not.
+      canRecordVisits: ['sales-rep', 'supervisor'].includes(categoryForPosition(employee.position)),
+    } : {}),
   })
 })

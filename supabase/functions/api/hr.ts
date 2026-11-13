@@ -13,7 +13,7 @@ import { formatShopCoordinates, shopFromRow } from '../_shared/rules/facts.js'
 import { validateHoliday } from '../_shared/rules/holidays.js'
 import { OPEN_STATUSES, RESOLUTION_ACTIONS } from '../_shared/rules/notificationTypes.js'
 import { buildRecord, correctionTimes, employmentStartFor, previewManualEntries, recordKey, validateCorrection } from '../_shared/rules/records.js'
-import { validateCoordinates, validateEmployeeDetails, validateLeavingDate } from '../_shared/rules/registration.js'
+import { replaceFirstShop, validateCoordinates, validateEmployeeDetails, validateLeavingDate } from '../_shared/rules/registration.js'
 import {
   attendanceRulesInForce,
   diffValues,
@@ -30,12 +30,23 @@ import {
   versionFor,
 } from '../_shared/rules/settings.js'
 import { assertAllCompanies, assertCompany, type HrEnv, type HrUser, requireHr } from './auth.ts'
+import { hrEmployeeRoutes } from './employeeOnboarding.ts'
+import { hrAccessRoutes } from './hrAccess.ts'
+import { hrPasswordRoutes } from './hrPasswords.ts'
+import { hrTrackingRoutes } from './trackingDays.ts'
+import { currentShopList, firstShopOps, hrShopListRoutes, shopListOps } from './hrShopLists.ts'
+import { needsShopList } from '../_shared/rules/categories.js'
 import { loadFacts, loadSettings, syncNotifications } from './facts.ts'
 import { ApiError, applyChange, db, found, invalid, later, must, rateLimit, readJson, sha256Hex } from './lib.ts'
 import { newDisplayId, randomToken } from '../_shared/rules/siteCode.js'
 
 export const hrRoutes = new Hono<HrEnv>()
 hrRoutes.use('*', requireHr)
+hrRoutes.route('/', hrEmployeeRoutes)
+hrRoutes.route('/', hrAccessRoutes)
+hrRoutes.route('/', hrPasswordRoutes)
+hrRoutes.route('/', hrShopListRoutes)
+hrRoutes.route('/', hrTrackingRoutes)
 
 type Ctx = Context<HrEnv>
 // deno-lint-ignore no-explicit-any
@@ -196,24 +207,15 @@ hrRoutes.post('/employees/:staffId/shop', async (c) => {
   const previous = emp.assigned_shop_id
     ? await must(db.from('shops').select('*').eq('shop_id', emp.assigned_shop_id).maybeSingle())
     : null
-  await applyChange([
-    { table: 'shop_assignments', op: 'update', match: { employee_id: emp.staff_id, active: true }, row: { active: false } },
-    {
-      table: 'shop_assignments',
-      op: 'insert',
-      row: {
-        company_id: emp.company_id,
-        employee_id: emp.staff_id,
-        shop_id: shop.shop_id,
-        previous_shop_id: emp.assigned_shop_id,
-        effective_date: now,
-        assigned_at: now,
-        assigned_by: hr.name,
-        assigned_by_role: hr.role,
-      },
-    },
-    { table: 'employees', op: 'update', match: { staff_id: emp.staff_id }, row: { assigned_shop_id: shop.shop_id } },
-  ], audit(hr, {
+  // A field employee's list keeps its other shops; only the first is replaced.
+  let ops
+  if (needsShopList(emp.position)) {
+    const list = await currentShopList(emp.staff_id)
+    ops = shopListOps(emp, hr, replaceFirstShop(list, shop.shop_id), list)
+  } else {
+    ops = firstShopOps(emp, hr, shop.shop_id, now)
+  }
+  await applyChange(ops, audit(hr, {
     source: 'Employees',
     action: 'Employee shop assignment changed',
     category: 'Shifts & Shops',
@@ -828,6 +830,18 @@ const LOCATION_SOURCES: Record<string, string> = {
   geocoded: 'found by location lookup and confirmed by HR',
   'map-adjusted': 'placed on the map by HR',
   manual: 'entered by HR',
+  captured: 'captured at the shop and confirmed by HR',
+}
+
+/** A pending suggestion for this shop, with the name of the person who took the reading. */
+async function pendingProposal(id: string, shopId: string | null = null) {
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return null
+  let query = db.from('shop_location_proposals').select('*').eq('id', id).eq('status', 'pending')
+  if (shopId) query = query.eq('shop_id', shopId)
+  const proposal = await must(query.maybeSingle())
+  if (!proposal) return null
+  const employee = await must(db.from('employees').select('full_name').eq('staff_id', proposal.staff_id).maybeSingle())
+  return { ...proposal, proposer: employee?.full_name || proposal.staff_id }
 }
 
 hrRoutes.patch('/shops/:shopId/location', async (c) => {
@@ -837,22 +851,48 @@ hrRoutes.patch('/shops/:shopId/location', async (c) => {
   assertCompany(c, row.company_id)
   const shop = shopFromRow(row)
   const body = await readJson(c)
-  const errors: Record<string, string> = { ...validateCoordinates(body.latitude, body.longitude) }
-  if (body.latitude === '' || body.latitude == null) errors.latitude = errors.latitude ?? 'Choose a location first.'
-  const locationSource = text(body.locationSource, 20)
-  if (!LOCATION_SOURCES[locationSource]) errors.form = 'Say how the location was set.'
-  if (hasErrors(errors)) throw invalid(errors)
+  const now = new Date().toISOString()
 
-  const label = text(body.locationLabel, 300) || null
+  // Accepting a reading taken at the shop: the coordinates come from the
+  // suggestion itself, never from the request.
+  const proposalId = text(body.proposalId, 40)
+  const proposal = proposalId ? await pendingProposal(proposalId, row.shop_id) : null
+  if (proposalId && !proposal) throw invalid({ form: 'That suggestion is no longer waiting. Reload and try again.' })
+
+  let locationSource = 'captured'
+  let label: string | null = null
+  let coordinates = { latitude: 0, longitude: 0 }
+  if (proposal) {
+    coordinates = { latitude: proposal.latitude, longitude: proposal.longitude }
+    label = `Captured at the shop by ${proposal.proposer} (±${proposal.accuracy_m} m)`
+  } else {
+    const errors: Record<string, string> = { ...validateCoordinates(body.latitude, body.longitude) }
+    if (body.latitude === '' || body.latitude == null) errors.latitude = errors.latitude ?? 'Choose a location first.'
+    locationSource = text(body.locationSource, 20)
+    // "captured" is only ever set by accepting a suggestion.
+    if (!LOCATION_SOURCES[locationSource] || locationSource === 'captured') errors.form = 'Say how the location was set.'
+    if (hasErrors(errors)) throw invalid(errors)
+    coordinates = { latitude: Number(body.latitude), longitude: Number(body.longitude) }
+    label = text(body.locationLabel, 300) || null
+  }
+
   const next = {
-    latitude: Number(body.latitude),
-    longitude: Number(body.longitude),
+    ...coordinates,
     location_source: locationSource,
     location_label: label,
     location_confirmed_by: hr.name,
-    location_confirmed_at: new Date().toISOString(),
+    location_confirmed_at: now,
   }
-  await applyChange([{ table: 'shops', op: 'update', match: { shop_id: row.shop_id }, row: next }], audit(hr, {
+  const decided = { decided_by: hr.name, decided_at: now }
+  const ops: unknown[] = [{ table: 'shops', op: 'update', match: { shop_id: row.shop_id }, row: next }]
+  if (proposal) {
+    // The other readings for this shop are settled by this decision too.
+    ops.push(
+      { table: 'shop_location_proposals', op: 'update', match: { shop_id: row.shop_id, status: 'pending' }, row: { status: 'dismissed', ...decided } },
+      { table: 'shop_location_proposals', op: 'update', match: { id: proposal.id }, row: { status: 'accepted', ...decided } },
+    )
+  }
+  await applyChange(ops, audit(hr, {
     source: 'Shop Directory',
     action: shop.latitude == null ? 'Shop location set' : 'Shop location changed',
     category: 'Shifts & Shops',
@@ -861,6 +901,29 @@ hrRoutes.patch('/shops/:shopId/location', async (c) => {
     description: `Location ${LOCATION_SOURCES[locationSource]}.${label ? ` ${label}` : ''}`,
     previous: { coordinates: formatShopCoordinates(shop) },
     next: { coordinates: formatShopCoordinates(next) },
+  }))
+  return c.json({ ok: true })
+})
+
+/** HR decides a reading taken at the shop is not the shop's location. The shop is not changed. */
+hrRoutes.post('/shop-location-proposals/:id/dismiss', async (c) => {
+  const hr = c.get('hr')
+  const proposal = await pendingProposal(c.req.param('id'))
+  if (!proposal) throw invalid({ form: 'That suggestion is no longer waiting. Reload and try again.' })
+  assertCompany(c, proposal.company_id)
+  const row = await must(db.from('shops').select('*').eq('shop_id', proposal.shop_id).maybeSingle())
+  await applyChange([{
+    table: 'shop_location_proposals',
+    op: 'update',
+    match: { id: proposal.id },
+    row: { status: 'dismissed', decided_by: hr.name, decided_at: new Date().toISOString() },
+  }], audit(hr, {
+    source: 'Shop Directory',
+    action: 'Suggested shop location dismissed',
+    category: 'Shifts & Shops',
+    companyIds: [proposal.company_id],
+    affected: row ? shopFromRow(row).displayName : proposal.shop_id,
+    description: `Reading taken at the shop by ${proposal.proposer} (±${proposal.accuracy_m} m) was not used.`,
   }))
   return c.json({ ok: true })
 })

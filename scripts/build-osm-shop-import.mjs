@@ -1,10 +1,12 @@
 /**
  * Builds a shop list for import from OpenStreetMap (real places in Ghana with
- * real coordinates): up to 100 shops, 100 supermarkets and 100 malls, each
- * added for BOTH companies (Box For Less and Double A).
+ * real coordinates): up to 100 shops, 100 supermarkets, 100 malls and 100
+ * markets (or all with --all), each added for BOTH companies (Box For Less and
+ * Double A).
  *
- *   node scripts/build-osm-shop-import.mjs            # downloads from OpenStreetMap
- *   node scripts/build-osm-shop-import.mjs --from DIR # uses saved shops.json / supermarkets.json / malls.json
+ *   node scripts/build-osm-shop-import.mjs                     # downloads from OpenStreetMap
+ *   node scripts/build-osm-shop-import.mjs --from DIR          # uses saved shops.json / supermarkets.json / malls.json
+ *   node scripts/build-osm-shop-import.mjs --geojson FILE.json # uses an Overpass Turbo GeoJSON export
  *
  * Writes (nothing is sent to the database):
  *   docs/data/osm-places.csv         for HR to review
@@ -16,16 +18,18 @@
  */
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 
-const PER_TYPE = 100
+const PER_TYPE = process.argv.includes('--all') ? Infinity : 100
 const COMPANIES = [
   { id: 'box-for-less', prefix: 'bfl' },
   { id: 'double-a', prefix: 'daa' },
 ]
 const TYPES = {
-  shops: { label: 'Shop', filter: 'nwr["shop"~"^(convenience|general|variety_store|wholesale|department_store)$"]["name"](area.gh);' },
-  supermarkets: { label: 'Supermarket', filter: 'nwr["shop"="supermarket"]["name"](area.gh);' },
   malls: { label: 'Mall', filter: 'nwr["shop"="mall"]["name"](area.gh);' },
+  supermarkets: { label: 'Supermarket', filter: 'nwr["shop"="supermarket"]["name"](area.gh);' },
+  shops: { label: 'Shop', filter: 'nwr["shop"~"^(convenience|general|variety_store|wholesale|department_store)$"]["name"](area.gh);' },
+  markets: { label: 'Market', filter: 'nwr["amenity"="marketplace"]["name"](area.gh);' },
 }
+const SHOP_KINDS = new Set(['convenience', 'general', 'variety_store', 'wholesale', 'department_store', 'greengrocer', 'beverages', 'seafood'])
 const ENDPOINT = 'https://overpass-api.de/api/interpreter'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
@@ -46,46 +50,101 @@ async function download(type) {
   throw new Error(`Could not download ${type}. The OpenStreetMap service is busy — try again later.`)
 }
 
-function place(el, type) {
-  const t = el.tags ?? {}
-  const lat = el.lat ?? el.center?.lat
-  const lon = el.lon ?? el.center?.lon
-  if (!t.name || !Number.isFinite(lat) || !Number.isFinite(lon)) return null
+function buildPlace(osmId, label, t, lat, lon) {
+  if (!osmId || !t?.name || !Number.isFinite(lat) || !Number.isFinite(lon)) return null
+  if (Math.abs(lat) > 90 || Math.abs(lon) > 180) return null
   return {
-    osmId: `${el.type[0]}${el.id}`,
-    type: TYPES[type].label,
-    name: t.name.trim(),
-    town: (t['addr:city'] ?? t['addr:town'] ?? t['addr:village'] ?? t.is_in ?? '').trim(),
-    area: (t['addr:suburb'] ?? t['addr:district'] ?? t['addr:street'] ?? '').trim(),
+    osmId,
+    type: label,
+    name: String(t.name).trim(),
+    town: String(t['addr:city'] ?? t['addr:town'] ?? t['addr:municipality'] ?? t['addr:village'] ?? t.is_in ?? '').trim(),
+    area: String(t['addr:suburb'] ?? t['addr:community'] ?? t['addr:district'] ?? t['addr:street'] ?? '').trim(),
     address: [t['addr:housenumber'], t['addr:street']].filter(Boolean).join(' ').trim(),
     latitude: Math.round(lat * 1e6) / 1e6,
     longitude: Math.round(lon * 1e6) / 1e6,
   }
 }
 
-/** Up to PER_TYPE places, one per name+town, those with a town first. */
-function pick(elements, type) {
-  const seen = new Set()
-  return elements
-    .map((el) => place(el, type))
+function placeFromOverpass(el, type) {
+  const lat = el.lat ?? el.center?.lat
+  const lon = el.lon ?? el.center?.lon
+  return buildPlace(`${el.type?.[0] ?? 'n'}${el.id}`, TYPES[type].label, el.tags ?? {}, lat, lon)
+}
+
+function typeFromTags(t) {
+  if (t.shop === 'mall') return 'malls'
+  if (t.shop === 'supermarket') return 'supermarkets'
+  if (t.amenity === 'marketplace') return 'markets'
+  if (SHOP_KINDS.has(t.shop)) return 'shops'
+  return null
+}
+
+function placeFromGeoJsonFeature(feature) {
+  const props = feature?.properties ?? {}
+  const type = typeFromTags(props)
+  if (!type) return null
+  const rawId = String(feature.id ?? props['@id'] ?? '')
+  const [kind, num] = rawId.includes('/') ? rawId.split('/') : ['node', rawId]
+  const coords = feature?.geometry?.type === 'Point' ? feature.geometry.coordinates : null
+  const lon = Array.isArray(coords) ? Number(coords[0]) : NaN
+  const lat = Array.isArray(coords) ? Number(coords[1]) : NaN
+  return { bucket: type, place: buildPlace(num ? `${kind[0]}${num}` : '', TYPES[type].label, props, lat, lon) }
+}
+
+/** Up to PER_TYPE places, unique across public.shops (name + town + area), those with town/area first. */
+function pick(candidates, globalSeen) {
+  return candidates
     .filter(Boolean)
-    .sort((a, b) => (b.town ? 1 : 0) - (a.town ? 1 : 0) || a.town.localeCompare(b.town) || a.name.localeCompare(b.name))
-    .filter((p) => { const k = `${p.name}|${p.town}`.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true })
+    .sort((a, b) => (
+      (b.town ? 2 : 0) + (b.area ? 1 : 0) - ((a.town ? 2 : 0) + (a.area ? 1 : 0))
+      || a.town.localeCompare(b.town)
+      || a.name.localeCompare(b.name)
+    ))
+    .filter((p) => {
+      const outletKey = `${p.name}|${p.town}|${p.area}`.toLowerCase()
+      if (globalSeen.has(outletKey) || globalSeen.has(`id:${p.osmId}`)) return false
+      globalSeen.add(outletKey)
+      globalSeen.add(`id:${p.osmId}`)
+      return true
+    })
     .slice(0, PER_TYPE)
 }
 
 const sql = (v) => (v == null || v === '' ? "''" : `'${String(v).replace(/'/g, "''")}'`)
 const csv = (v) => { const s = String(v ?? ''); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s }
 
-const fromIdx = process.argv.indexOf('--from')
-const fromDir = fromIdx > 0 ? process.argv[fromIdx + 1] : null
+function argAfter(flag) {
+  const idx = process.argv.indexOf(flag)
+  return idx > 0 ? process.argv[idx + 1] : null
+}
+
+const fromDir = argAfter('--from')
+const geojsonFile = argAfter('--geojson')
+const globalSeen = new Set()
 const places = []
-for (const type of Object.keys(TYPES)) {
-  const data = fromDir ? JSON.parse(readFileSync(`${fromDir}/${type}.json`, 'utf8')) : await download(type)
-  const picked = pick(data.elements ?? [], type)
-  console.log(`${TYPES[type].label}: ${picked.length} of ${data.elements?.length ?? 0} found`)
-  places.push(...picked)
-  if (!fromDir) await sleep(10000)
+
+if (geojsonFile) {
+  const geo = JSON.parse(readFileSync(geojsonFile, 'utf8'))
+  const buckets = Object.fromEntries(Object.keys(TYPES).map((k) => [k, []]))
+  for (const f of geo.features ?? []) {
+    const parsed = placeFromGeoJsonFeature(f)
+    if (parsed?.place) buckets[parsed.bucket].push(parsed.place)
+  }
+  for (const type of Object.keys(TYPES)) {
+    const picked = pick(buckets[type], globalSeen)
+    console.log(`${TYPES[type].label}: ${picked.length} of ${buckets[type].length} named found`)
+    places.push(...picked)
+  }
+} else {
+  for (const type of Object.keys(TYPES)) {
+    if (fromDir && type === 'markets') continue
+    const data = fromDir ? JSON.parse(readFileSync(`${fromDir}/${type}.json`, 'utf8')) : await download(type)
+    const candidates = (data.elements ?? []).map((el) => placeFromOverpass(el, type))
+    const picked = pick(candidates, globalSeen)
+    console.log(`${TYPES[type].label}: ${picked.length} of ${data.elements?.length ?? 0} found`)
+    places.push(...picked)
+    if (!fromDir) await sleep(10000)
+  }
 }
 
 mkdirSync('docs/data', { recursive: true })
@@ -104,6 +163,6 @@ insert into public.shops
   (shop_id, company_id, shop_name, town, area, address, latitude, longitude, location_source, location_label, source, created_by)
 values
 ${rows.join(',\n')}
-on conflict (shop_id) do nothing;
+on conflict do nothing;
 `)
 console.log(`Wrote docs/data/osm-places.csv (${places.length} places) and docs/data/osm-shops-import.sql (${rows.length} rows).`)

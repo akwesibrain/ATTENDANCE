@@ -14,6 +14,8 @@ import { refresh, rows } from './backend/cache'
 import { listAttendanceRoster, recordContext } from './attendanceRecordsService'
 import { defaultHoursFor, monitoringSettings } from './settingsService'
 import { getShop, GEOFENCE_RADIUS_M, listShops } from './shopsService'
+import { getVisitList } from './visitListService'
+import { needsShopList } from '../../supabase/functions/_shared/rules/categories.js'
 
 export { GEOFENCE_RADIUS_M, VERIFICATIONS_PER_SHIFT }
 
@@ -35,18 +37,22 @@ export function workHoursFor(rep, dateKey) {
 function fieldStaff(companyId) {
   const withChecks = new Set(rows('verification_events').map((row) => row.employee_id))
   return listAttendanceRoster(companyId)
-    .filter((employee) => employee.isFieldRole)
-    .map((employee) => ({
-      employeeId: employee.employeeId,
-      companyId: employee.companyId,
-      fullName: employee.fullName,
-      phoneNumber: employee.phone || '—',
-      position: employee.position,
-      employmentStatus: 'ACTIVE',
-      assignedShopId: employee.shopId,
-      profileImage: employee.photo,
-      noSmsData: !withChecks.has(employee.employeeId),
-    }))
+    .filter((employee) => employee.isFieldRole || needsShopList(employee.position))
+    .map((employee) => {
+      const listIds = getVisitList(employee.employeeId)
+      return {
+        employeeId: employee.employeeId,
+        companyId: employee.companyId,
+        fullName: employee.fullName,
+        phoneNumber: employee.phone || '—',
+        position: employee.position,
+        employmentStatus: 'ACTIVE',
+        assignedShopId: listIds[0] ?? employee.shopId,
+        shopIds: listIds,
+        profileImage: employee.photo,
+        noSmsData: !withChecks.has(employee.employeeId),
+      }
+    })
 }
 
 /** Field staff who can be monitored, which needs an assigned shop. */

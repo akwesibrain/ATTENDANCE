@@ -1,6 +1,8 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
+// The mobile layer: phone-sized controls and text boxes, on every screen.
+import './styles/mobile.css'
 import App from './App.jsx'
 // Captures Android's install prompt as early as possible.
 import './utils/installPrompt'

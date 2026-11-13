@@ -1,0 +1,90 @@
+name: Deploy to Vercel
+
+on:
+  push:
+    branches:
+      - '**'
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Vercel deployment target'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - preview
+
+concurrency:
+  group: vercel-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-and-deploy:
+    name: Test & Deploy
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint & Run tests
+        env:
+          VITE_SUPABASE_URL: https://example.supabase.co
+          VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_test
+        run: |
+          npm run lint
+          npm test
+
+      - name: Install Vercel CLI
+        if: github.repository != 'Kim-owen/ATTENDANCE'
+        run: npm install --global vercel@65.15.0
+
+      - name: Deploy to Production
+        id: deploy-prod
+        if: github.repository != 'Kim-owen/ATTENDANCE' && ((github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.target == 'production'))
+        run: |
+          vercel pull --yes --environment=production
+          vercel build --prod
+          url=$(vercel deploy --prebuilt --prod --yes)
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "### Deployed to Production" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **URL**: $url" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Deploy Preview
+        id: deploy-preview
+        if: github.repository != 'Kim-owen/ATTENDANCE' && ((github.event_name == 'push' && github.ref != 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.target == 'preview'))
+        run: |
+          vercel pull --yes --environment=preview
+          vercel build
+          url=$(vercel deploy --prebuilt --yes)
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "### Deployed Preview" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **URL**: $url" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Comment Preview URL on Open PR
+        if: steps.deploy-preview.outputs.url != '' && github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PREVIEW_URL: ${{ steps.deploy-preview.outputs.url }}
+        run: |
+          branch="${GITHUB_REF#refs/heads/}"
+          prs=$(gh pr list --head "$branch" --state open --json number --jq '.[].number')
+          for pr in $prs; do
+            gh pr comment "$pr" --body "Vercel Preview ready: $PREVIEW_URL"
+          done

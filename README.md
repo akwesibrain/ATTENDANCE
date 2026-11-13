@@ -40,6 +40,8 @@ hosted copy needs HTTPS.
   emergency contact name and phone) → face enrollment → job position (and an
   allocated shop for Sales Representatives and Merchandisers) → review with
   biometric consent → Staff ID (`BFL-0001`, `DAA-0001`).
+- **Face setup link** (`/enroll/<link>`): for employees HR added without a
+  face. They scan their face once on their own phone, within 7 days.
 - **Attendance**: Staff ID → live face scan → check-in or check-out.
   One check-in and one check-out per day. The windows follow Settings: check-in
   from 06:00 (after the late-coming time, 09:00 by default, it is **late**);
@@ -56,11 +58,11 @@ hosted copy needs HTTPS.
 | Area | What it does |
 |---|---|
 | Dashboard | Today's figures per company and combined; today's register |
-| Employees | Directory cards with emergency contact; HR sets the **date joined** and the time with the company is calculated (years, months, days); shop assignment for field staff; **deactivate** a leaver from their last working day so later days are not absences |
+| Employees | **Add employee** (face scanned on the spot, or a one-time face setup link texted to them); a *Face not set up* badge and a **Send face setup link** button; directory cards with emergency contact; HR sets the **date joined** and the time with the company is calculated (years, months, days); **shop lists**: Supervisors, Sales Reps and Merchandisers each have 1 to 7 shops (picked at registration, edited by HR with `GET/PUT /hr/employees/:staffId/visit-list`, every change kept); the first shop is the main one; **deactivate** a leaver from their last working day so later days are not absences |
 | Attendance | One record per employee per day (from check-ins, SMS verification, or HR manual entry); corrections with full history; manual entry for paper records |
 | Sales Reps | Rep monitoring, 3 random SMS verification checks per working day, 150 m shop geofence, alerts, shop directory with map locations, live field board |
 | Reports | Monthly report (26th–25th) with working days, hours, overtime and pay; daily records; **Overtime** tab |
-| Settings | General, company profiles, attendance rules, working hours, **holidays**, sales-rep monitoring, notifications, security, data export, **Audit Logs** tab |
+| Settings | General, company profiles, attendance rules, working hours, **holidays**, sales-rep monitoring, notifications, security, **HR users** (invite people by a one-time link, remove or restore access, **reset a password** by one-time link or temporary password, **reset a lost authenticator**), **My password** (any HR user changes their own), data export, **Audit Logs** tab |
 | Notifications | Exceptions (late, absent, missing clock-out, failed verifications, missing shop…) with assign / review / resolve / dismiss |
 | HR Assistant | Rule-based chat that answers from the records (no AI service) |
 
@@ -147,6 +149,23 @@ pg_cron + pg_net ─────────> `api` /jobs/* (secret header)
   calculate in the browser from server facts using that same code.
 - **Future SMS times are unreadable.** They exist only in a table no client can
   reach, and a check becomes visible once it has been sent.
+- **Live tracking is on duty only, and the trail lasts one day.** A field
+  employee's check-in returns a `trackingToken`; the phone sends points to
+  `POST /tracking/points` until clock-out (then `409 session_closed`). HR's live
+  map reads `tracking_latest` through Realtime; `GET /hr/tracking/reports/daily`
+  serves the daily report. After each day the trail is summarised (time, coverage,
+  distance, minutes at each listed shop; no coordinates) and deleted, by the
+  nightly `tracking-close-day` job or, before that is configured, whenever a past
+  day is asked for. A plain-SQL sweep deletes any trail older than 48 hours even
+  without `JOBS_SECRET`.
+- **Outlet visits are recorded on the clocked-in phone.** A Sales Rep or
+  Supervisor opens **Record a visit** (`/visit`) after check-in, picks a listed
+  shop or types an outlet, and scans their face (`GET`/`POST /tracking/visits`,
+  authenticated by the tracking token). A visit stores the distance from the
+  shop, never the phone's coordinates. Five failed visit scans lock visits for
+  the day without locking the kiosk. The daily report counts visits and flags a
+  listed shop visited without a 10-minute stay, missed shops, and visits off
+  the list; HR gets an alert for each.
 
 ### First-time setup
 
@@ -203,18 +222,26 @@ pg_cron + pg_net ─────────> `api` /jobs/* (secret header)
 5. **Empty the test photos.** Dashboard → Storage: clear the `face-enrollment`
    and `attendance-photos` buckets. They hold generated test patterns only.
 6. **When the app is hosted**, set `ALLOWED_ORIGINS` (comma-separated) and
-   `APP_URL` as function secrets, then redeploy.
+   `APP_URL` as function secrets, then redeploy. `APP_URL` is also what face
+   setup links and HR invite links use in their SMS; without it HR can still
+   copy each link and send it themselves.
+7. **Turn off public sign-up** (Dashboard → Authentication → Sign In /
+   Providers → "Allow new users to sign up"). HR invites create accounts on
+   the server, so nothing needs it, and leaving it on lets anyone create an
+   account for an address before that person is invited.
 
 ### Function secrets
 
 | Name | Purpose |
 |---|---|
-| `JOBS_SECRET` | Lets the scheduler call `/jobs/*`. Must match Vault's `jobs_secret` |
+| `JOBS_SECRET` | Lets the scheduler call `/jobs/*` (SMS checks, notifications, the nightly tracking summary). Must match Vault's `jobs_secret` |
 | `FACE_PROVIDER` | Unset (or `faceapi`) uses face-api on the phone. `rekognition` uses AWS |
 | `REKOGNITION_REGION` | AWS region, e.g. `eu-west-1` |
 | `REKOGNITION_ACCESS_KEY_ID` | Key for the AWS user described in setup |
 | `REKOGNITION_SECRET_ACCESS_KEY` | Secret for that user |
-| `SMS_PROVIDER` | `none` (default) sends no checks; `log` prints them for testing |
+| `SMS_PROVIDER` | `none` (default) sends no checks; `log` prints them for testing; `txtconnect` sends real SMS |
+| `TXTCONNECT_API_KEY` | TxtConnect API key, needed when `SMS_PROVIDER` is `txtconnect` |
+| `TXTCONNECT_SENDER_ID` | Sender name registered with TxtConnect (at most 11 characters) |
 | `APP_URL` | Base address used in SMS links, e.g. `https://attendance.example.com` |
 | `ALLOWED_ORIGINS` | Sites allowed to call the API. Defaults to localhost |
 
@@ -237,13 +264,20 @@ face readings, so they only work while `FACE_PROVIDER` is unset or `faceapi`.
 ```bash
 node scripts/smoke-employee.mjs
 SUPABASE_ACCESS_TOKEN=<token> node scripts/smoke-hr.mjs   # removes what it creates
+node scripts/smoke-hr-passwords.mjs   # password resets; uses the logged-in CLI, removes its accounts
+node scripts/smoke-shop-lists.mjs     # shop lists; uses the logged-in CLI, removes its shops, employees and accounts
+node scripts/smoke-live-tracker.mjs   # live tracking, Realtime and the daily report; removes what it creates
+node scripts/smoke-outlet-visits.mjs  # outlet visits; face checks run only when FACE_PROVIDER is faceapi
+node scripts/mobile-check.mjs         # phone layout: no sideways scroll, 44 px taps, 16 px text boxes; screenshots in mobile-screenshots/
 ```
 
 ### Swapping in real services
 
 - **Face matching:** all of it is in `supabase/functions/_shared/faceMatcher.ts`.
-- **SMS:** add a provider in `supabase/functions/_shared/smsSender.ts` and set
-  `SMS_PROVIDER`. Checks start the next day.
+- **SMS:** TxtConnect is built in (`SMS_PROVIDER=txtconnect`). Other providers go in
+  `supabase/functions/_shared/smsSender.ts`. Phone numbers are turned into
+  international form first, so `024 123 4567` is sent as `233241234567`.
+  Checks start the next day.
 
 ### Limits to accept before go-live
 

@@ -9,7 +9,7 @@ import {
   shopFromRow,
 } from '../_shared/rules/facts.js'
 import {
-  detectCorrections,
+  detectCorrections, detectTrackingFlags, detectVisitIssues,
   detectFromRecord,
   detectFromRoster,
   planNotificationSync,
@@ -17,21 +17,14 @@ import {
 } from '../_shared/rules/notifications.js'
 import { buildRecords } from '../_shared/rules/records.js'
 import { attendanceRulesInForce, composeSettings } from '../_shared/rules/settings.js'
-import { ApiError, applyChange, db, must } from './lib.ts'
+import { allRows, ApiError, applyChange, db, must } from './lib.ts'
+import { loadTrackingDays } from './trackingFacts.ts'
+import { categoryForPosition } from '../_shared/rules/categories.js'
 
-const PAGE = 1000
+export { allRows }
+
 
 /** Every matching row, however many pages that takes. */
-// deno-lint-ignore no-explicit-any
-async function allRows(table: string, order: string, filter: (query: any) => any = (q) => q): Promise<any[]> {
-  // deno-lint-ignore no-explicit-any
-  const rows: any[] = []
-  for (let from = 0; ; from += PAGE) {
-    const page = await must(filter(db.from(table).select('*')).order(order).range(from, from + PAGE - 1)) as unknown[]
-    rows.push(...page)
-    if (page.length < PAGE) return rows
-  }
-}
 
 export async function loadSettings() {
   const [general, companies, versions] = await Promise.all([
@@ -102,6 +95,32 @@ export async function syncNotifications(now = new Date()) {
     (q: any) => q.gte('changed_at', since),
   )
   detectCorrections(history.map(correctionHistoryFromRow), push, new Map(roster.map((e) => [e.employeeId, e])))
+
+  // Live tracking flags outlive the deleted trail, so alerts stay after the day.
+  // deno-lint-ignore no-explicit-any
+  const trackingFlags = await allRows('tracking_flags', 'date', (q: any) => q.gte('date', dates[0]).lte('date', today))
+  detectTrackingFlags(trackingFlags, push, new Map(roster.map((e) => [e.employeeId, e])))
+
+  // Shop visits against live tracking (Sales Reps and Supervisors), from the same facts as the daily report.
+  // Only clocked-in days matter. Today's live trail is read only for people whose day is over (the only
+  // ones a missed or unproven shop can be raised for). A failure here never stops the other alerts.
+  try {
+    // deno-lint-ignore no-explicit-any
+    const visitRecords = buildRecords(roster, dates, ctx)
+      .map((r: any) => ({ ...r, category: categoryForPosition(r.position) }))
+      .filter((r: any) => r.clockIn && (r.category === 'sales-rep' || r.category === 'supervisor'))
+    // deno-lint-ignore no-explicit-any
+    const over = (r: any) => !r.isToday || Boolean(r.clockOut) || now.getTime() >= Date.parse(r.expectedEnd)
+    const visitDays = [
+      ...(await loadTrackingDays(visitRecords.filter(over), now)),
+      ...(await loadTrackingDays(visitRecords.filter((r) => !over(r)), now, { live: false })),
+    ]
+    detectVisitIssues(visitDays.map((d) => ({
+      employee: d.record, date: d.record.date, dayOver: d.dayOver, clockedIn: d.clockedIn, tracked: d.tracked, proof: d.proof, shopNames: d.shopNames,
+    })), push)
+  } catch (error) {
+    console.error('visit alerts skipped this sync', error)
+  }
 
   const [existing, reviews] = await Promise.all([
     allRows('notifications', 'id'),

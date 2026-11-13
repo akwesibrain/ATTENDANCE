@@ -2,8 +2,13 @@ import { useEffect, useState } from 'react'
 import { initials } from './labels'
 import { GEOFENCE_RADIUS_M } from '../../services/shopsService'
 import { assignShop } from '../../services/shopAssignmentService'
-import { setShopLocation } from '../../services/shopsService'
+import { acceptLocationProposal, dismissLocationProposal, pendingLocationProposals, setShopLocation } from '../../services/shopsService'
+import { locationServiceStatus } from '../../services/geocodingService'
+import { useCacheVersion } from '../../services/backend/cache'
+import { distanceMeters, formatDistance } from '../../utils/distance'
+import { formatAccraDateTime } from '../../utils/accraTime'
 import ShopLocationPicker from '../shops/ShopLocationPicker'
+import ShopMap from '../shops/ShopMap'
 
 function AssignModal({ shop, reps, onClose, onAssigned }) {
   const [selected, setSelected] = useState('')
@@ -108,8 +113,65 @@ function AssignModal({ shop, reps, onClose, onAssigned }) {
  * Assigned shop management. The geofence radius is fixed at 150 metres.
  * Location is shown as a clean information panel — no map dependency.
  */
+/**
+ * GPS readings field staff took standing at the shop. HR looks at each on the
+ * map and uses one as the shop's location, or dismisses it.
+ */
+function SuggestedLocations({ shop, proposals, onAccepted, onError }) {
+  const svc = locationServiceStatus()
+  const [pickedId, setPickedId] = useState(proposals[0]?.id ?? null)
+  const [busy, setBusy] = useState(false)
+  const picked = proposals.find((p) => p.id === pickedId) ?? proposals[0]
+  if (!picked) return null
+
+  const decide = async (action) => {
+    setBusy(true)
+    onError('')
+    const r = action === 'accept' ? await acceptLocationProposal(shop.shopId, picked.id) : await dismissLocationProposal(picked.id)
+    setBusy(false)
+    if (r.errors) { onError(Object.values(r.errors)[0]); return }
+    if (action === 'accept') onAccepted()
+  }
+
+  return (
+    <div className="slp">
+      <div className="slp-head">
+        <span className="slp-title">Suggested from the shop</span>
+        <span className="slp-hint">{proposals.length === 1 ? '1 reading' : `${proposals.length} readings`} waiting for you</span>
+      </div>
+      <fieldset className="slp-results">
+        <legend className="slp-hint">Taken by field staff standing at the shop. Check the pin, then use it or dismiss it.</legend>
+        {proposals.map((p) => {
+          const moved = distanceMeters(shop, p)
+          return (
+            <label key={p.id} className={`slp-result${p.id === picked.id ? ' is-picked' : ''}`}>
+              <input type="radio" name="slp-suggested" checked={p.id === picked.id} onChange={() => setPickedId(p.id)} />
+              <span>
+                <strong>{p.proposer}</strong> · {formatAccraDateTime(p.proposedAt)} · accurate to {p.accuracyM} m
+                <span className="slp-hint"> · {moved == null ? 'the shop has no location yet' : `${formatDistance(moved)} from the current pin`}</span>
+              </span>
+            </label>
+          )
+        })}
+      </fieldset>
+      <ShopMap
+        latitude={picked.latitude}
+        longitude={picked.longitude}
+        tileUrl={svc.tiles ? svc.tileUrl : null}
+        attribution={svc.attribution}
+        height={200}
+        label={`Location suggested by ${picked.proposer}`}
+      />
+      <div className="slp-row">
+        <button type="button" className="btn btn-primary at-btn" onClick={() => decide('accept')} disabled={busy}>Use this location</button>
+        <button type="button" className="btn btn-secondary at-btn" onClick={() => decide('dismiss')} disabled={busy}>Dismiss</button>
+      </div>
+    </div>
+  )
+}
+
 /** Set or change a shop's GPS location (lookup + map confirmation). */
-function LocationModal({ shop, onClose, onSaved }) {
+function LocationModal({ shop, proposals, onClose, onSaved }) {
   const [loc, setLoc] = useState(shop.latitude != null ? { latitude: shop.latitude, longitude: shop.longitude, locationSource: shop.locationSource ?? 'manual', locationLabel: shop.locationLabel ?? null } : null)
   const [error, setError] = useState('')
   const changed = loc && (loc.latitude !== shop.latitude || loc.longitude !== shop.longitude)
@@ -140,6 +202,9 @@ function LocationModal({ shop, onClose, onSaved }) {
           </button>
         </div>
         <div className="sm-modal-body">
+          {proposals.length > 0 && (
+            <SuggestedLocations shop={shop} proposals={proposals} onError={setError} onAccepted={() => { onSaved(); onClose() }} />
+          )}
           <ShopLocationPicker shop={{ shopName: shop.baseName ?? shop.shopName, town: shop.town, area: shop.area, address: shop.address }} value={loc} onChange={setLoc} />
           <p className="at-sub" style={{ margin: 0 }}>Saved to the Shop Directory. GPS checks use this point and the {shop.geofenceRadius} m geofence. The previous location is kept in the audit log.</p>
           {error && <p className="at-form-alert" role="alert">{error}</p>}
@@ -157,6 +222,9 @@ export default function ShopsPanel({ shops, reps, onChanged, onViewShop, canAssi
   const [assigning, setAssigning] = useState(null)
   const [locating, setLocating] = useState(null)
 
+  useCacheVersion()
+  const suggested = pendingLocationProposals()
+
   const repsFor = (shopId) => reps.filter((r) => r.assignedShopId === shopId)
 
   return (
@@ -173,6 +241,16 @@ export default function ShopsPanel({ shops, reps, onChanged, onViewShop, canAssi
                 </div>
                 <span className="sm-shop-status">{shop.status}</span>
               </div>
+
+              {canAssign && suggested.has(shop.shopId) && (
+                <button type="button" className="sm-shop-suggested" onClick={() => setLocating(shop)}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M12 21s-7-5.1-7-11a7 7 0 1 1 14 0c0 5.9-7 11-7 11z" stroke="currentColor" strokeWidth="2" />
+                    <path d="M12 7v4M12 13.5v.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                  </svg>
+                  Location suggested. Review
+                </button>
+              )}
 
               <div className="sm-location-panel">
                 <div className="sm-location-row">
@@ -244,7 +322,7 @@ export default function ShopsPanel({ shops, reps, onChanged, onViewShop, canAssi
         })}
       </div>
 
-      {locating && <LocationModal shop={locating} onClose={() => setLocating(null)} onSaved={onChanged} />}
+      {locating && <LocationModal shop={locating} proposals={suggested.get(locating.shopId) ?? []} onClose={() => setLocating(null)} onSaved={onChanged} />}
 
       {assigning && (
         <AssignModal

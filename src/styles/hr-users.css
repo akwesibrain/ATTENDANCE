@@ -140,3 +140,20 @@
 
 .hu-company-checks { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; min-height: 42px; }
 .hu-company-checks .at-sub { flex-basis: 100%; }
+
+/* Password reset dialog */
+.pw-dialog { max-width: 520px; }
+.pw-choice { border: 0; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.pw-option {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+.pw-option.is-selected { border-color: var(--accent); background: var(--accent-soft); }
+.pw-option input { margin-top: 3px; }
+.pw-option > span { display: flex; flex-direction: column; gap: 2px; }
+.pw-value { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 15px; letter-spacing: 0.04em; }

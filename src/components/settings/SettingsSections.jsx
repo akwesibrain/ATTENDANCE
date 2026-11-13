@@ -616,7 +616,7 @@ export function SecuritySection({ user }) {
           ? <StatusRow label="Face check" value="AWS Rekognition" tone="ok" detail="Compares each scan with the enrolled face on AWS servers. It does not detect a printed photo." />
           : <StatusRow label="Face check" value="face-api (open source)" tone="ok" detail="The phone reads the face and the server compares it with the enrolled one. It does not detect a printed photo." />}
         <StatusRow label="HR portal access" value="Email, password and authenticator app" tone="ok" detail="Separate from the employee portal." />
-        <StatusRow label="Public HR registration" value="Disabled" tone="ok" detail="Locked. There is one HR account (HR Manager); no others can be created." />
+        <StatusRow label="Public HR registration" value="Disabled" tone="ok" detail="Locked. HR users are added by invitation in Settings → HR users." />
         <StatusRow label="MFA policy" value="Required" tone="ok" detail="Every HR account signs in with an authenticator app." />
         <StatusRow label="Permission enforcement" value="Enforced on the server" tone="ok" detail="Every change is checked and audited on the server." />
         <StatusRow label="Company data separation" value="Enforced by the database" tone="ok" detail="Each HR user can only read their own companies." />

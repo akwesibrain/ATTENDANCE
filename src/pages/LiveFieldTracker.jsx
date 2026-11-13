@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { GHANA_CITIES } from '../constants/ghanaMap'
+import { refresh, useCacheVersion } from '../services/backend/cache'
 import { POSITION_SOURCE, TRACKER_GROUPS, getLiveTracker } from '../services/liveTrackerService'
 import { GHANA_MAP_H, GHANA_MAP_W, ghanaOutlinePath, makeGhanaProjection } from '../utils/ghanaProjection'
 import { formatAccraTime } from '../utils/accraTime'
@@ -215,6 +216,7 @@ const StaffTable = memo(function StaffTable({ companyName, visible, placedCount,
  * recorded positions — see liveTrackerService.
  */
 export default function LiveFieldTracker({ company, user }) {
+  const dataVersion = useCacheVersion()
   const reduced = prefersReducedMotion()
   const [tick, setTick] = useState(0)
   const [paused, setPaused] = useState(false)
@@ -257,7 +259,10 @@ export default function LiveFieldTracker({ company, user }) {
   }, [])
   useEffect(() => {
     if (paused || hidden) return undefined
-    const id = setInterval(() => setTick((t) => t + 1), REFRESH_SECONDS * 1000)
+    const id = setInterval(() => {
+      void refresh('tracking_latest', 'tracking_sessions', 'outlet_visits', 'attendance_events')
+      setTick((t) => t + 1)
+    }, REFRESH_SECONDS * 1000)
     return () => clearInterval(id)
   }, [paused, hidden])
 
@@ -293,7 +298,7 @@ export default function LiveFieldTracker({ company, user }) {
   }
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const data = useMemo(() => getLiveTracker(company.id), [company.id, tick])
+  const data = useMemo(() => getLiveTracker(company.id), [company.id, tick, dataVersion])
   const nowMs = Date.parse(data.asOf)
   const project = useMemo(() => makeGhanaProjection(), [])
 
@@ -571,7 +576,7 @@ export default function LiveFieldTracker({ company, user }) {
             )}
             <div className="lt-hud-actions">
               <button type="button" className="lt-btn" onClick={() => setPaused((p) => !p)}>{paused ? 'Resume' : 'Pause'}</button>
-              <button type="button" className="lt-btn" onClick={() => setTick((t) => t + 1)}>Refresh</button>
+              <button type="button" className="lt-btn" onClick={() => { void refresh('tracking_latest', 'tracking_sessions', 'outlet_visits', 'attendance_events'); setTick((t) => t + 1) }}>Refresh</button>
               <button type="button" className="lt-btn lt-btn-primary" onClick={toggleFull} aria-pressed={full}>{full ? 'Exit full screen' : 'Full screen'}</button>
             </div>
           </div>
@@ -646,7 +651,6 @@ export default function LiveFieldTracker({ company, user }) {
 
       <StaffTable companyName={company.name} visible={visible} placedCount={placed.length} selected={selected} nowMs={nowMs} onPick={onPick} />
       <TrackingDailyReport company={company} user={user} refreshKey={tick} />
-      <p className="mock-banner" style={{ textAlign: 'center', margin: 0 }}>Demo data — merchandiser check results are simulated. Visit locations come from the employee’s phone.</p>
     </div>
   )
 }

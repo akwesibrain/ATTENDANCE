@@ -5,10 +5,11 @@
 import { findDuplicateShop, validateNewShop } from '../services/shopsService'
 import {
   isPrivilegedPosition,
-  requiresShop as isFieldPosition,
   validateJobPosition,
   validatePersonalInformation,
 } from '../../supabase/functions/_shared/rules/registration.js'
+// The same rule the server uses for who needs a shop list.
+import { needsShopList as isFieldPosition } from '../../supabase/functions/_shared/rules/categories.js'
 
 export { isFieldPosition, isPrivilegedPosition, validateJobPosition, validatePersonalInformation }
 

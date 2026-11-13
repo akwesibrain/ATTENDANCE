@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { lookupEmployee, MAX_FACE_ATTEMPTS, recordAttendance } from '../services/attendanceService'
 import { describeFace, preloadFaceModels } from '../services/faceRecognition'
+import { saveTrackingSession, trackingSession } from '../services/visitService'
 import { clearPass, currentPass, passFromCode } from '../services/workplaceDisplayService'
 import '../styles/display.css'
 import { captureFrame } from '../utils/captureFrame'
@@ -185,6 +186,8 @@ export default function AttendanceCheckIn({ onBack, kiosk = false }) {
       })
       stopStream()
       setCapturedPhoto(captured)
+      // Field staff keep their tracking token on this phone, for recording outlet visits.
+      saveTrackingSession(event)
       setResult(event)
       setStep(STEP.success)
     } catch (err) {
@@ -526,6 +529,12 @@ export default function AttendanceCheckIn({ onBack, kiosk = false }) {
             </p>
 
             <div className="success-actions">
+              {result.type === 'check-in' && result.trackingToken && trackingSession()?.canRecordVisits && (
+                <a className="btn btn-secondary" href="/visit">Record a visit</a>
+              )}
+              {result.type === 'check-in' && result.trackingToken && (
+                <a className="btn btn-secondary" href="/shop-location">Set a shop's location</a>
+              )}
               <button type="button" className="btn btn-primary" onClick={onBack}>
                 Done
               </button>

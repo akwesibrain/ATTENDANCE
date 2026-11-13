@@ -1,10 +1,15 @@
 import { Hono } from 'npm:hono@4.6.14'
 import { bodyLimit } from 'npm:hono@4.6.14/body-limit'
 import { cors } from 'npm:hono@4.6.14/cors'
+import { publicEnrolRoutes } from './employeeOnboarding.ts'
 import { hrRoutes } from './hr.ts'
+import { publicHrSetupRoutes } from './hrAccess.ts'
+import { publicPasswordResetRoutes } from './hrPasswords.ts'
 import { jobRoutes } from './jobs.ts'
 import { ApiError } from './lib.ts'
 import { publicRoutes } from './public.ts'
+import { publicTrackingRoutes } from './tracking.ts'
+import { publicVisitRoutes } from './trackingVisits.ts'
 
 const app = new Hono().basePath('/api')
 
@@ -37,6 +42,11 @@ app.onError((error, c) => {
 app.notFound((c) => c.json({ error: 'Not found.' }, 404))
 
 app.get('/health', (c) => c.json({ ok: true, time: new Date().toISOString() }))
+app.route('/', publicEnrolRoutes)
+app.route('/', publicHrSetupRoutes)
+app.route('/', publicPasswordResetRoutes)
+app.route('/', publicTrackingRoutes)
+app.route('/', publicVisitRoutes)
 app.route('/', publicRoutes)
 app.route('/hr', hrRoutes)
 app.route('/jobs', jobRoutes)
