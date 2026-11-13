@@ -67,10 +67,16 @@ export default function AttendanceCheckIn({ onBack, kiosk = false }) {
     const params = new URLSearchParams(window.location.search)
     const code = params.get('site')
     if (!code) return
-    // Keep the code out of the address bar, so a reload or a shared link cannot reuse it.
+    const consume = passFromCode(code)
+    // Strip ?site= right after passFromCode consumes it so reloads, back-gestures,
+    // and subsequent round remounts keep the valid 10-minute pass.
     window.history.replaceState(null, '', window.location.pathname)
-    passFromCode(code)
-      .then((pass) => { setSite(pass); setSiteProblem(null) })
+    consume
+      .then((pass) => {
+        window.history.replaceState(null, '', window.location.pathname)
+        setSite(pass)
+        setSiteProblem(null)
+      })
       .catch((err) => { clearPass(); setSite(null); setSiteProblem(err?.message ?? 'This QR code could not be read.') })
   }, [])
 
@@ -186,8 +192,12 @@ export default function AttendanceCheckIn({ onBack, kiosk = false }) {
       })
       stopStream()
       setCapturedPhoto(captured)
-      // Field staff keep their tracking token on this phone, for recording outlet visits.
-      saveTrackingSession(event)
+      // Field staff keep their tracking token on their own phone for outlet visits;
+      // never start live field GPS tracking when checking in via a shared Workplace Display pass.
+      const isSitePassCheckIn = Boolean(site?.pass) && event.type === 'check-in'
+      if (!isSitePassCheckIn) {
+        saveTrackingSession(event)
+      }
       setResult(event)
       setStep(STEP.success)
     } catch (err) {
@@ -529,10 +539,10 @@ export default function AttendanceCheckIn({ onBack, kiosk = false }) {
             </p>
 
             <div className="success-actions">
-              {result.type === 'check-in' && result.trackingToken && trackingSession()?.canRecordVisits && (
+              {result.type === 'check-in' && !site?.pass && result.trackingToken && trackingSession()?.canRecordVisits && (
                 <a className="btn btn-secondary" href="/visit">Record a visit</a>
               )}
-              {result.type === 'check-in' && result.trackingToken && (
+              {result.type === 'check-in' && !site?.pass && result.trackingToken && (
                 <a className="btn btn-secondary" href="/shop-location">Set a shop's location</a>
               )}
               <button type="button" className="btn btn-primary" onClick={onBack}>

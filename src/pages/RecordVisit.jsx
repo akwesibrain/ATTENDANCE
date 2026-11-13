@@ -169,10 +169,16 @@ export default function RecordVisit() {
                   ? <button type="button" className="btn btn-primary" onClick={startCamera} disabled={today.attemptsLeft === 0}>Scan face and save</button>
                   : <button type="button" className="btn btn-primary" onClick={save} disabled={busy}>{busy ? 'Saving…' : 'Save visit'}</button>}
                 {!cameraOn && <a className="btn btn-secondary" href="/shop-location">Set a shop's location</a>}
+                <a className="btn btn-secondary" href="/attendance">Back to attendance</a>
               </div>
             </>
           )}
           {!closed && error && !today && <div className="submit-error" role="alert"><span>{error}</span></div>}
+          {(closed || (!today && error)) && (
+            <div className="step-actions">
+              <a className="btn btn-secondary" href="/attendance">Back to attendance</a>
+            </div>
+          )}
         </section>
       </div>
     </main>

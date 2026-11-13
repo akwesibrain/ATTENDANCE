@@ -91,6 +91,13 @@ a.btn:hover {
     padding-bottom: max(16px, env(safe-area-inset-bottom));
   }
 
+  /* Leave room above the floating location-sharing bar so bottom CTAs are never covered. */
+  html body:has(.ls-bar) .registration-page,
+  html body:has(.ls-bar) .landing-page,
+  html body:has(.ls-bar) .visit-page {
+    padding-bottom: calc(230px + env(safe-area-inset-bottom, 0px));
+  }
+
   /* Main actions: full width, primary at the bottom within thumb reach. */
   html .step-actions,
   html .success-actions {

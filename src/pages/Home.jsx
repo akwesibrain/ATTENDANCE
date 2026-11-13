@@ -1,12 +1,20 @@
 import InstallAppCard from '../components/common/InstallAppCard'
-// The landing page brings its own styles (it used to rely on the registration
-// screen loading them, which stopped once pages were loaded separately).
+// The landing page brings its own styles (the pages that also import
+// registration.css are lazy-loaded and arrive only when opened).
 import '../styles/registration.css'
 import '../styles/landing.css'
-import { hasRegisteredOnThisDevice } from '../services/registrationService'
-// The home screen shares the registration layout. Import it here, because the
-// pages that also import it are lazy-loaded and arrive only when opened.
-import '../styles/registration.css'
+
+// Device-local registration flag so the initial landing bundle never pulls in
+// the backend/Supabase client eagerly.
+const REGISTERED_DEVICE_KEY = 'workforce:device-registered'
+
+function hasRegisteredOnThisDevice() {
+  try {
+    return window.localStorage.getItem(REGISTERED_DEVICE_KEY) === '1'
+  } catch {
+    return false
+  }
+}
 
 /**
  * Entry screen — choose between employee registration and attendance.

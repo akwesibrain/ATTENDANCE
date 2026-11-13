@@ -160,11 +160,17 @@ export default function SetShopLocation() {
                 {goodEnough
                   ? <button type="button" className="btn btn-primary" onClick={save} disabled={busy}>{busy ? 'Sending…' : 'Send this location to HR'}</button>
                   : <button type="button" className="btn btn-primary" onClick={startReading} disabled={reading?.status === 'reading' || !choice}>{reading?.status === 'reading' ? 'Reading GPS…' : reading ? 'Try again' : 'Set location here'}</button>}
-                <a className="btn btn-secondary" href={session?.canRecordVisits ? '/visit' : '/attendance'}>Back</a>
+                {session?.canRecordVisits && <a className="btn btn-secondary" href="/visit">Record a visit</a>}
+                <a className="btn btn-secondary" href="/attendance">Back to attendance</a>
               </div>
             </>
           )}
           {!closed && error && !shops && <div className="submit-error" role="alert"><span>{error}</span></div>}
+          {(closed || shops?.length === 0 || (!shops && error)) && (
+            <div className="step-actions">
+              <a className="btn btn-secondary" href="/attendance">Back to attendance</a>
+            </div>
+          )}
         </section>
       </div>
     </main>

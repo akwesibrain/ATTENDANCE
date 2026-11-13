@@ -57,8 +57,19 @@ const VIEW_TO_PATH = {
   [VIEW.cookies]: '/cookies',
 }
 
-function viewFromLocation() {
-  return PATH_TO_VIEW[window.location.pathname] ?? VIEW.home
+function normalizePathname(pathname = window.location.pathname) {
+  return pathname.length > 1 && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname
+}
+
+function viewFromLocation(installed = false) {
+  const matched = PATH_TO_VIEW[normalizePathname()]
+  if (installed) {
+    if (matched && matched !== VIEW.home && matched !== VIEW.attendance) {
+      return matched
+    }
+    return VIEW.attendance
+  }
+  return matched ?? VIEW.home
 }
 
 const VERIFY_PATH = /^\/verify\/([^/]+)$/
@@ -111,41 +122,45 @@ function App() {
 }
 
 function Portal() {
-  // Opened from the home-screen icon: the app is the attendance kiosk only.
-  // It always starts at "Enter your Staff ID" and there is no way back to
-  // the home page (no Back button, and the phone's back gesture is held).
+  // Opened from the home-screen icon at `/` or `/attendance`: the app runs as
+  // the attendance kiosk (starts at "Enter your Staff ID", holds back gesture).
+  // Explicit routes (/privacy, /tracking-policy, /terms, /cookies, /register,
+  // /hr) still render their proper views even when installed.
   const [installed] = useState(isInstalled)
-  const [view, setView] = useState(() => (installed ? VIEW.attendance : viewFromLocation()))
+  const [view, setView] = useState(() => viewFromLocation(installed))
   // Bumped after each check-in/out so the next person starts on a fresh Staff ID screen.
   const [round, setRound] = useState(0)
+  const isKiosk = installed && view === VIEW.attendance
+  const defaultBackView = installed ? VIEW.attendance : VIEW.home
 
   useEffect(() => {
-    if (!installed) return undefined
-    const here = `/attendance${window.location.search}`
-    window.history.replaceState(null, '', here)
-    window.history.pushState(null, '', here)
-    const hold = () => window.history.pushState(null, '', here)
+    if (!isKiosk) return undefined
+    const initialSearch = window.location.search
+    window.history.replaceState(null, '', '/attendance')
+    window.history.pushState(null, '', `/attendance${initialSearch}`)
+    const hold = () => window.history.pushState(null, '', '/attendance')
     window.addEventListener('popstate', hold)
     return () => window.removeEventListener('popstate', hold)
-  }, [installed])
+  }, [isKiosk])
 
   // Keep the URL in sync so each page has a shareable link.
   useEffect(() => {
+    if (isKiosk) return
     const path = VIEW_TO_PATH[view]
-    if (window.location.pathname !== path) {
+    if (normalizePathname() !== path) {
       window.history.pushState(null, '', path)
     }
-  }, [view])
+  }, [view, isKiosk])
 
-  // Support browser back/forward buttons (not in the installed app).
+  // Support browser back/forward buttons on non-kiosk views.
   useEffect(() => {
-    if (installed) return undefined
-    const onPopState = () => setView(viewFromLocation())
+    if (isKiosk) return undefined
+    const onPopState = () => setView(viewFromLocation(installed))
     window.addEventListener('popstate', onPopState)
     return () => window.removeEventListener('popstate', onPopState)
-  }, [installed])
+  }, [isKiosk, installed])
 
-  if (installed) {
+  if (isKiosk) {
     return (
       <>
         <Suspense fallback={<PageSkeleton label="Loading attendance" />}>
@@ -156,19 +171,19 @@ function Portal() {
     )
   }
   if (view === VIEW.hr) {
-    return <Suspense fallback={<PageSkeleton variant="hr" label="Loading the HR portal" />}><HrDashboard onBack={() => setView(VIEW.home)} /></Suspense>
+    return <Suspense fallback={<PageSkeleton variant="hr" label="Loading the HR portal" />}><HrDashboard onBack={() => setView(defaultBackView)} /></Suspense>
   }
   let page
   if (view === VIEW.register) {
-    page = <Suspense fallback={<PageSkeleton label="Loading registration" />}><EmployeeRegistration onBack={() => setView(VIEW.home)} /></Suspense>
+    page = <Suspense fallback={<PageSkeleton label="Loading registration" />}><EmployeeRegistration onBack={() => setView(defaultBackView)} /></Suspense>
   } else if (LEGAL_VIEWS.has(view)) {
     page = (
       <Suspense fallback={<PageSkeleton label="Loading policy" />}>
         <LegalPage
           docId={view}
-          onNavigate={(path) => setView(PATH_TO_VIEW[path] ?? VIEW.home)}
+          onNavigate={(path) => setView(PATH_TO_VIEW[path] ?? defaultBackView)}
           // Opened from a link in a new tab there is nothing to go back to.
-          onBack={() => (window.history.length > 1 ? window.history.back() : setView(VIEW.home))}
+          onBack={() => (window.history.length > 1 ? window.history.back() : setView(defaultBackView))}
         />
       </Suspense>
     )
