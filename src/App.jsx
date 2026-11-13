@@ -85,7 +85,12 @@ function App() {
     return <Suspense fallback={<PageSkeleton label="Loading your reset link" />}><PasswordReset token={resetToken} /></Suspense>
   }
   if (VISIT_PATH.test(path)) {
-    return <Suspense fallback={<PageSkeleton label="Loading your shops" />}><RecordVisit /></Suspense>
+    return (
+      <>
+        <Suspense fallback={<PageSkeleton label="Loading your shops" />}><RecordVisit /></Suspense>
+        <Suspense fallback={null}><LocationSharingBar /></Suspense>
+      </>
+    )
   }
   const display = path.match(DISPLAY_PATH)
   if (display) {

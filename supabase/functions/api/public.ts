@@ -1,12 +1,12 @@
 /** Employee routes. There is no login here, so every route is rate limited. */
 
 import { Hono } from 'npm:hono@4.6.14'
-import { compareFaces, FaceServiceUnavailable } from '../_shared/faceMatcher.ts'
+import { compareFaces } from '../_shared/faceMatcher.ts'
 import { accraDateKey } from '../_shared/rules/accraTime.js'
 import { attendanceGate, lockoutMessage, MAX_FACE_ATTEMPTS, normalizeStaffId } from '../_shared/rules/checkin.js'
 import { shopFromRow } from '../_shared/rules/facts.js'
 import { holidayNameFor } from '../_shared/rules/holidays.js'
-import { checkGeofence, verificationResult } from '../_shared/rules/monitoring.js'
+import { measureShopDistance, verificationResult } from '../_shared/rules/monitoring.js'
 import { isWorkingDay, overtimeHours } from '../_shared/rules/policy.js'
 import { parseRegistration } from '../_shared/rules/registration.js'
 import { categoryForPosition, needsShopList } from '../_shared/rules/categories.js'
@@ -14,10 +14,10 @@ import { sessionClosesAt } from '../_shared/rules/tracking.js'
 import { openTrackingSession } from './tracking.ts'
 import { checkSiteCode, makeSitePass, parseSiteCode, randomToken } from '../_shared/rules/siteCode.js'
 import { activeDisplay, type Site, siteFromPass } from './sites.ts'
-import { enrolNewFace, ENROLLMENT_BUCKET, faceSample, loadEnrolledPhoto, readable, registerEmployee, shopListOf } from './enrolment.ts'
+import { enrolNewFace, faceSample, loadEnrolledPhoto, readable, registerEmployee, shopListOf } from './enrolment.ts'
 import { attendanceRulesInForce, hoursInForce } from '../_shared/rules/settings.js'
 import { loadSettings, syncNotifications } from './facts.ts'
-import { ApiError, applyChange, clientIp, db, discardPhoto, found, invalid, later, must, rateLimit, readJson, rpc, sha256Hex, storePhoto } from './lib.ts'
+import { allRows, ApiError, applyChange, clientIp, db, discardPhoto, found, invalid, later, must, rateLimit, readJson, rpc, sha256Hex, storePhoto } from './lib.ts'
 
 const ATTENDANCE_BUCKET = 'attendance-photos'
 const NOT_FOUND = 'Staff ID not found. Check the ID and try again, or register first.'
@@ -91,12 +91,11 @@ publicRoutes.get('/public/shops', async (c) => {
   await rateLimit(`shops:ip:${clientIp(c)}`, ...LIMITS.shops)
   const companyId = c.req.query('companyId')
   if (!companyId) throw new ApiError(400, 'Choose a company first.')
-  const shops = await found(
-    db.from('shops')
-      .select('shop_id, company_id, shop_name, town, area, address')
-      .eq('company_id', companyId)
-      .eq('status', 'active')
-      .order('shop_name'),
+  const shops = await allRows(
+    'shops',
+    ['shop_name', 'shop_id'],
+    // deno-lint-ignore no-explicit-any
+    (q: any) => q.eq('company_id', companyId).eq('status', 'active'),
   )
   return c.json({
     shops: shops.map((s) => ({
@@ -248,7 +247,7 @@ publicRoutes.get('/verify/:token', async (c) => {
   })
 })
 
-/** One answer per link. The geofence is checked here, against the assigned shop. */
+/** One answer per link. Distance is measured to the nearest listed shop (no pass/fail radius). */
 publicRoutes.post('/verify/:token', async (c) => {
   await rateLimit(`verify:ip:${clientIp(c)}`, ...LIMITS.verify)
   const check = await openCheck(c.req.param('token'))
@@ -271,12 +270,15 @@ publicRoutes.post('/verify/:token', async (c) => {
   )
   if (!claimed.length) throw new ApiError(410, EXPIRED_LINK)
 
-  const shop = check.event.shop_id
-    ? await must(db.from('shops').select('*').eq('shop_id', check.event.shop_id).maybeSingle())
-    : null
+  const listIds = await shopListOf(check.event.employee_id)
+  const shopIds = [...new Set([...listIds, ...(check.event.shop_id ? [check.event.shop_id] : [])])]
+  const shopRows = shopIds.length
+    ? await found(db.from('shops').select('*').in('shop_id', shopIds))
+    : []
+  const shops = shopRows.map(shopFromRow)
   const gps = settings.monitoring.gpsRequired
-    ? checkGeofence(body, shop && shopFromRow(shop))
-    : { status: 'not-required', distance: null }
+    ? measureShopDistance(body, shops)
+    : { status: 'not-required', distance: null, shopId: null }
   const result = verificationResult(facePassed, gps.status)
   const accuracy = typeof body.accuracy === 'number' && Number.isFinite(body.accuracy) ? Math.round(body.accuracy) : null
 
@@ -285,6 +287,7 @@ publicRoutes.post('/verify/:token', async (c) => {
     op: 'update',
     match: { event_id: check.eventId },
     row: {
+      shop_id: gps.shopId ?? check.event.shop_id,
       responded_at: now,
       face_verification_status: !settings.monitoring.faceRequired ? 'not-required' : facePassed ? 'passed' : 'failed',
       // The current matcher cannot tell a live person from a photo.
@@ -363,6 +366,17 @@ publicRoutes.post('/attendance/events', async (c) => {
   const tracking = event.type === 'check-in'
     ? await openTrackingSession(employee, { date: String(event.date), occurred_at: String(event.occurred_at) }, sessionClosesAt(date, hours, rules))
     : null
+  if (event.type === 'check-out') {
+    later(
+      must(
+        db.from('verification_schedule')
+          .update({ dispatched_at: now.toISOString() })
+          .eq('employee_id', employee.staff_id)
+          .eq('date', date)
+          .is('dispatched_at', null),
+      ),
+    )
+  }
 
   return c.json({
     id: event.id,

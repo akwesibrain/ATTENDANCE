@@ -4,8 +4,10 @@
  */
 
 import { ATTENDANCE_SOURCE, ATTENDANCE_STATUS, VERIFICATION_STATUS } from '../constants/attendanceLabels'
+import { categoryForPosition } from '../constants/employeeCategories'
 import { canViewCompany } from '../constants/hrUser'
 import { accraTodayKey, formatAccraDateTime, formatAccraTime } from '../utils/accraTime'
+import { visitFromRow } from '../../supabase/functions/_shared/rules/tracking.js'
 import {
   contextFromRows,
   employeeFromRow,
@@ -61,9 +63,35 @@ export function listAttendanceRoster(companyId = null) {
     .sort((a, b) => a.fullName.localeCompare(b.fullName))
 }
 
+function visitsByDay() {
+  const byKey = new Map()
+  rows('outlet_visits').forEach((row) => {
+    const key = `${row.staff_id}|${row.date}`
+    const base = visitFromRow(row)
+    const visit = {
+      ...base,
+      verification: { status: base.status, distance: base.distanceM },
+    }
+    const list = byKey.get(key) ?? []
+    list.push(visit)
+    byKey.set(key, list)
+  })
+  return byKey
+}
+
+function attachVisits(record, visitsMap) {
+  return {
+    ...record,
+    category: categoryForPosition(record.position),
+    visits: visitsMap.get(`${record.employeeId}|${record.date}`) ?? [],
+  }
+}
+
 /** Records over a list of dates, newest first. Future days are never listed. */
 export function listAttendanceRecords({ companyId = null, dates }) {
+  const vMap = visitsByDay()
   return buildRecords(listAttendanceRoster(companyId), dates, recordContext())
+    .map((r) => attachVisits(r, vMap))
     .sort((a, b) => b.date.localeCompare(a.date) || a.fullName.localeCompare(b.fullName))
 }
 
@@ -71,7 +99,7 @@ export function listAttendanceRecords({ companyId = null, dates }) {
 export function getAttendanceRecord(employeeId, dateKey) {
   if (!employeeId || !dateKey || dateKey > accraTodayKey()) return null
   const employee = listAttendanceRoster().find((e) => e.employeeId === employeeId)
-  return employee ? buildRecord(employee, dateKey, recordContext()) : null
+  return employee ? attachVisits(buildRecord(employee, dateKey, recordContext()), visitsByDay()) : null
 }
 
 /** Summary counts. "present" is everyone who attended: on time, late or incomplete. */

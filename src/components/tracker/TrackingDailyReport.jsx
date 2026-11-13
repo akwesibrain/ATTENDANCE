@@ -1,6 +1,15 @@
-import { memo, useMemo, useState } from 'react'
+import { memo, useEffect, useMemo, useState } from 'react'
+import { useCacheVersion } from '../../services/backend/cache'
 import { TRACKER_GROUPS } from '../../services/liveTrackerService'
-import { TRACKING_RESULT, minutesText, percentText, trackingDailyReport, trackingReportToCsv } from '../../services/trackingReportService'
+import {
+  TRACKING_RESULT,
+  fetchTrackingDailyReport,
+  minutesText,
+  percentText,
+  summariseReportRows,
+  trackingDailyReport,
+  trackingReportToCsv,
+} from '../../services/trackingReportService'
 import { can } from '../../services/permissionsService'
 import { recordExport } from '../../services/auditStore'
 import { accraTodayKey, formatAccraDate, formatAccraTime } from '../../utils/accraTime'
@@ -30,19 +39,45 @@ function download(name, text) {
 /**
  * Daily report for everyone the Live Tracker applies to (Supervisors, Sales
  * Reps, Merchandisers): time tracked, live coverage, signal lost and distance
- * for a chosen day. Memoised so map movements don't re-render it.
+ * for a chosen day. Memoised so map camera movements don't re-render it.
  */
 const TrackingDailyReport = memo(function TrackingDailyReport({ company, user, refreshKey }) {
+  const dataVersion = useCacheVersion()
   const today = accraTodayKey()
   const [dateKey, setDateKey] = useState(today)
   const [role, setRole] = useState('')
-  const report = useMemo(
+  const [serverState, setServerState] = useState({ key: '', report: null })
+
+  const requestKey = `${company.id}|${dateKey}`
+  const pollTrigger = dateKey === today ? refreshKey : 0
+
+  useEffect(() => {
+    let cancelled = false
+    fetchTrackingDailyReport(company.id, dateKey)
+      .then((report) => {
+        if (!cancelled) setServerState({ key: requestKey, report })
+      })
+      .catch(() => {
+        // Keep cached fallback on transient network hiccup.
+      })
+    return () => { cancelled = true }
+  }, [company.id, dateKey, requestKey, pollTrigger])
+
+  const cachedReport = useMemo(
     () => trackingDailyReport(company.id, dateKey),
-    // refreshKey: recalculate with the tracker's 15-second refresh.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [company.id, dateKey, refreshKey],
+    [company.id, dateKey, dataVersion],
   )
-  const rows = role ? report.rows.filter((r) => r.category === role) : report.rows
+  const baseReport = serverState.key === requestKey && serverState.report ? serverState.report : cachedReport
+  const filteredRows = useMemo(
+    () => (role ? baseReport.rows.filter((r) => r.category === role) : baseReport.rows),
+    [baseReport.rows, role],
+  )
+  const report = useMemo(
+    () => (role ? summariseReportRows(dateKey, filteredRows) : baseReport),
+    [role, dateKey, filteredRows, baseReport],
+  )
+  const rows = report.rows
   const t = report.totals
   const canExport = can(user, 'reports', 'export')
 
@@ -105,7 +140,7 @@ const TrackingDailyReport = memo(function TrackingDailyReport({ company, user, r
             </thead>
             <tbody>
               {rows.map((r) => {
-                const res = TRACKING_RESULT[r.result]
+                const res = TRACKING_RESULT[r.result] ?? TRACKING_RESULT['not-clocked-in']
                 return (
                   <tr key={r.employeeId}>
                     <td data-label="Employee">{r.fullName}<span className="at-sub"> · {TRACKER_GROUPS[r.category].single} · <span className="sm-mono">{r.employeeId}</span></span></td>

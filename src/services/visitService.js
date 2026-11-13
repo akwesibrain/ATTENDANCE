@@ -5,8 +5,15 @@
  */
 
 export const SESSION_KEY = 'tracking:session'
+export const TRACKING_EVENT = 'tracking:changed'
 
 const API = `${import.meta.env?.VITE_SUPABASE_URL ?? ''}/functions/v1/api`
+
+function announce() {
+  if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+    try { window.dispatchEvent(new Event(TRACKING_EVENT)) } catch { /* ignore */ }
+  }
+}
 
 function read() {
   try {
@@ -18,6 +25,11 @@ function read() {
 
 function forget() {
   try { localStorage.removeItem(SESSION_KEY) } catch { /* storage unavailable */ }
+  announce()
+}
+
+export function clearTrackingSession() {
+  forget()
 }
 
 /** After a successful scan: keep a field employee's token at check-in, drop it at check-out. */
@@ -25,7 +37,14 @@ export function saveTrackingSession(event) {
   if (!event) return
   try {
     if (event.type === 'check-in' && event.trackingToken) {
-      localStorage.setItem(SESSION_KEY, JSON.stringify({ token: event.trackingToken, closesAt: event.trackingClosesAt, staffId: event.staffId, canRecordVisits: event.canRecordVisits === true }))
+      localStorage.setItem(SESSION_KEY, JSON.stringify({
+        token: event.trackingToken,
+        closesAt: event.trackingClosesAt,
+        staffId: event.staffId,
+        canRecordVisits: event.canRecordVisits === true,
+        ...(event.fullName ? { fullName: event.fullName } : {}),
+      }))
+      announce()
     }
     if (event.type === 'check-out') forget()
   } catch { /* storage unavailable: visits will ask the person to clock in */ }

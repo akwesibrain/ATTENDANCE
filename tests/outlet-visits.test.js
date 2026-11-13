@@ -100,6 +100,23 @@ describe('visitProof with recorded visits', () => {
     expect(proof.listed.map((l) => l.status)).toEqual(['no-stay', 'missed'])
     expect(proof.counts.flagged).toBe(3)
   })
+
+  it('includes first scan time and minimum recorded distance without coordinates', () => {
+    const vEarly = visit('v1', 's1', { occurred_at: '2026-11-12T08:45:00Z', distance_m: 85 })
+    const vCloser = visit('v2', 's1', { occurred_at: '2026-11-12T09:10:00Z', distance_m: 18 })
+    const vOff = visit('v3', 's3', { occurred_at: '2026-11-12T11:00:00Z', on_list: false, distance_m: 42 })
+    const proof = visitProof({ listIds: ['s1'], shopsById, visits: [vCloser, vEarly, vOff], stays: { s1: { longestMinutes: 15, closestM: 12 } }, dayOver: false })
+    expect(proof.listed[0]).toMatchObject({
+      shopId: 's1',
+      status: 'proven',
+      scans: 2,
+      visitDistance: 18,
+      stayMinutes: 15,
+      closestM: 12,
+    })
+    expect(proof.listed[0].first.id).toBe('v1')
+    expect(proof.offList[0].distance).toBe(42)
+  })
 })
 
 describe('visitFromRow', () => {

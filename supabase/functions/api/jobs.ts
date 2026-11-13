@@ -3,12 +3,14 @@
 import { Hono } from 'npm:hono@4.6.14'
 import { sendSms, smsConfigured } from '../_shared/smsSender.ts'
 import { accraDateKey, accraIso } from '../_shared/rules/accraTime.js'
+import { needsShopList } from '../_shared/rules/categories.js'
 import { scheduleCheckMinutes } from '../_shared/rules/monitoring.js'
 import { buildRecord, outsideEmployment, shiftWindowMinutes } from '../_shared/rules/records.js'
 import { hoursInForce } from '../_shared/rules/settings.js'
 import { loadFacts, loadSettings, syncNotifications } from './facts.ts'
 import { ApiError, applyChange, db, found, must, sha256Hex } from './lib.ts'
 import { closePastDays } from './trackingDays.ts'
+import { listsFor } from './trackingFacts.ts'
 
 export const jobRoutes = new Hono()
 
@@ -40,8 +42,13 @@ jobRoutes.post('/generate-schedule', async (c) => {
   const { settings, ctx, roster, shopsById } = await loadFacts({ from: date, to: date, now })
   if (!settings.monitoring.smsEnabled) return c.json({ skipped: 'SMS checks are turned off' })
 
+  const lists = await listsFor(roster.map((emp) => emp.employeeId))
   const rows = roster
-    .filter((emp) => emp.isFieldRole && shopsById.get(emp.shopId)?.latitude != null && !outsideEmployment(emp, date))
+    .filter((emp) => {
+      if (!(emp.isFieldRole || needsShopList(emp.position)) || outsideEmployment(emp, date)) return false
+      const ids = [...(lists.get(emp.employeeId) ?? []), ...(emp.shopId ? [emp.shopId] : [])]
+      return ids.some((id) => shopsById.get(id)?.latitude != null)
+    })
     .filter((emp) => !SKIPPED_DAYS.includes(buildRecord(emp, date, ctx).status))
     .flatMap((emp) => {
       const { start, end } = shiftWindowMinutes(hoursInForce(settings, emp.companyId, date))
@@ -74,20 +81,51 @@ jobRoutes.post('/dispatch', async (c) => {
   if (!appUrl) throw new ApiError(503, 'APP_URL is not configured.')
 
   const now = new Date()
+  const today = accraDateKey(now)
   const due = await found(
     db.from('verification_schedule').select('*').is('dispatched_at', null).lte('scheduled_at', now.toISOString()).order('scheduled_at').limit(BATCH),
   )
   if (!due.length) return c.json({ sent: 0 })
-  const employees = await found(
-    db.from('employees').select('staff_id, phone, assigned_shop_id').in('staff_id', due.map((row) => row.employee_id)),
-  )
+  const empIds = [...new Set(due.map((row) => row.employee_id))]
+  const dates = [...new Set(due.map((row) => row.date))]
+  const [employees, lists, eventRows, corrRows] = await Promise.all([
+    found(db.from('employees').select('staff_id, phone, assigned_shop_id').in('staff_id', empIds)),
+    listsFor(empIds),
+    found(db.from('attendance_events').select('employee_id, date, type').in('employee_id', empIds).in('date', dates)),
+    found(db.from('attendance_corrections').select('employee_id, date, clock_in, clock_out').in('employee_id', empIds).in('date', dates)),
+  ])
   const byId = new Map(employees.map((row) => [row.staff_id, row]))
+  const eventsByKey = new Map<string, string[]>()
+  eventRows.forEach((e) => {
+    const k = `${e.employee_id}|${e.date}`
+    eventsByKey.set(k, [...(eventsByKey.get(k) ?? []), e.type])
+  })
+  const corrByKey = new Map(corrRows.map((r) => [`${r.employee_id}|${r.date}`, r]))
   const expiresAt = new Date(now.getTime() + settings.monitoring.responseWindowMinutes * 60000).toISOString()
 
   let sent = 0
   let failed = 0
+  let cancelled = 0
   for (const row of due) {
+    const k = `${row.employee_id}|${row.date}`
+    const types = eventsByKey.get(k) ?? []
+    const corr = corrByKey.get(k)
+    const clockedIn = types.includes('check-in') || Boolean(corr?.clock_in)
+    const clockedOut = types.includes('check-out') || types.includes('face-lockout') || Boolean(corr?.clock_out)
+    // Never dispatch before clock-in, after clock-out, or on a past day.
+    if (row.date < today || !clockedIn || clockedOut) {
+      await must(
+        db.from('verification_schedule')
+          .update({ dispatched_at: now.toISOString() })
+          .eq('id', row.id)
+          .is('dispatched_at', null),
+      )
+      cancelled += 1
+      continue
+    }
+
     const employee = byId.get(row.employee_id)
+    const primaryShopId = lists.get(row.employee_id)?.[0] ?? employee?.assigned_shop_id ?? null
     const eventId = `${row.employee_id}-${row.date}-v${row.verification_number}`
     const token = newToken()
     try {
@@ -101,7 +139,7 @@ jobRoutes.post('/dispatch', async (c) => {
             event_id: eventId,
             employee_id: row.employee_id,
             company_id: row.company_id,
-            shop_id: employee?.assigned_shop_id ?? null,
+            shop_id: primaryShopId,
             date: row.date,
             verification_number: row.verification_number,
             dispatched_at: now.toISOString(),
@@ -131,7 +169,7 @@ jobRoutes.post('/dispatch', async (c) => {
     if (delivered) sent += 1
     else failed += 1
   }
-  return c.json({ sent, failed })
+  return c.json({ sent, failed, cancelled })
 })
 
 /** Checks nobody answered in time. A missed check is never an absence. */

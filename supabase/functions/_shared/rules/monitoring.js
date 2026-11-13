@@ -21,7 +21,8 @@ export function distanceMeters(lat1, lng1, lat2, lng2) {
 const isCoordinate = (value, limit) => typeof value === 'number' && Number.isFinite(value) && Math.abs(value) <= limit
 
 /**
- * Check a device position against a shop's geofence.
+ * Check a device position against a shop's geofence (legacy helper kept for
+ * older records and rule tests).
  * @returns {{ status: 'passed'|'failed'|'unavailable', distance: number|null }}
  */
 export function checkGeofence(position, shop) {
@@ -35,6 +36,34 @@ export function checkGeofence(position, shop) {
   }
   const distance = distanceMeters(position.latitude, position.longitude, shop.latitude, shop.longitude)
   return { status: distance <= shop.geofenceRadius ? 'passed' : 'failed', distance }
+}
+
+/**
+ * Measure how far a device position is from the employee's nearest mapped shop
+ * ("distance only, HR decides" — no pass/fail radius).
+ * @param {object} position { latitude, longitude }
+ * @param {object[]} shops  shops on the employee's list
+ * @returns {{ status: 'recorded'|'unavailable', distance: number|null, shopId: string|null }}
+ */
+export function measureShopDistance(position, shops = []) {
+  if (!isCoordinate(position?.latitude, 90) || !isCoordinate(position?.longitude, 180)) {
+    return { status: 'unavailable', distance: null, shopId: null }
+  }
+  let nearestDistance = null
+  let nearestShopId = null
+  for (const shop of shops) {
+    if (!shop || shop.latitude == null || shop.longitude == null) continue
+    const d = distanceMeters(position.latitude, position.longitude, shop.latitude, shop.longitude)
+    if (nearestDistance === null || d < nearestDistance) {
+      nearestDistance = d
+      nearestShopId = shop.shopId ?? shop.shop_id ?? null
+    }
+  }
+  return {
+    status: 'recorded',
+    distance: nearestDistance,
+    shopId: nearestShopId ?? shops[0]?.shopId ?? shops[0]?.shop_id ?? null,
+  }
 }
 
 /** A failed face check outranks any location result. */

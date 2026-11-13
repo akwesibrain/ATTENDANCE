@@ -45,6 +45,7 @@ export function verifyVisitLocation(outlet, location) {
 /** Distance from the shop for a stored visit (computed if the record lacks it). */
 export function visitDistance(visit) {
   if (visit?.verification?.distance != null) return visit.verification.distance
+  if (visit?.distanceM != null) return visit.distanceM
   const shop = visit?.outlet?.shopId ? getShop(visit.outlet.shopId) : null
   return shop && visit?.location ? distanceMeters(visit.location, shop) : null
 }

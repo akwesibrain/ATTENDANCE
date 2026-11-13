@@ -20,6 +20,16 @@ const TABLES = {
   // Paging needs a unique order, or rows can be skipped or repeated between pages.
   employee_shops: { order: ['staff_id', 'position'] },
   employee_shop_changes: { order: 'at' },
+  tracking_latest: { order: 'staff_id' },
+  // token_hash is withheld from authenticated by column-level GRANT.
+  tracking_sessions: {
+    order: ['date', 'staff_id'],
+    since: 'date',
+    select: 'id,staff_id,company_id,date,clock_in_at,closes_at,clock_out_at,status,closed_reason,closed_at,summarised_at,trail_expired',
+  },
+  outlet_visits: { order: ['occurred_at', 'id'], since: 'date' },
+  tracking_day_summaries: { order: ['date', 'staff_id'], since: 'date' },
+  tracking_flags: { order: ['date', 'staff_id'], since: 'date' },
   leave_records: { order: 'start_date', since: 'end_date' },
   attendance_events: { order: 'occurred_at', since: 'date' },
   attendance_corrections: { order: 'date', since: 'date' },
@@ -37,7 +47,20 @@ const TABLES = {
 }
 
 /** What can change without this browser doing anything. */
-const LIVE_TABLES = ['employees', 'attendance_events', 'verification_events', 'notifications', 'notification_history', 'audit_events', 'workplace_displays']
+const LIVE_TABLES = [
+  'employees',
+  'employee_shops',
+  'attendance_events',
+  'verification_events',
+  'tracking_latest',
+  'tracking_sessions',
+  'outlet_visits',
+  'tracking_flags',
+  'notifications',
+  'notification_history',
+  'audit_events',
+  'workplace_displays',
+]
 const LIVE_REFRESH_MS = 60000
 
 let store = {}
@@ -51,11 +74,11 @@ function announce() {
 }
 
 async function fetchTable(name) {
-  const { order, since } = TABLES[name]
+  const { order, since, select } = TABLES[name]
   const cutoff = addDaysToKey(accraDateKey(), -HISTORY_DAYS)
   const all = []
   for (let from = 0; ; from += PAGE) {
-    let query = supabase.from(name).select('*')
+    let query = supabase.from(name).select(select ?? '*')
     if (since) query = query.gte(since, cutoff)
     for (const column of [order].flat()) query = query.order(column)
     const { data, error } = await query.range(from, from + PAGE - 1)
@@ -154,9 +177,24 @@ export function useCacheVersion() {
 
 /** Keep the portal current while it is open. Returns a stop function. */
 export function startLiveRefresh() {
+  const channel = supabase
+    .channel('hr-tracking-latest')
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'tracking_latest' },
+      () => {
+        if (!document.hidden) void refresh('tracking_latest', 'tracking_sessions')
+      },
+    )
+    .subscribe()
+
   const timer = setInterval(() => {
     if (document.hidden) return
     refresh(...LIVE_TABLES)
   }, LIVE_REFRESH_MS)
-  return () => clearInterval(timer)
+
+  return () => {
+    clearInterval(timer)
+    void supabase.removeChannel(channel)
+  }
 }

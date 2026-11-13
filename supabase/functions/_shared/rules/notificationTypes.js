@@ -22,7 +22,7 @@ export const NOTIFICATION_TYPES = {
   'sms-missed': { category: 'sales-monitoring', label: 'SMS verification missed', severity: 'medium', kind: 'exception' },
   'sms-delivery-failed': { category: 'sales-monitoring', label: 'SMS delivery failed', severity: 'medium', kind: 'exception' },
   'face-failed': { category: 'sales-monitoring', label: 'Face verification failed', severity: 'high', kind: 'exception' },
-  'gps-failed': { category: 'sales-monitoring', label: 'GPS verification failed', severity: 'medium', kind: 'exception' },
+  'gps-failed': { category: 'sales-monitoring', label: 'GPS unavailable during verification', severity: 'low', kind: 'notice' },
   'outside-geofence': { category: 'sales-monitoring', label: 'Outside assigned shop geofence', severity: 'high', kind: 'exception' },
   'mobile-data-unavailable': { category: 'sales-monitoring', label: 'Mobile data unavailable during verification', severity: 'medium', kind: 'exception' },
   'rep-no-shop': { category: 'sales-monitoring', label: 'Sales representative has no assigned shop', severity: 'high', kind: 'exception' },

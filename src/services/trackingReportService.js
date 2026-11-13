@@ -4,12 +4,18 @@
  * clock-out, visits) with their live-tracking summary (time tracked, signal
  * coverage, signal lost, distance). Positions are never included.
  *
- * Only people who use the attendance app can be tracked; demo staff without
- * the app are listed as "Not using the app" rather than given invented data.
+ * `fetchTrackingDailyReport` loads the authoritative report from
+ * `GET /hr/tracking/reports/daily` (computing today's stays live from
+ * `location_points`, or summarising past days on demand). `trackingDailyReport`
+ * provides a synchronous initial view from the HR cache while the request loads.
  */
+import { trackingResult } from '../../supabase/functions/_shared/rules/tracking.js'
+import { api } from './backend/client'
+import { rows } from './backend/cache'
 import { listAttendanceRecords } from './attendanceRecordsService'
-import { TRACKED_CATEGORIES, dayShopStays, daySummary, findEmployee } from './locationTrackingService'
+import { TRACKED_CATEGORIES } from './locationTrackingService'
 import { getVisitList, visitProof } from './visitListService'
+import { getShop } from './shopsService'
 import { categoryForPosition } from '../constants/employeeCategories'
 import { formatAccraTime } from '../utils/accraTime'
 
@@ -20,47 +26,116 @@ export const TRACKING_RESULT = {
   poor: { label: 'Poor coverage', tone: 'crit' },
   'no-signal': { label: 'No location received', tone: 'crit' },
   'not-clocked-in': { label: 'Not clocked in', tone: 'muted' },
+  unavailable: { label: 'Trail expired before summary', tone: 'muted' },
   'no-app': { label: 'Not using the app', tone: 'muted' },
 }
-const GOOD = 0.9
-const PARTIAL = 0.6
 
-function resultFor(record, usesApp, s) {
-  if (!usesApp) return 'no-app'
-  if (!record.clockIn) return 'not-clocked-in'
-  if (!s || !s.points) return 'no-signal'
-  if (s.coverage >= GOOD) return 'good'
-  if (s.coverage >= PARTIAL) return 'partial'
-  return 'poor'
+function summaryMap() {
+  return new Map(
+    rows('tracking_day_summaries').map((row) => [
+      `${row.staff_id}|${row.date}`,
+      {
+        points: row.points,
+        trackedMinutes: row.tracked_minutes,
+        coverage: row.coverage,
+        signalLost: row.signal_lost,
+        longestGapMinutes: row.longest_gap_minutes,
+        distanceM: row.distance_m,
+        shopStays: row.shop_stays ?? {},
+      },
+    ]),
+  )
+}
+
+function expiredSet() {
+  return new Set(
+    rows('tracking_sessions')
+      .filter((row) => row.trail_expired)
+      .map((row) => `${row.staff_id}|${row.date}`),
+  )
 }
 
 /**
- * Proof of a Sales Rep's or Supervisor's shop visits for the day of an
- * attendance record (see visitListService for the rules).
+ * Proof of a Sales Rep's or Supervisor's shop visits for an attendance record
+ * from cached data (used before `fetchTrackingDailyReport` resolves).
  */
 export function visitProofForRecord(record, now = new Date()) {
-  const dayOver = !record.isToday || Boolean(record.clockOut) || now.getTime() >= Date.parse(record.expectedEnd)
+  if (!record.clockIn) {
+    const listIds = getVisitList(record.employeeId)
+    return {
+      listed: listIds.map((shopId) => ({
+        shopId,
+        shop: getShop(shopId),
+        status: 'pending',
+        first: null,
+        scans: 0,
+        scanned: false,
+        visitDistance: null,
+        stayMinutes: null,
+        closest: null,
+      })),
+      offList: [],
+      counts: { listed: listIds.length, proven: 0, visited: 0, missed: 0, flagged: 0 },
+    }
+  }
+  const key = `${record.employeeId}|${record.date}`
+  const summary = summaryMap().get(key) ?? null
+  const unavailable = !summary && expiredSet().has(key)
+  const dayOver = !unavailable && (!record.isToday || Boolean(record.clockOut) || now.getTime() >= Date.parse(record.expectedEnd))
   return visitProof({
     listIds: getVisitList(record.employeeId),
     visits: record.visits ?? [],
-    stays: dayShopStays(record.employeeId, record.date),
+    stays: summary ? summary.shopStays : null,
     dayOver,
   })
 }
 
+/** Enrich a server `proof` object from `/hr/tracking/reports/daily` with cached shop metadata. */
+export function hydrateServerProof(serverProof) {
+  if (!serverProof) return null
+  return {
+    ...serverProof,
+    listed: (serverProof.listed ?? []).map((l) => {
+      const shop = getShop(l.shopId) ?? (l.shopName ? { shopId: l.shopId, shopName: l.shopName, latitude: l.hasMapLocation ? 0 : null } : null)
+      return {
+        ...l,
+        shop,
+        closest: l.closestM ?? l.closest ?? null,
+      }
+    }),
+  }
+}
+
+export function summariseReportRows(dateKey, reportRows) {
+  const tracked = reportRows.filter((r) => r.coverage != null)
+  const totals = {
+    staff: reportRows.length,
+    clockedIn: reportRows.filter((r) => r.clockIn).length,
+    tracked: tracked.length,
+    averageCoverage: tracked.length ? tracked.reduce((n, r) => n + r.coverage, 0) / tracked.length : null,
+    distanceKm: Math.round(tracked.reduce((n, r) => n + (r.distanceKm ?? 0), 0) * 10) / 10,
+    noSignal: reportRows.filter((r) => r.result === 'no-signal' || r.result === 'poor').length,
+  }
+  return { dateKey, rows: reportRows, totals }
+}
+
 /**
+ * Synchronous initial report built from cached rows (before the server response arrives).
  * @returns {{ dateKey, rows: object[], totals: object }}
  */
 export function trackingDailyReport(companyId, dateKey, now = new Date()) {
+  const summaries = summaryMap()
+  const expired = expiredSet()
   const records = listAttendanceRecords({ companyId, dates: [dateKey] })
-    // The backend's records carry the position; the category comes from it.
     .map((r) => ({ ...r, category: r.category ?? categoryForPosition(r.position), visits: r.visits ?? [] }))
     .filter((r) => TRACKED_CATEGORIES.has(r.category))
-  const rows = records.map((r) => {
-    const usesApp = Boolean(findEmployee(r.employeeId))
-    const s = usesApp && r.clockIn ? daySummary(r.employeeId, dateKey, r.clockIn, r.clockOut, now) : null
-    const result = resultFor(r, usesApp, s)
-    const proof = r.category === 'merchandiser' ? null : visitProofForRecord(r, now)
+
+  const reportRows = records.map((r) => {
+    const key = `${r.employeeId}|${dateKey}`
+    const s = r.clockIn ? summaries.get(key) ?? null : null
+    const unavailable = Boolean(r.clockIn) && !s && expired.has(key)
+    const result = unavailable ? 'unavailable' : trackingResult({ clockIn: r.clockIn, summary: s })
+    const proof = r.category === 'merchandiser' || !r.clockIn ? null : visitProofForRecord(r, now)
     return {
       employeeId: r.employeeId,
       fullName: r.fullName,
@@ -69,28 +144,30 @@ export function trackingDailyReport(companyId, dateKey, now = new Date()) {
       clockOut: r.clockOut,
       stillClockedIn: Boolean(r.clockIn && !r.clockOut && r.isToday),
       visits: r.category === 'merchandiser' ? null : r.visits.length,
+      visitRecords: r.category === 'merchandiser' ? [] : r.visits,
       trackedMinutes: s?.trackedMinutes ?? null,
       coverage: s?.coverage ?? null,
       signalLost: s ? s.signalLost : null,
       longestGapMinutes: s ? s.longestGapMinutes : null,
       distanceKm: s ? Math.round(s.distanceM / 100) / 10 : null,
       points: s?.points ?? null,
-      // Sales Reps / Supervisors: listed shops proven (10+ min stay) today.
       shops: proof ? proof.counts : null,
+      proof,
       result,
     }
   }).sort((a, b) => a.fullName.localeCompare(b.fullName))
 
-  const tracked = rows.filter((r) => r.coverage != null)
-  const totals = {
-    staff: rows.length,
-    clockedIn: rows.filter((r) => r.clockIn).length,
-    tracked: tracked.length,
-    averageCoverage: tracked.length ? tracked.reduce((n, r) => n + r.coverage, 0) / tracked.length : null,
-    distanceKm: Math.round(tracked.reduce((n, r) => n + (r.distanceKm ?? 0), 0) * 10) / 10,
-    noSignal: rows.filter((r) => r.result === 'no-signal' || r.result === 'poor').length,
-  }
-  return { dateKey, rows, totals }
+  return summariseReportRows(dateKey, reportRows)
+}
+
+/**
+ * Authoritative daily report from the server (includes live trail summaries for today
+ * and closes/summarises past days on demand).
+ */
+export async function fetchTrackingDailyReport(companyId, dateKey, role = '') {
+  const qs = new URLSearchParams({ companyId, date: dateKey })
+  if (role) qs.set('role', role)
+  return await api(`/hr/tracking/reports/daily?${qs.toString()}`)
 }
 
 export function minutesText(m) {
@@ -128,7 +205,7 @@ export function trackingReportToCsv(report) {
     r.shops?.listed ?? '',
     r.shops?.proven ?? '',
     r.shops?.flagged ?? '',
-    TRACKING_RESULT[r.result].label,
+    (TRACKING_RESULT[r.result] ?? TRACKING_RESULT['not-clocked-in']).label,
   ].map(cell).join(','))
   return [head.join(','), ...lines].join('\n')
 }

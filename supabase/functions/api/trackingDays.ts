@@ -13,7 +13,7 @@ import { accraDateKey } from '../_shared/rules/accraTime.js'
 import { categoryForPosition, TRACKED_CATEGORIES } from '../_shared/rules/categories.js'
 import { buildRecords } from '../_shared/rules/records.js'
 import { isDateKey } from '../_shared/rules/tenure.js'
-import { shopStays, summariseTrail, trackingResult } from '../_shared/rules/tracking.js'
+import { LIVE_STALE_MINUTES, outletLabel, shopStays, summariseTrail, trackingResult, visitFromRow } from '../_shared/rules/tracking.js'
 import { assertCompany, type HrEnv } from './auth.ts'
 import { loadFacts } from './facts.ts'
 import { asPoint, listsFor, loadTrackingDays, shopsFor } from './trackingFacts.ts'
@@ -91,6 +91,153 @@ export async function closePastDays(today = accraDateKey()) {
 }
 
 /* --------------------------------------------------------------------------
+ * Live map snapshot
+ * ------------------------------------------------------------------------ */
+
+function dutyText(r: Row) {
+  if (r.status === 'on-leave') return 'On leave'
+  if (r.atWork) return 'On duty'
+  if (r.clockOut) return 'Clocked out — tracking stopped'
+  if (r.status === 'absent') return 'Marked absent'
+  if (r.status === 'incomplete') return 'No clock-out'
+  if (!r.workday) return 'Not scheduled'
+  return 'Not clocked in'
+}
+
+hrTrackingRoutes.get('/tracking/live', async (c) => {
+  const companyId = c.req.query('companyId') ?? ''
+  if (!companyId) throw invalid({ companyId: 'Choose a company.' })
+  assertCompany(c, companyId)
+
+  const now = new Date()
+  const today = accraDateKey(now)
+  const { roster, ctx, shopsById } = await loadFacts({ from: today, to: today, now })
+  const fieldRoster = roster
+    .filter((e: Row) => e.companyId === companyId)
+    .map((e: Row) => ({ ...e, category: categoryForPosition(e.position) }))
+    .filter((e: Row) => TRACKED_CATEGORIES.includes(e.category))
+
+  const staffIds = fieldRoster.map((e: Row) => e.employeeId)
+  const [lists, latestRows, sessionRows, visitRows] = staffIds.length
+    ? await Promise.all([
+        listsFor(staffIds),
+        found(db.from('tracking_latest').select('*').in('staff_id', staffIds).eq('date', today)),
+        found(db.from('tracking_sessions').select('staff_id, status, clock_out_at, closes_at').in('staff_id', staffIds).eq('date', today)),
+        allRows('outlet_visits', ['occurred_at', 'id'], (q: Row) => q.in('staff_id', staffIds).eq('date', today)),
+      ])
+    : [new Map<string, string[]>(), [], [], []]
+
+  const latestById = new Map(latestRows.map((row: Row) => [row.staff_id, row]))
+  const sessionById = new Map(sessionRows.map((row: Row) => [row.staff_id, row]))
+  const visitsById = new Map<string, ReturnType<typeof visitFromRow>[]>()
+  visitRows.forEach((row: Row) => {
+    const list = visitsById.get(row.staff_id) ?? []
+    list.push(visitFromRow(row))
+    visitsById.set(row.staff_id, list)
+  })
+
+  const records = buildRecords(fieldRoster, [today], ctx)
+  const people = records.map((r: Row) => {
+    const category = categoryForPosition(r.position)
+    const isMerch = category === 'merchandiser'
+    const listIds = lists.get(r.employeeId) ?? (r.shop ? [r.shop.shopId] : [])
+    const shops = listIds.map((id: string) => shopsById.get(id)).filter(Boolean)
+    const visits = visitsById.get(r.employeeId) ?? []
+    const latestVisit = visits[visits.length - 1] ?? null
+    const session = sessionById.get(r.employeeId) ?? null
+    const live = latestById.get(r.employeeId) ?? null
+
+    // Fallback before first live ping: latest visited mapped outlet (Sales Rep / Supervisor)
+    // or primary allocated shop (Merchandiser). Never invented.
+    let fallback: Row | null = null
+    if (!isMerch) {
+      for (let i = visits.length - 1; i >= 0; i -= 1) {
+        const v = visits[i]
+        const sh = v.outlet?.shopId ? shopsById.get(v.outlet.shopId) : null
+        if (sh && sh.latitude != null) {
+          fallback = { latitude: sh.latitude, longitude: sh.longitude, accuracy: null, source: 'outlet', at: v.time, place: sh.shopName }
+          break
+        }
+      }
+    } else if (shops[0] && shops[0].latitude != null) {
+      fallback = { latitude: shops[0].latitude, longitude: shops[0].longitude, accuracy: null, source: 'shop', at: null, place: shops[0].shopName }
+    }
+
+    const clockedOut = Boolean(r.clockOut) || session?.status === 'closed' || (session?.closes_at && Date.parse(session.closes_at) <= now.getTime())
+    if (!r.clockIn || clockedOut) {
+      return {
+        employeeId: r.employeeId,
+        fullName: r.fullName,
+        category,
+        duty: clockedOut && r.clockIn ? 'Clocked out — tracking stopped' : dutyText(r),
+        onDuty: false,
+        visitsToday: isMerch ? null : visits.length,
+        lastEvent: latestVisit ? `Visit at ${outletLabel(latestVisit.outlet, shopsById)}` : null,
+        lastEventAt: r.clockOut ?? latestVisit?.time ?? r.clockIn ?? null,
+        shops,
+        position: null,
+      }
+    }
+
+    if (!live || live.session_status !== 'open') {
+      return {
+        employeeId: r.employeeId,
+        fullName: r.fullName,
+        category,
+        duty: 'Clocked in — no live location yet',
+        onDuty: true,
+        visitsToday: isMerch ? null : visits.length,
+        lastEvent: latestVisit
+          ? `Visit at ${outletLabel(latestVisit.outlet, shopsById)}`
+          : 'Phone has not sent a location (mobile data, Location or the page may be off)',
+        lastEventAt: latestVisit?.time ?? r.clockIn ?? null,
+        shops,
+        position: fallback,
+      }
+    }
+
+    const mins = Math.max(0, Math.round((now.getTime() - Date.parse(live.recorded_at)) / 60000))
+    const lost = mins > LIVE_STALE_MINUTES
+    return {
+      employeeId: r.employeeId,
+      fullName: r.fullName,
+      category,
+      duty: lost ? `Clocked in — signal lost ${mins} min ago` : 'Clocked in — live',
+      onDuty: true,
+      visitsToday: isMerch ? null : visits.length,
+      lastEvent: lost
+        ? 'No location for a while (mobile data or Location may be off, or the page closed)'
+        : (latestVisit ? `Visit at ${outletLabel(latestVisit.outlet, shopsById)}` : 'Live location'),
+      lastEventAt: live.recorded_at,
+      shops,
+      position: {
+        latitude: live.latitude,
+        longitude: live.longitude,
+        accuracy: live.accuracy,
+        source: 'live',
+        at: live.recorded_at,
+        place: null,
+      },
+    }
+  }).sort((a: Row, b: Row) => a.fullName.localeCompare(b.fullName))
+
+  const counts: Record<string, { total: number; placed: number; onDuty: number }> = {
+    supervisor: { total: 0, placed: 0, onDuty: 0 },
+    'sales-rep': { total: 0, placed: 0, onDuty: 0 },
+    merchandiser: { total: 0, placed: 0, onDuty: 0 },
+  }
+  people.forEach((p: Row) => {
+    const bucket = counts[p.category]
+    if (!bucket) return
+    bucket.total += 1
+    if (p.position) bucket.placed += 1
+    if (p.onDuty) bucket.onDuty += 1
+  })
+
+  return c.json({ asOf: now.toISOString(), people, counts })
+})
+
+/* --------------------------------------------------------------------------
  * Daily report
  * ------------------------------------------------------------------------ */
 
@@ -118,6 +265,7 @@ hrTrackingRoutes.get('/tracking/reports/daily', async (c) => {
 
   const rows = days.map(({ record: r, summary: s, unavailable, proof, visits }) => {
     const isMerch = r.category === 'merchandiser'
+    const smsEvents = r.smsEvents ?? []
     return {
       employeeId: r.employeeId,
       fullName: r.fullName,
@@ -126,6 +274,7 @@ hrTrackingRoutes.get('/tracking/reports/daily', async (c) => {
       clockOut: r.clockOut,
       stillClockedIn: Boolean(r.clockIn && !r.clockOut && r.isToday),
       visits: isMerch ? null : visits.length,
+      visitRecords: isMerch ? [] : visits,
       trackedMinutes: s?.trackedMinutes ?? null,
       coverage: s?.coverage ?? null,
       signalLost: s ? s.signalLost : null,
@@ -133,6 +282,27 @@ hrTrackingRoutes.get('/tracking/reports/daily', async (c) => {
       distanceKm: s ? Math.round(s.distanceM / 100) / 10 : null,
       points: s?.points ?? null,
       shops: proof ? { listed: proof.counts.listed, proven: proof.counts.proven, flagged: proof.counts.flagged, missed: proof.counts.missed } : null,
+      proof: proof ? {
+        listed: proof.listed.map((l: Row) => ({
+          shopId: l.shopId,
+          shopName: l.shop?.shopName ?? l.shopId,
+          hasMapLocation: l.shop?.latitude != null,
+          status: l.status,
+          scans: l.scans,
+          first: l.first ? { id: l.first.id, time: l.first.time } : null,
+          visitDistance: l.visitDistance ?? null,
+          stayMinutes: l.stayMinutes ?? null,
+          closestM: l.closestM ?? null,
+        })),
+        offList: proof.offList,
+        counts: proof.counts,
+      } : null,
+      sms: {
+        sent: smsEvents.length,
+        verified: smsEvents.filter((e: Row) => e.result === 'verified').length,
+        missed: smsEvents.filter((e: Row) => e.result === 'missed').length,
+        failed: smsEvents.filter((e: Row) => ['failed-face', 'outside-shop', 'sms-failed'].includes(e.result)).length,
+      },
       result: unavailable ? 'unavailable' : trackingResult({ clockIn: r.clockIn, summary: s }),
     }
   }).sort((a: Row, b: Row) => a.fullName.localeCompare(b.fullName))

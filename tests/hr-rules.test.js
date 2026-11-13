@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { contextFromRows, employeeFromRow, rosterEntry, shopFromRow } from '../supabase/functions/_shared/rules/facts.js'
-import { checkGeofence, distanceMeters, scheduleCheckMinutes, verificationResult } from '../supabase/functions/_shared/rules/monitoring.js'
+import { checkGeofence, distanceMeters, measureShopDistance, scheduleCheckMinutes, verificationResult } from '../supabase/functions/_shared/rules/monitoring.js'
 import { detectCorrections, detectFromRecord, detectFromRoster, notificationIdFor, planNotificationSync, scanDates } from '../supabase/functions/_shared/rules/notifications.js'
 import { buildRecord } from '../supabase/functions/_shared/rules/records.js'
 import { validateEmployeeDetails } from '../supabase/functions/_shared/rules/registration.js'
@@ -239,5 +239,33 @@ describe('notification sync', () => {
     const plan = planNotificationSync({ ...base, existing: [row], reviews })
     expect(plan.updates[0].patch.status).toBe('resolved')
     expect(planNotificationSync({ ...base, existing: [{ ...row, sales_synced_at: '2026-11-10T19:00:00Z' }], reviews }).updates).toHaveLength(0)
+  })
+})
+
+describe('multi-shop SMS distance measurement (distance only, no pass/fail radius)', () => {
+  const sA = { shopId: 'sA', latitude: 5.6037, longitude: -0.187 }
+  const sB = { shopId: 'sB', latitude: 6.6885, longitude: -1.6244 }
+  const unmapped = { shopId: 'sC', latitude: null, longitude: null }
+
+  it('picks the nearest mapped shop and marks GPS recorded regardless of distance', () => {
+    const res = measureShopDistance({ latitude: 6.69, longitude: -1.625 }, [unmapped, sA, sB])
+    expect(res.status).toBe('recorded')
+    expect(res.shopId).toBe('sB')
+    expect(res.distance).toBeGreaterThan(0)
+    expect(res.distance).toBeLessThan(500)
+    expect(verificationResult(true, res.status)).toBe('verified')
+  })
+
+  it('still records location with null distance when no listed shop has coordinates yet', () => {
+    const res = measureShopDistance({ latitude: 5.6, longitude: -0.18 }, [unmapped])
+    expect(res).toEqual({ status: 'recorded', distance: null, shopId: 'sC' })
+    expect(verificationResult(true, res.status)).toBe('verified')
+  })
+
+  it('returns unavailable when the phone did not send coordinates', () => {
+    const res = measureShopDistance({}, [sA, sB])
+    expect(res).toEqual({ status: 'unavailable', distance: null, shopId: null })
+    expect(verificationResult(true, res.status)).toBe('gps-unavailable')
+    expect(verificationResult(false, 'recorded')).toBe('failed-face')
   })
 })

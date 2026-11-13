@@ -164,19 +164,22 @@ export function visitProof({ listIds, shopsById, visits, stays, dayOver }) {
     if (stayed) status = 'proven'
     else if (scans.length) status = measurable ? 'no-stay' : 'unmeasured'
     else status = dayOver ? 'missed' : 'pending'
+    const distances = scans.map((v) => v.distanceM ?? v.verification?.distance).filter((d) => d != null)
     return {
       shopId,
       status,
+      first: scans[0] ?? null,
       scans: scans.length,
       scanned: scans.length > 0,
+      visitDistance: distances.length ? Math.min(...distances) : null,
       stayMinutes: stay ? stay.longestMinutes : null,
-      closestM: stay?.closestM ?? null,
+      closestM: stay?.closestM ?? stay?.closest ?? null,
     }
   })
   const listSet = new Set(listIds)
   const offList = visits
     .filter((v) => !v.outlet?.shopId || !listSet.has(v.outlet.shopId))
-    .map((v) => ({ visit: v, status: v.outlet?.shopId ? 'off-list' : 'not-in-list' }))
+    .map((v) => ({ visit: v, status: v.outlet?.shopId ? 'off-list' : 'not-in-list', distance: v.distanceM ?? v.verification?.distance ?? null }))
   const count = (s) => listed.filter((l) => l.status === s).length
   return {
     listed,
@@ -353,4 +356,11 @@ export function visitFromRow(row) {
     distanceM: row.distance_m ?? null,
     status: row.status,
   }
+}
+
+/** Display text for a visit's outlet. */
+export function outletLabel(outlet, shopsById) {
+  if (!outlet) return '—'
+  if (outlet.shopId) return shopsById?.get(outlet.shopId)?.shopName ?? outlet.name ?? outlet.shopId
+  return [outlet.name, outlet.town].filter(Boolean).join(', ')
 }
