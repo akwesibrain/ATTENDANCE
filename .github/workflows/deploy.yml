@@ -32,10 +32,10 @@ jobs:
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: '24'
           cache: 'npm'
@@ -44,6 +44,9 @@ jobs:
         run: npm ci
 
       - name: Lint & Run tests
+        env:
+          VITE_SUPABASE_URL: https://example.supabase.co
+          VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_test
         run: |
           npm run lint
           npm test
@@ -75,21 +78,12 @@ jobs:
 
       - name: Comment Preview URL on Open PR
         if: steps.deploy-preview.outputs.url != '' && github.event_name == 'push'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const { data: prs } = await github.rest.pulls.list({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              head: `${context.repo.owner}:${context.ref.replace('refs/heads/', '')}`,
-              state: 'open',
-            });
-            for (const pr of prs) {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: pr.number,
-                body: `Vercel Preview ready: ${{ steps.deploy-preview.outputs.url }}`,
-              });
-            }
-
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PREVIEW_URL: ${{ steps.deploy-preview.outputs.url }}
+        run: |
+          branch="${GITHUB_REF#refs/heads/}"
+          prs=$(gh pr list --head "$branch" --state open --json number --jq '.[].number')
+          for pr in $prs; do
+            gh pr comment "$pr" --body "Vercel Preview ready: $PREVIEW_URL"
+          done
