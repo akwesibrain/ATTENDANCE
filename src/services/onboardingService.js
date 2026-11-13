@@ -123,6 +123,7 @@ export async function changeMyPassword(input) {
   }
   const { error } = await supabase.auth.updateUser({ password: parsed.value.password })
   if (error) return refused({ password: `That password was not accepted: ${error.message}` })
+  await Promise.resolve(supabase.auth.signOut?.({ scope: 'others' })).catch(() => {})
   // The password has changed; a missed audit line must not say otherwise.
   await submit('/hr/me/password-changed', { method: 'POST', body: {} }).catch(() => {})
   return { ok: true }

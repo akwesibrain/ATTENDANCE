@@ -44,6 +44,24 @@ describe('the phone keeps its tracking session', () => {
     expect(trackingSession()).toBeNull()
   })
 
+  it('keeps an active session when a different colleague checks out on the same device', () => {
+    saveTrackingSession({ type: 'check-in', staffId: 'BFL-0007', trackingToken: 'tok-7', trackingClosesAt: future })
+    store.set('tracking:queue', JSON.stringify([{ latitude: 5.6, longitude: -0.18, recordedAt: future }]))
+
+    saveTrackingSession({ type: 'check-out', staffId: 'BFL-0099' })
+    expect(trackingSession()).toEqual({ token: 'tok-7', closesAt: future, staffId: 'BFL-0007', canRecordVisits: false })
+    expect(store.get('tracking:queue')).toBeTruthy()
+  })
+
+  it('clears unsent tracking:queue points when a different field worker checks in', () => {
+    saveTrackingSession({ type: 'check-in', staffId: 'BFL-0007', trackingToken: 'tok-7', trackingClosesAt: future })
+    store.set('tracking:queue', JSON.stringify([{ latitude: 5.6, longitude: -0.18, recordedAt: future }]))
+
+    saveTrackingSession({ type: 'check-in', staffId: 'BFL-0008', trackingToken: 'tok-8', trackingClosesAt: future })
+    expect(trackingSession()).toEqual({ token: 'tok-8', closesAt: future, staffId: 'BFL-0008', canRecordVisits: false })
+    expect(store.has('tracking:queue')).toBe(false)
+  })
+
   it('treats an expired session as none', () => {
     saveTrackingSession({ type: 'check-in', staffId: 'X', trackingToken: 't', trackingClosesAt: new Date(Date.now() - 1000).toISOString() })
     expect(trackingSession()).toBeNull()
@@ -71,6 +89,12 @@ describe('visit calls', () => {
   it('forgets the session when the server says it closed', async () => {
     fetchMock.mockResolvedValue(reply(409, { error: 'Location sharing has stopped because you clocked out.', code: 'session_closed' }))
     await expect(getVisitsToday()).rejects.toMatchObject({ status: 409, data: { code: 'session_closed' } })
+    expect(trackingSession()).toBeNull()
+  })
+
+  it('forgets the session on bare HTTP 401 even without an error code', async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 401, json: async () => ({ error: 'Unauthorized' }) })
+    await expect(getVisitsToday()).rejects.toMatchObject({ status: 401 })
     expect(trackingSession()).toBeNull()
   })
 })

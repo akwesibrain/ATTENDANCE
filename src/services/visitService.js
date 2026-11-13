@@ -24,7 +24,10 @@ function read() {
 }
 
 function forget() {
-  try { localStorage.removeItem(SESSION_KEY) } catch { /* storage unavailable */ }
+  try {
+    localStorage.removeItem(SESSION_KEY)
+    localStorage.removeItem('tracking:queue')
+  } catch { /* storage unavailable */ }
   announce()
 }
 
@@ -36,7 +39,11 @@ export function clearTrackingSession() {
 export function saveTrackingSession(event) {
   if (!event) return
   try {
+    const current = read()
     if (event.type === 'check-in' && event.trackingToken) {
+      if (current?.staffId && event.staffId && current.staffId !== event.staffId) {
+        localStorage.removeItem('tracking:queue')
+      }
       localStorage.setItem(SESSION_KEY, JSON.stringify({
         token: event.trackingToken,
         closesAt: event.trackingClosesAt,
@@ -46,7 +53,11 @@ export function saveTrackingSession(event) {
       }))
       announce()
     }
-    if (event.type === 'check-out') forget()
+    if (event.type === 'check-out') {
+      if (!current?.staffId || !event.staffId || current.staffId === event.staffId) {
+        forget()
+      }
+    }
   } catch { /* storage unavailable: visits will ask the person to clock in */ }
 }
 
@@ -84,7 +95,7 @@ async function call(method, body, path = '/tracking/visits') {
   }
   const payload = await response.json().catch(() => null)
   if (!response.ok) {
-    if (payload?.code === 'session_closed' || payload?.code === 'invalid_token') forget()
+    if (response.status === 401 || payload?.code === 'session_closed' || payload?.code === 'invalid_token') forget()
     const error = new Error(payload?.error ?? 'Something went wrong. Please try again.')
     error.status = response.status
     error.data = payload ?? {}
