@@ -1,5 +1,8 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.49.1'
 import type { Context } from 'npm:hono@4.6.14'
+import { ApiError, extractClientIp } from './guards.ts'
+
+export { ApiError }
 
 /** Service-role client. It never leaves the server. */
 export const db = createClient(
@@ -7,18 +10,6 @@ export const db = createClient(
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
   { auth: { persistSession: false, autoRefreshToken: false } },
 )
-
-/** An error the caller is meant to read. Anything else is reported generically. */
-export class ApiError extends Error {
-  status: number
-  extra: Record<string, unknown>
-
-  constructor(status: number, message: string, extra: Record<string, unknown> = {}) {
-    super(message)
-    this.status = status
-    this.extra = extra
-  }
-}
 
 type DbError = { code?: string; message: string } | null
 
@@ -78,11 +69,12 @@ export async function sha256Hex(text: string): Promise<string> {
 }
 
 /**
- * The caller's address, used only to slow down abuse. It can be forged, so
- * limits that protect an employee are keyed by Staff ID as well.
+ * The caller's address, preferring non-spoofable edge headers before the
+ * rightmost `x-forwarded-for` entry. Limits that protect an employee are keyed
+ * by Staff ID as well.
  */
 export function clientIp(c: Context): string {
-  return c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+  return extractClientIp((name) => c.req.header(name))
 }
 
 export async function rateLimit(bucket: string, limit: number, windowSeconds: number) {

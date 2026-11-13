@@ -17,7 +17,7 @@ import {
 } from '../_shared/rules/notifications.js'
 import { buildRecords } from '../_shared/rules/records.js'
 import { attendanceRulesInForce, composeSettings } from '../_shared/rules/settings.js'
-import { allRows, ApiError, applyChange, db, must } from './lib.ts'
+import { allRows, ApiError, applyChange } from './lib.ts'
 import { loadTrackingDays } from './trackingFacts.ts'
 import { categoryForPosition } from '../_shared/rules/categories.js'
 

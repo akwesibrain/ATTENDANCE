@@ -8,23 +8,17 @@ import { scheduleCheckMinutes } from '../_shared/rules/monitoring.js'
 import { buildRecord, outsideEmployment, shiftWindowMinutes } from '../_shared/rules/records.js'
 import { hoursInForce } from '../_shared/rules/settings.js'
 import { loadFacts, loadSettings, syncNotifications } from './facts.ts'
+import { DISPATCH_CONCURRENCY, isEmployeeActive, runInBatches, sameSecret } from './guards.ts'
 import { ApiError, applyChange, db, found, must, sha256Hex } from './lib.ts'
 import { closePastDays } from './trackingDays.ts'
 import { listsFor } from './trackingFacts.ts'
 
 export const jobRoutes = new Hono()
 
-function sameSecret(a: string, b: string) {
-  if (a.length !== b.length) return false
-  let difference = 0
-  for (let i = 0; i < a.length; i += 1) difference |= a.charCodeAt(i) ^ b.charCodeAt(i)
-  return difference === 0
-}
-
 jobRoutes.use('*', async (c, next) => {
   const secret = Deno.env.get('JOBS_SECRET')
   if (!secret) throw new ApiError(503, 'Scheduled jobs are not configured.')
-  if (!sameSecret(c.req.header('x-job-secret') ?? '', secret)) throw new ApiError(403, 'Forbidden.')
+  if (!(await sameSecret(c.req.header('x-job-secret') ?? '', secret))) throw new ApiError(403, 'Forbidden.')
   await next()
 })
 
@@ -45,7 +39,7 @@ jobRoutes.post('/generate-schedule', async (c) => {
   const lists = await listsFor(roster.map((emp) => emp.employeeId))
   const rows = roster
     .filter((emp) => {
-      if (!(emp.isFieldRole || needsShopList(emp.position)) || outsideEmployment(emp, date)) return false
+      if (Boolean(emp.employmentEnd) || !(emp.isFieldRole || needsShopList(emp.position)) || outsideEmployment(emp, date)) return false
       const ids = [...(lists.get(emp.employeeId) ?? []), ...(emp.shopId ? [emp.shopId] : [])]
       return ids.some((id) => shopsById.get(id)?.latitude != null)
     })
@@ -81,15 +75,16 @@ jobRoutes.post('/dispatch', async (c) => {
   if (!appUrl) throw new ApiError(503, 'APP_URL is not configured.')
 
   const now = new Date()
+  const nowIso = now.toISOString()
   const today = accraDateKey(now)
   const due = await found(
-    db.from('verification_schedule').select('*').is('dispatched_at', null).lte('scheduled_at', now.toISOString()).order('scheduled_at').limit(BATCH),
+    db.from('verification_schedule').select('*').is('dispatched_at', null).lte('scheduled_at', nowIso).order('scheduled_at').limit(BATCH),
   )
   if (!due.length) return c.json({ sent: 0 })
   const empIds = [...new Set(due.map((row) => row.employee_id))]
   const dates = [...new Set(due.map((row) => row.date))]
   const [employees, lists, eventRows, corrRows] = await Promise.all([
-    found(db.from('employees').select('staff_id, phone, assigned_shop_id').in('staff_id', empIds)),
+    found(db.from('employees').select('staff_id, phone, assigned_shop_id, status').in('staff_id', empIds)),
     listsFor(empIds),
     found(db.from('attendance_events').select('employee_id, date, type').in('employee_id', empIds).in('date', dates)),
     found(db.from('attendance_corrections').select('employee_id, date, clock_in, clock_out').in('employee_id', empIds).in('date', dates)),
@@ -103,35 +98,40 @@ jobRoutes.post('/dispatch', async (c) => {
   const corrByKey = new Map(corrRows.map((r) => [`${r.employee_id}|${r.date}`, r]))
   const expiresAt = new Date(now.getTime() + settings.monitoring.responseWindowMinutes * 60000).toISOString()
 
-  let sent = 0
-  let failed = 0
-  let cancelled = 0
-  for (const row of due) {
+  const outcomes = await runInBatches(due, DISPATCH_CONCURRENCY, async (row) => {
+    const employee = byId.get(row.employee_id)
     const k = `${row.employee_id}|${row.date}`
     const types = eventsByKey.get(k) ?? []
     const corr = corrByKey.get(k)
     const clockedIn = types.includes('check-in') || Boolean(corr?.clock_in)
     const clockedOut = types.includes('check-out') || types.includes('face-lockout') || Boolean(corr?.clock_out)
-    // Never dispatch before clock-in, after clock-out, or on a past day.
-    if (row.date < today || !clockedIn || clockedOut) {
+    // Never dispatch for an inactive employee, before clock-in, after clock-out, or on a past day.
+    if (!isEmployeeActive(employee) || row.date < today || !clockedIn || clockedOut) {
       await must(
         db.from('verification_schedule')
-          .update({ dispatched_at: now.toISOString() })
+          .update({ dispatched_at: nowIso, result: 'cancelled' })
           .eq('id', row.id)
           .is('dispatched_at', null),
       )
-      cancelled += 1
-      continue
+      return 'cancelled' as const
     }
 
-    const employee = byId.get(row.employee_id)
+    // Claim the schedule row atomically only while `dispatched_at` is still null so
+    // concurrent clock-outs, deactivations, or overlapping runs cannot send duplicate SMS.
+    const claimed = await must(
+      db.from('verification_schedule')
+        .update({ dispatched_at: nowIso })
+        .eq('id', row.id)
+        .is('dispatched_at', null)
+        .select('id'),
+    )
+    if (!claimed?.length) return 'cancelled' as const
+
     const primaryShopId = lists.get(row.employee_id)?.[0] ?? employee?.assigned_shop_id ?? null
     const eventId = `${row.employee_id}-${row.date}-v${row.verification_number}`
     const token = newToken()
     try {
-      // Claimed first, so two overlapping runs cannot text the same check twice.
       await applyChange([
-        { table: 'verification_schedule', op: 'update', match: { id: row.id }, row: { dispatched_at: now.toISOString() } },
         {
           table: 'verification_events',
           op: 'insert',
@@ -142,7 +142,7 @@ jobRoutes.post('/dispatch', async (c) => {
             shop_id: primaryShopId,
             date: row.date,
             verification_number: row.verification_number,
-            dispatched_at: now.toISOString(),
+            dispatched_at: nowIso,
             delivery_status: 'sending',
           },
         },
@@ -150,7 +150,7 @@ jobRoutes.post('/dispatch', async (c) => {
       ])
     } catch (error) {
       console.error('could not claim check', eventId, error)
-      continue
+      return 'skipped' as const
     }
 
     const message = `Workforce attendance check: open ${appUrl}/verify/${token} within ${settings.monitoring.responseWindowMinutes} minutes.`
@@ -166,8 +166,16 @@ jobRoutes.post('/dispatch', async (c) => {
         ? { delivery_status: 'delivered' }
         : { delivery_status: 'failed', result: 'sms-failed', gps_verification_status: 'unavailable' },
     }])
-    if (delivered) sent += 1
-    else failed += 1
+    return delivered ? ('sent' as const) : ('failed' as const)
+  })
+
+  let sent = 0
+  let failed = 0
+  let cancelled = 0
+  for (const outcome of outcomes) {
+    if (outcome === 'sent') sent += 1
+    else if (outcome === 'failed') failed += 1
+    else if (outcome === 'cancelled') cancelled += 1
   }
   return c.json({ sent, failed, cancelled })
 })

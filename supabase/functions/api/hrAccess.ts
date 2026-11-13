@@ -5,7 +5,7 @@
 
 import { Hono } from 'npm:hono@4.6.14'
 import type { Context } from 'npm:hono@4.6.14'
-import { existingAccountRefusal, validateInvite, validateNewPassword } from '../_shared/rules/onboarding.js'
+import { existingAccountRefusal, LINK_UNUSABLE, validateInvite, validateNewPassword } from '../_shared/rules/onboarding.js'
 import { assertAllCompanies, type HrEnv, type HrUser } from './auth.ts'
 import { ApiError, applyChange, clientIp, db, found, invalid, must, rateLimit, readJson, rpc } from './lib.ts'
 import { cancelLinksOps, createLink, deliverLink, type LinkResult, openLink } from './setupLinks.ts'
@@ -138,18 +138,28 @@ hrAccessRoutes.post('/users/:id/status', async (c) => {
   const status = body.status
   if (status !== 'active' && status !== 'inactive') throw invalid({ status: 'Choose active or inactive.' })
   const user = await rpc<Record<string, string>>('set_hr_user_status', { p_actor: hr.id, p_target: c.req.param('id'), p_status: status })
-  await applyChange([], accessAudit(
-    hr,
-    status === 'active' ? 'HR access restored' : 'HR access removed',
-    `${user.name} (${user.email})`,
-    status === 'active' ? 'Can use the HR portal again.' : 'Can no longer use the HR portal. Takes effect on their next action.',
-  ))
+  if (status === 'inactive') {
+    await rpc('end_user_sessions', { p_user: user.id })
+  }
+  await applyChange(
+    status === 'inactive' ? [...cancelLinksOps('password-reset', { hrUserId: user.id })] : [],
+    accessAudit(
+      hr,
+      status === 'active' ? 'HR access restored' : 'HR access removed',
+      `${user.name} (${user.email})`,
+      status === 'active'
+        ? 'Can use the HR portal again.'
+        : 'Can no longer use the HR portal. Active sessions and reset links were ended.',
+    ),
+  )
   return c.json({ user: { id: user.id, name: user.name, email: user.email, status: user.status, lastLoginAt: user.last_login_at } })
 })
 
 /** The signed-in user behind the request's bearer token, if any. Any assurance level counts. */
 async function callerUserId(c: Context): Promise<string | null> {
-  const token = c.req.header('authorization')?.replace(/^Bearer\s+/i, '')
+  const auth = c.req.header('authorization')
+  if (!auth || !/^Bearer\s+/i.test(auth)) return null
+  const token = auth.replace(/^Bearer\s+/i, '').trim()
   if (!token) return null
   const { data, error } = await db.auth.getUser(token)
   return error || !data.user ? null : data.user.id
@@ -174,40 +184,59 @@ publicHrSetupRoutes.post('/public/hr-setup/:token', async (c) => {
   const body = await readJson(c)
   const { id: existingId, unconfirmedId } = await confirmedAccount(invite.email)
 
-  let userId = existingId
-  let passwordSet = false
-  if (userId) {
+  if (existingId) {
     // Proof the person accepting owns this sign-in: they signed in with its password first.
-    const refusal = existingAccountRefusal({ accountId: userId, callerId: await callerUserId(c) })
+    const refusal = existingAccountRefusal({ accountId: existingId, callerId: await callerUserId(c) })
     if (refusal) throw new ApiError(403, refusal, { code: 'sign-in-required' })
   } else {
     const problem = validateNewPassword(body.password, body.confirm)
     if (problem) throw invalid({ password: problem })
-    const password = body.password as string
-    // An unconfirmed account never proved who owns the address; the invited person takes it over.
-    const { data, error } = unconfirmedId
-      ? await db.auth.admin.updateUserById(unconfirmedId, { password, email_confirm: true })
-      : await db.auth.admin.createUser({ email: invite.email, password, email_confirm: true })
-    if (error || !data.user) {
-      console.error('could not create hr sign-in', error?.message)
-      throw new ApiError(500, 'Could not create your sign-in. Please try again.')
-    }
-    userId = data.user.id
-    passwordSet = true
   }
 
-  const companies = await found(db.from('companies').select('id'))
+  // Claim the setup link atomically first so concurrent submissions cannot both create accounts.
   const now = new Date().toISOString()
-  await applyChange([
-    {
-      table: 'hr_users',
-      op: 'upsert',
-      conflict: ['id'],
-      row: { id: userId, name: invite.name, email: invite.email, role_id: 'hr-manager', company_ids: companies.map((co) => co.id), status: 'active' },
-    },
-    { table: 'hr_invites', op: 'update', match: { id: invite.id }, row: { status: 'accepted', accepted_user_id: userId } },
-    { table: 'setup_links', op: 'update', match: { token_hash: link.token_hash }, row: { used_at: now } },
-  ], accessAudit(null, 'HR invite accepted', `${invite.name} (${invite.email})`, `Joined the HR portal, invited by ${invite.invited_by}.`))
+  const claimed = await must(
+    db.from('setup_links')
+      .update({ used_at: now })
+      .eq('token_hash', link.token_hash)
+      .is('used_at', null)
+      .is('cancelled_at', null)
+      .gt('expires_at', now)
+      .select('token_hash'),
+  )
+  if (!claimed?.length) throw new ApiError(404, LINK_UNUSABLE)
+
+  let userId = existingId
+  let passwordSet = false
+  try {
+    if (!userId) {
+      const password = body.password as string
+      // An unconfirmed account never proved who owns the address; the invited person takes it over.
+      const { data, error } = unconfirmedId
+        ? await db.auth.admin.updateUserById(unconfirmedId, { password, email_confirm: true })
+        : await db.auth.admin.createUser({ email: invite.email, password, email_confirm: true })
+      if (error || !data.user) {
+        console.error('could not create hr sign-in', error?.message)
+        throw new ApiError(500, 'Could not create your sign-in. Please try again.')
+      }
+      userId = data.user.id
+      passwordSet = true
+    }
+
+    const companies = await found(db.from('companies').select('id'))
+    await applyChange([
+      {
+        table: 'hr_users',
+        op: 'upsert',
+        conflict: ['id'],
+        row: { id: userId, name: invite.name, email: invite.email, role_id: 'hr-manager', company_ids: companies.map((co) => co.id), status: 'active' },
+      },
+      { table: 'hr_invites', op: 'update', match: { id: invite.id }, row: { status: 'accepted', accepted_user_id: userId } },
+    ], accessAudit(null, 'HR invite accepted', `${invite.name} (${invite.email})`, `Joined the HR portal, invited by ${invite.invited_by}.`))
+  } catch (error) {
+    await db.from('setup_links').update({ used_at: null }).eq('token_hash', link.token_hash)
+    throw error
+  }
 
   return c.json({ email: invite.email, passwordSet })
 })

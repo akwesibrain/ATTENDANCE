@@ -49,26 +49,46 @@ publicRoutes.post('/displays/claim', async (c) => {
   await rateLimit(`display-claim:ip:${clientIp(c)}`, ...LIMITS.displayClaim)
   const body = await readJson(c)
   const token = typeof body.token === 'string' && /^[A-Za-z0-9_-]{20,100}$/.test(body.token) ? body.token : null
-  const display = token
-    ? await must(db.from('workplace_displays').select('*').eq('setup_token_hash', await sha256Hex(token)).maybeSingle())
+  const hash = token ? await sha256Hex(token) : null
+  const display = hash
+    ? await must(db.from('workplace_displays').select('*').eq('setup_token_hash', hash).maybeSingle())
     : null
   if (!display || display.status !== 'active' || !display.setup_expires_at || Date.parse(display.setup_expires_at) <= Date.now()) {
     throw new ApiError(410, 'This setup link has expired or was already used. Ask HR for a new one.')
   }
-  const secret = randomToken()
   const now = new Date().toISOString()
-  await applyChange([
-    { table: 'display_secrets', op: 'upsert', conflict: ['display_id'], row: { display_id: display.id, secret, created_at: now } },
-    { table: 'workplace_displays', op: 'update', match: { id: display.id }, row: { setup_token_hash: null, setup_expires_at: null, paired_at: now } },
-  ], {
-    source: 'Workplace displays',
-    action: 'Workplace display set up',
-    category: 'System Settings',
-    actorName: 'Display device',
-    companyIds: [display.company_id],
-    affected: display.name,
-    description: `A device was set up as the QR display "${display.name}". Any device set up for it before stops working.`,
-  })
+  const claimed = await must(
+    db.from('workplace_displays')
+      .update({ setup_token_hash: null, setup_expires_at: null, paired_at: now })
+      .eq('id', display.id)
+      .eq('setup_token_hash', hash)
+      .eq('status', 'active')
+      .gt('setup_expires_at', now)
+      .select('id'),
+  )
+  if (!claimed?.length) {
+    throw new ApiError(404, 'This setup link has expired or was already used. Ask HR for a new one.')
+  }
+
+  const secret = randomToken()
+  try {
+    await applyChange([
+      { table: 'display_secrets', op: 'upsert', conflict: ['display_id'], row: { display_id: display.id, secret, created_at: now } },
+    ], {
+      source: 'Workplace displays',
+      action: 'Workplace display set up',
+      category: 'System Settings',
+      actorName: 'Display device',
+      companyIds: [display.company_id],
+      affected: display.name,
+      description: `A device was set up as the QR display "${display.name}". Any device set up for it before stops working.`,
+    })
+  } catch (error) {
+    await db.from('workplace_displays')
+      .update({ setup_token_hash: hash, setup_expires_at: display.setup_expires_at, paired_at: display.paired_at })
+      .eq('id', display.id)
+    throw error
+  }
   const ready = await activeDisplay(display.id)
   return c.json({ displayId: display.id, name: display.name, companyId: display.company_id, companyName: ready?.companyName ?? '', secret })
 })
@@ -117,6 +137,19 @@ publicRoutes.post('/employees/register', async (c) => {
   const parsed = parseRegistration(body) as any
   if (parsed.errors) throw invalid(parsed.errors)
   const form = parsed.value
+
+  // Validate photo format, company existence, and picked shops BEFORE hitting Rekognition or Storage.
+  faceSample(body)
+  const company = await must(db.from('companies').select('id').eq('id', form.companyId).maybeSingle())
+  if (!company) throw new ApiError(409, 'Unknown company')
+  if (form.shopIds.length) {
+    const known = await found(
+      db.from('shops').select('shop_id').in('shop_id', form.shopIds).eq('company_id', form.companyId).eq('status', 'active'),
+    )
+    if (known.length !== form.shopIds.length) {
+      throw invalid({ shop: 'Choose shops from your company’s shop list.' })
+    }
+  }
 
   const face = await enrolNewFace(body, form.companyId)
   const employee = await registerEmployee(form, face)
@@ -235,9 +268,10 @@ publicRoutes.get('/verify/:token', async (c) => {
   await rateLimit(`verify:ip:${clientIp(c)}`, ...LIMITS.verify)
   const check = await openCheck(c.req.param('token'))
   const [employee, settings] = await Promise.all([
-    found(db.from('employees').select('full_name').eq('staff_id', check.event.employee_id).single()),
+    found(db.from('employees').select('full_name, status').eq('staff_id', check.event.employee_id).single()),
     loadSettings(),
   ])
+  if (employee.status !== 'ACTIVE') throw new ApiError(410, EXPIRED_LINK)
   return c.json({
     fullName: employee.full_name,
     verificationNumber: check.event.verification_number,
@@ -251,6 +285,10 @@ publicRoutes.get('/verify/:token', async (c) => {
 publicRoutes.post('/verify/:token', async (c) => {
   await rateLimit(`verify:ip:${clientIp(c)}`, ...LIMITS.verify)
   const check = await openCheck(c.req.param('token'))
+  const employee = await must(
+    db.from('employees').select('status').eq('staff_id', check.event.employee_id).maybeSingle(),
+  )
+  if (!employee || employee.status !== 'ACTIVE') throw new ApiError(410, EXPIRED_LINK)
   const body = await readJson(c)
   const settings = await loadSettings()
 

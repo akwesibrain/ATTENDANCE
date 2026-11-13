@@ -19,6 +19,7 @@ import {
 } from '../_shared/rules/tracking.js'
 import { faceSample, loadEnrolledPhoto, readable } from './enrolment.ts'
 import { syncNotifications } from './facts.ts'
+import { isEmployeeActive } from './guards.ts'
 import { ApiError, applyChange, clientIp, db, found, invalid, later, must, rateLimit, readJson, rpc } from './lib.ts'
 import { assertSessionOpen, bearerToken, sessionClosed, sessionFor } from './tracking.ts'
 
@@ -34,8 +35,9 @@ const NOT_IN_DIRECTORY = 'That outlet is not in the shop directory.'
 // deno-lint-ignore no-explicit-any
 type Row = Record<string, any>
 
-async function openSession(token: string) {
+async function openSession(token: string, tokenBucket: string) {
   const session = await sessionFor(token)
+  await rateLimit(`${tokenBucket}:token:${session.token_hash.slice(0, 16)}`, ...LIMITS.byToken)
   await assertSessionOpen(session, new Date())
   return session
 }
@@ -52,7 +54,7 @@ async function shopList(staffId: string) {
 
 publicVisitRoutes.get('/tracking/visits', async (c) => {
   await rateLimit(`visits:ip:${clientIp(c)}`, ...LIMITS.byIp)
-  const session = await openSession(bearerToken(c))
+  const session = await openSession(bearerToken(c), 'visits-read')
   const ids = await shopList(session.staff_id)
   const [shops, visits, failed] = await Promise.all([
     ids.length ? found(db.from('shops').select('shop_id, shop_name, latitude').in('shop_id', ids)) : Promise.resolve([]),
@@ -73,11 +75,11 @@ publicVisitRoutes.get('/tracking/visits', async (c) => {
 
 publicVisitRoutes.post('/tracking/visits', async (c) => {
   await rateLimit(`visits:ip:${clientIp(c)}`, ...LIMITS.byIp)
-  const session = await openSession(bearerToken(c))
-  await rateLimit(`visits:token:${session.token_hash.slice(0, 16)}`, ...LIMITS.byToken)
+  const session = await openSession(bearerToken(c), 'visits')
 
-  const employee = await must(db.from('employees').select('staff_id, position').eq('staff_id', session.staff_id).maybeSingle())
-  if (!employee || !VISIT_ROLES.includes(categoryForPosition(employee.position))) {
+  const employee = await must(db.from('employees').select('staff_id, position, status').eq('staff_id', session.staff_id).maybeSingle())
+  if (!isEmployeeActive(employee)) throw sessionClosed()
+  if (!VISIT_ROLES.includes(categoryForPosition(employee.position))) {
     throw new ApiError(409, 'Only Sales Representatives and Supervisors record outlet visits.')
   }
   if ((await failedToday(session.staff_id, session.date)) >= MAX_VISIT_FACE_ATTEMPTS) {
@@ -133,7 +135,7 @@ publicVisitRoutes.post('/tracking/visits', async (c) => {
 
 publicVisitRoutes.get('/tracking/shop-locations', async (c) => {
   await rateLimit(`visits:ip:${clientIp(c)}`, ...LIMITS.byIp)
-  const session = await openSession(bearerToken(c))
+  const session = await openSession(bearerToken(c), 'shop-locations-read')
   const ids = await shopList(session.staff_id)
   const [shops, pending] = await Promise.all([
     ids.length ? found(db.from('shops').select('shop_id, shop_name, latitude').in('shop_id', ids)) : Promise.resolve([]),
@@ -151,8 +153,7 @@ publicVisitRoutes.get('/tracking/shop-locations', async (c) => {
 
 publicVisitRoutes.post('/tracking/shop-locations', async (c) => {
   await rateLimit(`visits:ip:${clientIp(c)}`, ...LIMITS.byIp)
-  const session = await openSession(bearerToken(c))
-  await rateLimit(`shop-locations:token:${session.token_hash.slice(0, 16)}`, ...LIMITS.byToken)
+  const session = await openSession(bearerToken(c), 'shop-locations')
 
   const capture = parseShopCapture(await readJson(c))
   if ('error' in capture) throw invalid({ location: capture.error })

@@ -6,6 +6,7 @@ import { hrRoutes } from './hr.ts'
 import { publicHrSetupRoutes } from './hrAccess.ts'
 import { publicPasswordResetRoutes } from './hrPasswords.ts'
 import { jobRoutes } from './jobs.ts'
+import { resolveCorsOrigin } from './guards.ts'
 import { ApiError } from './lib.ts'
 import { publicRoutes } from './public.ts'
 import { publicTrackingRoutes } from './tracking.ts'
@@ -14,10 +15,7 @@ import { publicVisitRoutes } from './trackingVisits.ts'
 const app = new Hono().basePath('/api')
 
 // Set ALLOWED_ORIGINS as a function secret once the app has a public address.
-const origins = (Deno.env.get('ALLOWED_ORIGINS') ?? 'http://localhost:5173,http://127.0.0.1:5173')
-  .split(',')
-  .map((origin) => origin.trim())
-  .filter(Boolean)
+const origins = resolveCorsOrigin(Deno.env.get('ALLOWED_ORIGINS'))
 
 app.use('*', cors({
   origin: origins,
