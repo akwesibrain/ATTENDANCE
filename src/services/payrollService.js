@@ -19,7 +19,8 @@ import { elapsedPeriodDateKeys } from '../utils/attendanceRules'
 import { CATEGORIES, categoryForPosition, categoryLabel } from '../constants/employeeCategories'
 import { listAttendanceRecords, listAttendanceRoster } from './attendanceRecordsService'
 import { overtimeReport } from './overtimeService'
-import { companyDisplayName } from './settingsService'
+import { vatOnOvertimeFor } from './vatOvertimeService'
+import { companyDisplayName, vatRateFor } from './settingsService'
 import { can, canAccessCompany, scopeCompanyIds } from './permissionsService'
 import { tablesToCsv, tablesToPdf, tablesToXlsx } from '../utils/exportFiles'
 import {
@@ -185,21 +186,23 @@ export function previewLine(line, { structure = line.structure, inputs = line.in
   return calculatePay({
     structure,
     attendance: { daysWorked: line.calc.days, workedMinutes: line.calc.workedHours * 60 },
-    overtime: { recordedMinutes: line.overtimeRecorded?.minutes ?? 0, approvedMinutes: line.overtimeApproval ? line.overtimeApproval.minutes : null, companyRatePay: line.overtimeApproval?.companyRatePay ?? 0 },
+    overtime: { recordedMinutes: line.overtimeRecorded?.minutes ?? 0, approvedMinutes: line.overtimeApproval ? line.overtimeApproval.minutes : null, companyRatePay: line.overtimeApproval?.companyRatePay ?? 0, vat: line.calc.overtime.vat ?? vatOnOvertimeFor(line.companyId) },
     inputs,
     dateKey: periodRange(period).endKey,
+    salaryVat: line.calc.salaryVat ?? { rate: vatRateFor(line.companyId) },
   })
 }
 
 /** Example month for the structure editor: a full month, optional overtime hours. */
-export function previewStructure(structure, { overtimeHours = 0, companyRate = 0, dateKey = accraTodayKey() } = {}) {
+export function previewStructure(structure, { overtimeHours = 0, companyRate = 0, dateKey = accraTodayKey(), companyId = null } = {}) {
   const minutes = Math.max(0, Number(overtimeHours) || 0) * 60
   return calculatePay({
     structure,
     attendance: { daysWorked: 22, workedMinutes: 22 * 8 * 60 },
-    overtime: { recordedMinutes: minutes, approvedMinutes: minutes, companyRatePay: (minutes / 60) * companyRate },
+    overtime: { recordedMinutes: minutes, approvedMinutes: minutes, companyRatePay: (minutes / 60) * companyRate, vat: companyId ? vatOnOvertimeFor(companyId) : undefined },
     inputs: {},
     dateKey,
+    salaryVat: companyId ? { rate: vatRateFor(companyId) } : null,
   })
 }
 
@@ -243,6 +246,8 @@ function draftLines(user, companyId, period) {
   const approvals = s.overtime[key] ?? {}
   const inputs = s.inputs[key] ?? {}
   const companyName = companyDisplayName(companyId)
+  const vat = vatOnOvertimeFor(companyId)
+  const salaryVat = { rate: vatRateFor(companyId) }
 
   return payrollRoster(companyId, period).map((e) => {
     const profile = profileFor(e, endKey)
@@ -251,9 +256,10 @@ function draftLines(user, companyId, period) {
     const calc = calculatePay({
       structure: profile.structure,
       attendance: attendance.get(e.employeeId) ?? { daysWorked: 0, workedMinutes: 0 },
-      overtime: { recordedMinutes: rec?.minutes ?? 0, approvedMinutes: approval ? approval.minutes : null, companyRatePay: approval?.companyRatePay ?? 0 },
+      overtime: { recordedMinutes: rec?.minutes ?? 0, approvedMinutes: approval ? approval.minutes : null, companyRatePay: approval?.companyRatePay ?? 0, vat },
       inputs: inputs[e.employeeId] ?? {},
       dateKey: endKey,
+      salaryVat,
     })
     return {
       staffId: e.employeeId,
@@ -313,6 +319,10 @@ export function totalsOf(lines) {
     deductions: sum((l) => l.calc.totalDeductions),
     takeHome: sum((l) => l.adjustedTakeHome ?? l.calc.takeHome),
     employerSsnit: sum((l) => l.calc.employerSsnit),
+    overtimeVatDeducted: sum((l) => l.calc.overtimeVatDeduction ?? 0),
+    salaryVat: sum((l) => l.calc.salaryVat?.amount ?? 0),
+    vatDeducted: sum((l) => l.calc.vatDeducted ?? 0),
+    employerOvertimeVat: sum((l) => l.calc.employerOvertimeVat ?? 0),
     pendingOvertime: lines.filter((l) => l.status === 'draft' && l.calc.overtime.pending).length,
     noStructure: lines.filter((l) => !l.hasStructure).length,
   }
@@ -378,10 +388,11 @@ export const EXPORT_KINDS = [
   { id: 'category', label: 'One employee category' },
   { id: 'employee', label: 'One employee' },
   { id: 'company', label: 'Company payroll summary' },
-  { id: 'statutory', label: 'PAYE and SSNIT summary' },
+  { id: 'statutory', label: 'Tier 2 and SSNIT summary' },
   { id: 'overtime', label: 'Overtime report' },
 ]
 
+const vatModeText = (vat) => (!vat || vat.mode === 'none' ? 'Not applied' : `${vat.rate}% ${vat.mode === 'deduct' ? 'deducted' : 'added (company cost)'}`)
 const money = (label) => ({ label: `${label} (GH₵)`, money: true })
 const number = (label) => ({ label, number: true })
 
@@ -391,9 +402,9 @@ function payrollTable(title, subtitle, lines) {
     title,
     subtitle,
     sheet: 'Payroll',
-    columns: [{ label: 'Staff ID' }, { label: 'Employee' }, { label: 'Company' }, { label: 'Category' }, { label: 'Salary structure' }, money('Basic'), money('Allowances'), number('OT hours'), money('Overtime'), money('Bonus/other'), money('Gross'), money('PAYE'), money('Employee SSNIT'), money('Other deductions'), money('Total deductions'), money('Take-home'), money('Employer SSNIT'), { label: 'Status' }],
-    rows: lines.map((l) => [l.staffId, l.fullName, l.companyName, l.categoryLabel, l.structureLabel, l.calc.basicPay, l.calc.allowanceTotal, l.calc.overtime.hours, l.calc.overtime.pay, round2(l.calc.bonus + l.calc.commission + l.calc.otherEarnings), l.calc.gross, l.calc.paye, l.calc.ssnitEmployee, l.calc.otherDeductionsTotal, l.calc.totalDeductions, l.adjustedTakeHome ?? l.calc.takeHome, l.calc.employerSsnit, l.status === 'draft' ? 'Draft' : l.status === 'paid' ? 'Paid' : 'Approved']),
-    totals: ['', `Total (${t.employees})`, '', '', '', t.basic, t.allowances, t.overtimeHours, t.overtime, round2(lines.reduce((s, l) => s + l.calc.bonus + l.calc.commission + l.calc.otherEarnings, 0)), t.gross, t.paye, t.ssnitEmployee, t.otherDeductions, t.deductions, t.takeHome, t.employerSsnit, ''],
+    columns: [{ label: 'Staff ID' }, { label: 'Employee' }, { label: 'Company' }, { label: 'Category' }, { label: 'Salary structure' }, money('Basic'), money('Allowances'), number('OT hours'), money('Overtime'), money('Bonus/other'), money('Gross'), money('Tier 2'), money('Employee SSNIT'), money('Other deductions'), money('Total deductions'), money('Take-home'), money('Employer SSNIT'), money('VAT on salary'), money('VAT on overtime (deducted)'), money('VAT on overtime (company cost)'), { label: 'Status' }],
+    rows: lines.map((l) => [l.staffId, l.fullName, l.companyName, l.categoryLabel, l.structureLabel, l.calc.basicPay, l.calc.allowanceTotal, l.calc.overtime.hours, l.calc.overtime.pay, round2(l.calc.bonus + l.calc.commission + l.calc.otherEarnings), l.calc.gross, l.calc.paye, l.calc.ssnitEmployee, l.calc.otherDeductionsTotal, l.calc.totalDeductions, l.adjustedTakeHome ?? l.calc.takeHome, l.calc.employerSsnit, l.calc.salaryVat?.amount ?? 0, l.calc.overtimeVatDeduction ?? 0, l.calc.employerOvertimeVat ?? 0, l.status === 'draft' ? 'Draft' : l.status === 'paid' ? 'Paid' : 'Approved']),
+    totals: ['', `Total (${t.employees})`, '', '', '', t.basic, t.allowances, t.overtimeHours, t.overtime, round2(lines.reduce((s, l) => s + l.calc.bonus + l.calc.commission + l.calc.otherEarnings, 0)), t.gross, t.paye, t.ssnitEmployee, t.otherDeductions, t.deductions, t.takeHome, t.employerSsnit, t.salaryVat, t.overtimeVatDeducted, t.employerOvertimeVat, ''],
   }
 }
 
@@ -407,18 +418,21 @@ export function employeeBreakdownRows(l) {
     ['Earnings', 'Commission', c.commission],
     ['Earnings', 'Other earnings', c.otherEarnings],
     ['Total', 'Gross earnings', c.gross],
-    ['Deductions', `PAYE (${TAX_METHODS[c.taxMethod].short})`, c.paye],
+    ['Deductions', `Tier 2 (${c.tier2Rate ?? 0}% of basic)`, c.paye],
+    ['Deductions', `VAT on salary (${c.salaryVat?.rate ?? 0}% of basic + allowances)`, c.salaryVat?.amount ?? 0],
     ['Deductions', `Employee SSNIT (${c.taxMethod === 'statutory' ? `${c.statutory.ssnitEmployeeRate}% of basic` : 'manual'})`, c.ssnitEmployee],
     ...c.deductions.map((d) => ['Deductions', d.kind === 'percent' ? `${d.name} (${d.value}% of basic)` : d.name, d.amount]),
     ['Deductions', 'Loan repayment', c.loan],
     ['Deductions', 'Salary advance', c.advance],
     ['Deductions', 'Other deductions', c.otherDeduction],
+    ['Deductions', `VAT on overtime (${c.overtime.vat?.rate ?? 0}% of overtime pay)`, c.overtimeVatDeduction ?? 0],
     ['Total', 'Total deductions', c.totalDeductions],
     ...(l.adjustments ?? []).map((a) => ['Adjustment', `${a.type === 'earning' ? 'Added' : 'Deducted'}: ${a.reason}`, a.type === 'earning' ? a.amount : -a.amount]),
     ['Total', 'Take-home pay', l.adjustedTakeHome ?? c.takeHome],
     ['Employer (not deducted)', `Employer SSNIT (${c.statutory.ssnitEmployerRate}% of basic)`, c.employerSsnit],
+    ['Employer (not deducted)', `VAT on overtime (${c.overtime.vat?.rate ?? 0}% of overtime pay)`, c.employerOvertimeVat ?? 0],
   ]
-  return rows.filter((r) => r[0] === 'Total' || r[2] !== 0 || /Basic|PAYE|SSNIT/.test(r[1]))
+  return rows.filter((r) => r[0] === 'Total' || r[2] !== 0 || /Basic|Tier 2|SSNIT|VAT on salary/.test(r[1]))
 }
 
 /** Build the tables for an export. */
@@ -442,26 +456,26 @@ export function exportTables({ kind, payroll, period, categoryId, staffId }) {
     const rows = payroll.companyIds.map((cid) => {
       const t = totalsOf(lines.filter((l) => l.companyId === cid))
       const run = payroll.runs[cid]
-      return [companyDisplayName(cid) || cid, t.employees, t.basic, t.allowances, t.overtime, t.gross, t.paye, t.ssnitEmployee, t.otherDeductions, t.deductions, t.takeHome, t.employerSsnit, run.status === 'draft' ? 'Draft' : run.status === 'paid' ? 'Paid' : 'Approved']
+      return [companyDisplayName(cid) || cid, t.employees, t.basic, t.allowances, t.overtime, t.gross, t.paye, t.ssnitEmployee, t.otherDeductions, t.deductions, t.takeHome, t.employerSsnit, t.salaryVat, t.overtimeVatDeducted, t.employerOvertimeVat, run.status === 'draft' ? 'Draft' : run.status === 'paid' ? 'Paid' : 'Approved']
     })
     const t = totalsOf(lines)
     return [{
       title: 'Company payroll summary',
       subtitle: sub,
       sheet: 'Company summary',
-      columns: [{ label: 'Company' }, number('Employees'), money('Basic'), money('Allowances'), money('Overtime'), money('Gross'), money('PAYE'), money('Employee SSNIT'), money('Other deductions'), money('Total deductions'), money('Take-home'), money('Employer SSNIT'), { label: 'Status' }],
+      columns: [{ label: 'Company' }, number('Employees'), money('Basic'), money('Allowances'), money('Overtime'), money('Gross'), money('Tier 2'), money('Employee SSNIT'), money('Other deductions'), money('Total deductions'), money('Take-home'), money('Employer SSNIT'), money('VAT on salary'), money('VAT on overtime (deducted)'), money('VAT on overtime (company cost)'), { label: 'Status' }],
       rows,
-      totals: rows.length > 1 ? ['All companies', t.employees, t.basic, t.allowances, t.overtime, t.gross, t.paye, t.ssnitEmployee, t.otherDeductions, t.deductions, t.takeHome, t.employerSsnit, ''] : undefined,
+      totals: rows.length > 1 ? ['All companies', t.employees, t.basic, t.allowances, t.overtime, t.gross, t.paye, t.ssnitEmployee, t.otherDeductions, t.deductions, t.takeHome, t.employerSsnit, t.salaryVat, t.overtimeVatDeducted, t.employerOvertimeVat, ''] : undefined,
     }]
   }
   if (kind === 'statutory') {
     const t = totalsOf(lines)
     return [{
-      title: 'PAYE and SSNIT summary',
+      title: 'Tier 2 and SSNIT summary',
       subtitle: `${sub} · employer SSNIT is a company cost, not deducted from employees`,
-      sheet: 'PAYE and SSNIT',
-      columns: [{ label: 'Staff ID' }, { label: 'Employee' }, { label: 'Company' }, { label: 'Method' }, money('Basic'), money('Gross'), money('Chargeable income'), money('PAYE'), money('Employee SSNIT'), money('Employer SSNIT'), money('Total SSNIT')],
-      rows: lines.map((l) => [l.staffId, l.fullName, l.companyName, TAX_METHODS[l.calc.taxMethod].short, l.calc.basicPay, l.calc.gross, l.calc.chargeable ?? '', l.calc.paye, l.calc.ssnitEmployee, l.calc.employerSsnit, round2(l.calc.ssnitEmployee + l.calc.employerSsnit)]),
+      sheet: 'Tier 2 and SSNIT',
+      columns: [{ label: 'Staff ID' }, { label: 'Employee' }, { label: 'Company' }, { label: 'SSNIT method' }, money('Basic'), money('Gross'), { label: 'Tier 2 %' }, money('Tier 2'), money('Employee SSNIT'), money('Employer SSNIT'), money('Total SSNIT')],
+      rows: lines.map((l) => [l.staffId, l.fullName, l.companyName, TAX_METHODS[l.calc.taxMethod].short, l.calc.basicPay, l.calc.gross, l.calc.tier2Rate === null || l.calc.tier2Rate === undefined ? 'Not set' : `${l.calc.tier2Rate}%`, l.calc.paye, l.calc.ssnitEmployee, l.calc.employerSsnit, round2(l.calc.ssnitEmployee + l.calc.employerSsnit)]),
       totals: ['', `Total (${t.employees})`, '', '', t.basic, t.gross, '', t.paye, t.ssnitEmployee, t.employerSsnit, round2(t.ssnitEmployee + t.employerSsnit)],
     }]
   }
@@ -471,9 +485,9 @@ export function exportTables({ kind, payroll, period, categoryId, staffId }) {
       title: 'Overtime report',
       subtitle: `${sub} · only approved overtime is paid`,
       sheet: 'Overtime',
-      columns: [{ label: 'Staff ID' }, { label: 'Employee' }, { label: 'Company' }, { label: 'Category' }, number('Recorded hours'), number('Approved hours'), { label: 'Rate' }, money('Overtime pay'), { label: 'Status' }],
-      rows: ot.map((l) => [l.staffId, l.fullName, l.companyName, l.categoryLabel, round2((l.overtimeRecorded?.minutes ?? 0) / 60), l.calc.overtime.hours, l.calc.overtime.rateSource === 'company' ? 'Company rate' : `GH₵${l.calc.overtime.rate}/h`, l.calc.overtime.pay, !l.calc.overtime.eligible ? 'Not eligible' : l.calc.overtime.approved ? 'Approved' : 'Awaiting approval']),
-      totals: ['', `Total (${ot.length})`, '', '', round2(ot.reduce((s, l) => s + (l.overtimeRecorded?.minutes ?? 0) / 60, 0)), round2(ot.reduce((s, l) => s + l.calc.overtime.hours, 0)), '', round2(ot.reduce((s, l) => s + l.calc.overtime.pay, 0)), ''],
+      columns: [{ label: 'Staff ID' }, { label: 'Employee' }, { label: 'Company' }, { label: 'Category' }, number('Recorded hours'), number('Approved hours'), { label: 'Rate' }, money('Overtime pay'), { label: 'VAT on overtime' }, money('VAT amount'), money('Employee gets'), money('Company cost'), { label: 'Status' }],
+      rows: ot.map((l) => [l.staffId, l.fullName, l.companyName, l.categoryLabel, round2((l.overtimeRecorded?.minutes ?? 0) / 60), l.calc.overtime.hours, l.calc.overtime.rateSource === 'company' ? 'Company rate' : `GH₵${l.calc.overtime.rate}/h`, l.calc.overtime.pay, vatModeText(l.calc.overtime.vat), l.calc.overtime.vat?.amount ?? 0, l.calc.overtime.vat?.employeeGets ?? l.calc.overtime.pay, l.calc.overtime.vat?.companyCost ?? l.calc.overtime.pay, !l.calc.overtime.eligible ? 'Not eligible' : l.calc.overtime.approved ? 'Approved' : 'Awaiting approval']),
+      totals: ['', `Total (${ot.length})`, '', '', round2(ot.reduce((s, l) => s + (l.overtimeRecorded?.minutes ?? 0) / 60, 0)), round2(ot.reduce((s, l) => s + l.calc.overtime.hours, 0)), '', round2(ot.reduce((s, l) => s + l.calc.overtime.pay, 0)), '', round2(ot.reduce((s, l) => s + (l.calc.overtime.vat?.amount ?? 0), 0)), round2(ot.reduce((s, l) => s + (l.calc.overtime.vat?.employeeGets ?? l.calc.overtime.pay), 0)), round2(ot.reduce((s, l) => s + (l.calc.overtime.vat?.companyCost ?? l.calc.overtime.pay), 0)), ''],
     }]
   }
   return []

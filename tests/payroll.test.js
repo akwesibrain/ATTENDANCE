@@ -15,7 +15,6 @@ import {
   setPeriodInputs,
   withAdjustments,
 } from '../src/services/payroll/payrollRules.js'
-import { payeFromBands, statutoryRulesFor } from '../src/services/payroll/statutory.js'
 import { tablesToCsv, tablesToPdf, tablesToXlsx } from '../src/utils/exportFiles.js'
 
 const BFL = 'box-for-less'
@@ -23,7 +22,7 @@ const DAA = 'double-a'
 const by = 'John Mensah'
 const PERIOD_END = '2026-11-25'
 
-const structure = (patch = {}) => ({ ...emptyStructure(), basic: 1500, ...patch })
+const structure = (patch = {}) => ({ ...emptyStructure(), basic: 1500, tax: { ...emptyStructure().tax, tier2Rate: 5 }, ...patch })
 const ok = (r) => {
   expect(r.errors ?? r.error).toBeUndefined()
   return r.state
@@ -114,26 +113,49 @@ describe('payroll — overrides, overtime, tax, take-home', () => {
     expect(calc.gross).toBe(1500)
   })
 
-  it('8. manual PAYE and SSNIT replace the statutory figures (never both)', () => {
-    const s2 = ok(addOverrideVersion(s, { staffId: 'M1', companyId: BFL, fields: { tax: { method: 'manual', paye: { kind: 'amount', value: 100 }, ssnit: { kind: 'amount', value: 82.5 } } }, effectiveFrom: '2026-01-01', reason: 'GRA letter', by, at: 'c' }))
+  it('8. an employee override can set their own Tier 2 % and a manual SSNIT figure', () => {
+    const s2 = ok(addOverrideVersion(s, { staffId: 'M1', companyId: BFL, fields: { tax: { method: 'manual', tier2Rate: 4, ssnit: { kind: 'amount', value: 80 } } }, effectiveFrom: '2026-01-01', reason: 'Agreed with HR', by, at: 'c' }))
     const { calc } = payFor(s2, { companyId: BFL, staffId: 'M1' })
     expect(calc.taxMethod).toBe('manual')
-    expect(calc.paye).toBe(100)
-    expect(calc.ssnitEmployee).toBe(82.5)
-    expect(calc.chargeable).toBeNull()
-    expect(calc.takeHome).toBe(1500 - 182.5)
+    expect(calc.tier2Rate).toBe(4)
+    expect(calc.paye).toBe(60) // 4% of 1,500
+    expect(calc.ssnitEmployee).toBe(80)
+    expect(calc.takeHome).toBe(1500 - 140)
   })
 
-  it('9. statutory: SSNIT 5.5% of basic, PAYE from GRA bands, employer SSNIT separate', () => {
+  it('a structure cannot be saved without a Tier 2 percentage', () => {
+    const r = addTemplateVersion(s, { companyId: BFL, categoryId: 'office', appliesTo: 'all', effectiveFrom: '2026-01-01', by, at: 'x', structure: { ...emptyStructure(), basic: 1000 } })
+    expect(r.errors['tax.tier2Rate']).toMatch(/Tier 2/)
+  })
+
+  it('9. Tier 2 = HR % of basic, SSNIT 5.5% of basic, employer SSNIT separate', () => {
     const { calc } = payFor(s, { companyId: BFL, staffId: 'A' })
     expect(calc.ssnitEmployee).toBe(82.5)
-    expect(calc.chargeable).toBe(1417.5)
-    // 490×0 + 110×5% + 130×10% + 687.5×17.5% = 5.5 + 13 + 120.31
-    expect(calc.paye).toBe(138.81)
+    expect(calc.tier2Rate).toBe(5)
+    expect(calc.paye).toBe(75) // 5% of 1,500
     expect(calc.employerSsnit).toBe(195)
-    expect(calc.takeHome).toBe(round(1500 - 82.5 - 138.81))
-    expect(calc.totalDeductions).toBe(round(82.5 + 138.81)) // employer SSNIT NOT included
-    expect(payeFromBands(400, statutoryRulesFor(PERIOD_END).payeBands)).toBe(0)
+    expect(calc.takeHome).toBe(1500 - 82.5 - 75)
+    expect(calc.totalDeductions).toBe(157.5) // employer SSNIT NOT included
+  })
+
+  it('VAT on salary: 5.5% of basic + allowances is deducted', () => {
+    const template = pickTemplateVersion(s.templates[BFL].warehouse, PERIOD_END, '2025-01-01')
+    const { structure: st } = resolveProfile({ template })
+    const calc = calculatePay({ structure: { ...st, allowances: [{ id: 'transport', name: 'Transport', kind: 'amount', value: 300 }] }, attendance: {}, overtime: {}, inputs: {}, dateKey: PERIOD_END, salaryVat: { rate: 5.5 } })
+    expect(calc.salaryVat).toEqual({ rate: 5.5, base: 1800, amount: 99 })
+    expect(calc.vatDeducted).toBe(99)
+    expect(calc.totalDeductions).toBe(round(75 + 82.5 + 99))
+    expect(calc.takeHome).toBe(round(1800 - 75 - 82.5 - 99))
+  })
+
+  it('VAT on salary and on overtime together: 5.5% + 5.5%', () => {
+    const template = pickTemplateVersion(s.templates[BFL].warehouse, PERIOD_END, '2025-01-01')
+    const { structure: st } = resolveProfile({ template })
+    const calc = calculatePay({ structure: { ...st, overtimeRate: null }, attendance: {}, overtime: { recordedMinutes: 600, approvedMinutes: 600, companyRatePay: 100, vat: { mode: 'deduct', rate: 5.5 } }, inputs: {}, dateKey: PERIOD_END, salaryVat: { rate: 5.5 } })
+    expect(calc.salaryVat.amount).toBe(82.5) // 5.5% of 1,500
+    expect(calc.overtimeVatDeduction).toBe(5.5) // 5.5% of 100
+    expect(calc.vatDeducted).toBe(88)
+    expect(calc.takeHome).toBe(round(1600 - 75 - 82.5 - 88))
   })
 
   it('10–11. allowances and deductions (amounts and %), take-home recalculated', () => {
@@ -147,7 +169,7 @@ describe('payroll — overrides, overtime, tax, take-home', () => {
           { id: 'other', name: 'Other allowances', kind: 'amount', value: 0, standard: true },
         ],
         deductions: [{ id: 'welfare', name: 'Welfare', kind: 'amount', value: 20 }],
-        tax: { method: 'manual', paye: { kind: 'amount', value: 0 }, ssnit: { kind: 'percent', value: 5.5 } },
+        tax: { method: 'manual', tier2Rate: 0, paye: { kind: 'amount', value: 0 }, ssnit: { kind: 'percent', value: 5.5 } },
       }),
     }))
     const { calc } = payFor(s2, { companyId: BFL, staffId: 'A', inputs: { bonus: 50, loan: 100, advance: 30 } })
@@ -229,3 +251,39 @@ describe('payroll — exports', () => {
 function round(n) {
   return Math.round(n * 100) / 100
 }
+
+describe('VAT on overtime', () => {
+  const base = { payType: 'monthly', basic: 2000, allowances: [], overtimeEligible: true, overtimeRate: null, tax: { method: 'statutory' }, deductions: [] }
+  const run = (vat) => calculatePay({ structure: base, attendance: { daysWorked: 22, workedMinutes: 0 }, overtime: { recordedMinutes: 600, approvedMinutes: 600, companyRatePay: 100, vat }, inputs: {}, dateKey: '2026-11-25' })
+
+  it('is not applied by default', () => {
+    const c = run(undefined)
+    expect(c.overtime.vat).toMatchObject({ mode: 'none', amount: 0 })
+    expect(c.overtimeVatDeduction).toBe(0)
+    expect(c.employerOvertimeVat).toBe(0)
+  })
+
+  it('deducted: GH₵100 overtime at 5.5% takes GH₵5.50 off take-home, PAYE unchanged', () => {
+    const none = run({ mode: 'none', rate: 5.5 })
+    const c = run({ mode: 'deduct', rate: 5.5 })
+    expect(c.overtime.vat).toMatchObject({ amount: 5.5, employeeGets: 94.5, companyCost: 100 })
+    expect(c.overtimeVatDeduction).toBe(5.5)
+    expect(c.paye).toBe(none.paye)
+    expect(c.gross).toBe(none.gross)
+    expect(c.takeHome).toBeCloseTo(none.takeHome - 5.5, 2)
+    expect(c.vatDeducted).toBe(5.5)
+  })
+
+  it('added: the employee is unaffected and the company pays GH₵5.50 more', () => {
+    const none = run({ mode: 'none', rate: 5.5 })
+    const c = run({ mode: 'add', rate: 5.5 })
+    expect(c.takeHome).toBe(none.takeHome)
+    expect(c.employerOvertimeVat).toBe(5.5)
+    expect(c.overtime.vat.companyCost).toBe(105.5)
+  })
+
+  it('applies nothing when no overtime is approved', () => {
+    const c = calculatePay({ structure: base, attendance: {}, overtime: { recordedMinutes: 600, approvedMinutes: null, companyRatePay: 0, vat: { mode: 'deduct', rate: 5.5 } }, inputs: {}, dateKey: '2026-11-25' })
+    expect(c.overtimeVatDeduction).toBe(0)
+  })
+})

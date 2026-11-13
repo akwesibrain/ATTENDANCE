@@ -18,14 +18,16 @@
  *   Period = the company attendance cycle, 26th to 25th (Africa/Accra).
  *
  * Excluded (shown with the reason): approved leave, incomplete records
- * (no clock-out), unknown or unreadable times, and invalid times. VAT is a
- * separate tax setting and is never deducted here.
+ * (no clock-out), unknown or unreadable times, and invalid times. VAT on
+ * overtime follows each company's choice in Settings → Overtime Pay & VAT
+ * (not applied / deducted from the employee / added on top as a company cost).
  * ============================================================================
  */
 
 import { listAttendanceRecords } from './attendanceRecordsService'
 import { defaultHoursFor, overtimeRateFor, vatRateFor, companyDisplayName } from './settingsService'
 import { scopeCompanyIds } from './permissionsService'
+import { overtimeVat, vatOnOvertimeFor, VAT_OVERTIME_MODES } from './vatOvertimeService'
 import { elapsedPeriodDateKeys, holidayForKey } from '../utils/attendanceRules'
 import { accraTodayKey } from '../utils/accraTime'
 import {
@@ -118,13 +120,19 @@ export function overtimeReport({ user, companyId = '', period, filter }) {
     row.entries.push(d)
     byEmp.set(r.employeeId, row)
   })
-  const employees = [...byEmp.values()].map((row) => ({
-    ...row,
-    rates: [...row.rates],
-    hours: Math.round((row.minutes / 60) * 100) / 100,
-    pay: Math.round((row.rateMinutes / 60) * 100) / 100,
-    entries: row.entries.sort((a, b) => a.record.date.localeCompare(b.record.date)),
-  })).sort((a, b) => b.minutes - a.minutes || a.fullName.localeCompare(b.fullName))
+  const vatBy = new Map(ids.map((id) => [id, vatOnOvertimeFor(id)]))
+  const vatFor = (id) => vatBy.get(id) ?? vatOnOvertimeFor(id)
+  const employees = [...byEmp.values()].map((row) => {
+    const pay = Math.round((row.rateMinutes / 60) * 100) / 100
+    return {
+      ...row,
+      rates: [...row.rates],
+      hours: Math.round((row.minutes / 60) * 100) / 100,
+      pay,
+      vat: overtimeVat(pay, vatFor(row.companyId)),
+      entries: row.entries.sort((a, b) => a.record.date.localeCompare(b.record.date)),
+    }
+  }).sort((a, b) => b.minutes - a.minutes || a.fullName.localeCompare(b.fullName))
 
   const byDate = new Map()
   days.forEach((d) => {
@@ -149,10 +157,14 @@ export function overtimeReport({ user, companyId = '', period, filter }) {
       name: companyDisplayName(id),
       currentRate: overtimeRateFor(id, today),
       vatRate: vatRateFor(id),
+      vatMode: vatFor(id).mode,
       employees: list.length,
       minutes,
       hours: Math.round((minutes / 60) * 100) / 100,
       pay: Math.round((rateMinutes / 60) * 100) / 100,
+      vatAmount: round2(list.reduce((s, e) => s + e.vat.amount, 0)),
+      employeeGets: round2(list.reduce((s, e) => s + e.vat.employeeGets, 0)),
+      companyCost: round2(list.reduce((s, e) => s + e.vat.companyCost, 0)),
     }
   })
 
@@ -169,10 +181,21 @@ export function overtimeReport({ user, companyId = '', period, filter }) {
       minutes: totalMinutes,
       hours: Math.round((totalMinutes / 60) * 100) / 100,
       pay: Math.round((totalRateMinutes / 60) * 100) / 100,
+      vatAmount: round2(employees.reduce((s, e) => s + e.vat.amount, 0)),
+      employeeGets: round2(employees.reduce((s, e) => s + e.vat.employeeGets, 0)),
+      companyCost: round2(employees.reduce((s, e) => s + e.vat.companyCost, 0)),
       employees: employees.length,
       days: days.length,
     },
   }
+}
+
+const round2 = (n) => Math.round(n * 100) / 100
+
+/** "5.5% deducted" / "5.5% added (company cost)" / "Not applied". */
+export function vatModeLabel(vat) {
+  if (!vat || vat.mode === 'none') return VAT_OVERTIME_MODES.none.label
+  return `${vat.rate}% ${vat.mode === 'deduct' ? 'deducted' : 'added (company cost)'}`
 }
 
 /** CSV for the employee summary (and one line per overtime day). */
@@ -184,6 +207,6 @@ export function overtimeToCsv(report, { detail = false } = {}) {
     ]))
     return [['Date', 'Type', 'Employee', 'Employee ID', 'Company', 'Clock-out (ISO)', 'Overtime start (ISO)', 'Overtime minutes', 'Rate (GH₵/h)', 'Overtime pay (GH₵)', 'Source'], ...rows].map((r) => r.map(q).join(',')).join('\n')
   }
-  const rows = report.employees.map((e) => [e.fullName, e.employeeId, e.companyName, e.position, e.days, e.minutes, e.hours.toFixed(2), e.rates.join(' / '), e.pay.toFixed(2)])
-  return [['Employee', 'Employee ID', 'Company', 'Position', 'Days with overtime', 'Overtime minutes', 'Overtime hours', 'Rate (GH₵/h)', 'Overtime pay (GH₵)'], ...rows].map((r) => r.map(q).join(',')).join('\n')
+  const rows = report.employees.map((e) => [e.fullName, e.employeeId, e.companyName, e.position, e.days, e.minutes, e.hours.toFixed(2), e.rates.join(' / '), e.pay.toFixed(2), vatModeLabel(e.vat), e.vat.amount.toFixed(2), e.vat.employeeGets.toFixed(2), e.vat.companyCost.toFixed(2)])
+  return [['Employee', 'Employee ID', 'Company', 'Position', 'Days with overtime', 'Overtime minutes', 'Overtime hours', 'Rate (GH₵/h)', 'Overtime pay (GH₵)', 'VAT on overtime', 'VAT amount (GH₵)', 'Employee gets (GH₵)', 'Company cost (GH₵)'], ...rows].map((r) => r.map(q).join(',')).join('\n')
 }

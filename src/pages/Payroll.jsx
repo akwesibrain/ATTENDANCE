@@ -87,6 +87,7 @@ function PayslipModal({ line, period, onClose }) {
             )}
             <div className="py-slip-net"><span>Take-home pay</span><strong>{formatCedis(m.takeHome)}</strong></div>
             <div className="py-slip-employer"><span>Employer SSNIT ({m.employerRate}% of basic) — paid by the company, not deducted</span><strong>{formatCedis(m.employerSsnit)}</strong></div>
+            {m.employerOvertimeVat > 0 && <div className="py-slip-employer"><span>{m.employerOvertimeVatNote}</span><strong>{formatCedis(m.employerOvertimeVat)}</strong></div>}
             <p className="py-slip-foot">Tax method: {m.taxMethod} · {m.rules}</p>
           </article>
         </div>
@@ -178,8 +179,9 @@ function PayrollDrawer({ line, period, user, onClose, onProfile, onPayslip }) {
               </table>
             </div>
             <p className="py-hint">
-              Gross = basic + allowances + bonus + commission + approved overtime + other earnings. Take-home = gross − (PAYE + employee SSNIT + other deductions).
-              {c.taxMethod === 'statutory' ? ` PAYE uses ${c.statutory.label} on chargeable income ${formatCedis(c.chargeable)}.` : ` PAYE and SSNIT entered manually by HR.`}
+              Gross = basic + allowances + bonus + commission + approved overtime + other earnings. Take-home = gross − (Tier 2 + employee SSNIT + VAT + other deductions).
+              {` Tier 2 = ${c.tier2Rate ?? 0}% of basic (set by HR). VAT on salary = ${c.salaryVat?.rate ?? 0}% of basic + allowances.`}
+              {c.taxMethod === 'manual' ? ' SSNIT entered manually by HR.' : ''}
             </p>
           </section>
 
@@ -378,7 +380,7 @@ export default function Payroll({ user, company, companies = [], onNavigate }) {
       <div className="sm-head">
         <div>
           <h2>Payroll</h2>
-          <p>Salaries from each category&apos;s structure (or the employee&apos;s override), approved overtime from Attendance, PAYE and SSNIT — {period.label} period (26th–25th).</p>
+          <p>Salaries from each category&apos;s structure (or the employee&apos;s override), approved overtime from Attendance, Tier 2 and SSNIT — {period.label} period (26th–25th).</p>
         </div>
         <div className="at-head-actions">
           <button type="button" className="btn btn-secondary at-btn" onClick={() => onNavigate?.('payroll-settings')}>Salary structures</button>
@@ -455,6 +457,9 @@ export default function Payroll({ user, company, companies = [], onNavigate }) {
         <div className="sm-stat"><span className="sm-stat-label">Total deductions</span><span className="sm-stat-value">{formatCedis(totals.deductions)}</span></div>
         <div className="sm-stat"><span className="sm-stat-label">Take-home</span><span className="sm-stat-value sm-stat-accent">{formatCedis(totals.takeHome)}</span></div>
         <div className="sm-stat"><span className="sm-stat-label">Employer SSNIT (cost)</span><span className="sm-stat-value">{formatCedis(totals.employerSsnit)}</span></div>
+        {totals.salaryVat > 0 && <div className="sm-stat"><span className="sm-stat-label">VAT on salary</span><span className="sm-stat-value">{formatCedis(totals.salaryVat)}</span></div>}
+        {totals.overtimeVatDeducted > 0 && <div className="sm-stat"><span className="sm-stat-label">VAT on overtime (deducted)</span><span className="sm-stat-value">{formatCedis(totals.overtimeVatDeducted)}</span></div>}
+        {totals.employerOvertimeVat > 0 && <div className="sm-stat"><span className="sm-stat-label">VAT on overtime (company cost)</span><span className="sm-stat-value">{formatCedis(totals.employerOvertimeVat)}</span></div>}
         {totals.pendingOvertime > 0 && <div className="sm-stat"><span className="sm-stat-label">Overtime awaiting approval</span><span className="sm-stat-value sm-stat-warn">{totals.pendingOvertime}</span></div>}
       </div>
 
@@ -472,7 +477,7 @@ export default function Payroll({ user, company, companies = [], onNavigate }) {
                 <tr>
                   <th scope="col">Staff ID</th><th scope="col">Employee</th>{combined && <th scope="col">Company</th>}<th scope="col">Category</th><th scope="col">Salary structure</th>
                   <th scope="col" className="py-num">Basic</th><th scope="col" className="py-num">Allowances</th><th scope="col" className="py-num">OT hours</th><th scope="col" className="py-num">OT earnings</th>
-                  <th scope="col" className="py-num">Gross</th><th scope="col" className="py-num">PAYE</th><th scope="col" className="py-num">Emp. SSNIT</th><th scope="col" className="py-num">Other ded.</th><th scope="col" className="py-num">Total ded.</th>
+                  <th scope="col" className="py-num">Gross</th><th scope="col" className="py-num">Tier 2</th><th scope="col" className="py-num">Emp. SSNIT</th><th scope="col" className="py-num">VAT</th><th scope="col" className="py-num">Other ded.</th><th scope="col" className="py-num">Total ded.</th>
                   <th scope="col" className="py-num">Take-home</th><th scope="col">Status</th>
                 </tr>
               </thead>
@@ -489,8 +494,9 @@ export default function Payroll({ user, company, companies = [], onNavigate }) {
                     <td data-label="OT hours" className="py-num">{l.calc.overtime.hours.toFixed(2)}{l.status === 'draft' && (l.calc.overtime.pending || l.overtimeChanged) && <span className="py-pending" title="Overtime awaiting approval"> •</span>}</td>
                     <td data-label="OT earnings" className="py-num">{formatCedis(l.calc.overtime.pay)}</td>
                     <td data-label="Gross" className="py-num">{formatCedis(l.calc.gross)}</td>
-                    <td data-label="PAYE" className="py-num">{formatCedis(l.calc.paye)}{l.calc.taxMethod === 'manual' && <span className="py-tag" title={TAX_METHODS.manual.label}>M</span>}</td>
-                    <td data-label="Emp. SSNIT" className="py-num">{formatCedis(l.calc.ssnitEmployee)}</td>
+                    <td data-label="Tier 2" className="py-num">{formatCedis(l.calc.paye)}{l.calc.tier2Rate === null && <span className="py-tag" title="Tier 2 percentage not set">!</span>}</td>
+                    <td data-label="Emp. SSNIT" className="py-num">{formatCedis(l.calc.ssnitEmployee)}{l.calc.taxMethod === 'manual' && <span className="py-tag" title={TAX_METHODS.manual.label}>M</span>}</td>
+                    <td data-label="VAT" className="py-num">{formatCedis(l.calc.vatDeducted ?? 0)}</td>
                     <td data-label="Other ded." className="py-num">{formatCedis(l.calc.otherDeductionsTotal)}</td>
                     <td data-label="Total ded." className="py-num">{formatCedis(l.calc.totalDeductions)}</td>
                     <td data-label="Take-home" className="py-num"><strong>{formatCedis(l.adjustedTakeHome)}</strong></td>
@@ -508,6 +514,7 @@ export default function Payroll({ user, company, companies = [], onNavigate }) {
                   <td className="py-num">{formatCedis(totals.gross)}</td>
                   <td className="py-num">{formatCedis(totals.paye)}</td>
                   <td className="py-num">{formatCedis(totals.ssnitEmployee)}</td>
+                  <td className="py-num">{formatCedis(totals.vatDeducted)}</td>
                   <td className="py-num">{formatCedis(totals.otherDeductions)}</td>
                   <td className="py-num">{formatCedis(totals.deductions)}</td>
                   <td className="py-num"><strong>{formatCedis(totals.takeHome)}</strong></td>
@@ -517,7 +524,7 @@ export default function Payroll({ user, company, companies = [], onNavigate }) {
             </table>
           </div>
         )}
-        <p className="at-rules">M = PAYE/SSNIT entered manually by HR. • = overtime recorded but not yet approved (not paid). Employer SSNIT is a company cost and is never deducted from take-home pay.</p>
+        <p className="at-rules">! = Tier 2 percentage not set for the salary structure. M = SSNIT entered manually by HR. VAT = VAT on salary (basic + allowances) + VAT on overtime when deducted. • = overtime recorded but not yet approved (not paid). Employer SSNIT is a company cost and is never deducted from take-home pay.</p>
       </section>
 
       {openLine && !profile && !slip && (

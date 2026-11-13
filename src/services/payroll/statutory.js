@@ -17,7 +17,7 @@ export const GH_STATUTORY_VERSIONS = [
   {
     id: 'gh-2024-01',
     effectiveFrom: '2024-01-01',
-    label: 'GRA monthly PAYE bands (2024) · SSNIT Act 766',
+    label: 'SSNIT rates · Act 766',
     // [band width in GH₵ per month, rate %]. The last band has no upper limit.
     payeBands: [
       [490, 0],

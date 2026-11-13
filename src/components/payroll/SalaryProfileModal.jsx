@@ -127,8 +127,9 @@ export default function SalaryProfileModal({ user, line, period, onClose, onSave
                   <div><dt>Allowances</dt><dd>{formatCedis(preview.allowanceTotal)}</dd></div>
                   <div><dt>Overtime ({preview.overtime.hours} h)</dt><dd>{formatCedis(preview.overtime.pay)}</dd></div>
                   <div className="py-sum-total"><dt>Gross earnings</dt><dd>{formatCedis(preview.gross)}</dd></div>
-                  <div><dt>PAYE</dt><dd>−{formatCedis(preview.paye)}</dd></div>
+                  <div><dt>Tier 2{preview.tier2Rate !== null ? ` (${preview.tier2Rate}%)` : ' (not set)'}</dt><dd>−{formatCedis(preview.paye)}</dd></div>
                   <div><dt>Employee SSNIT</dt><dd>−{formatCedis(preview.ssnitEmployee)}</dd></div>
+                  {preview.vatDeducted > 0 && <div><dt>VAT (salary + overtime)</dt><dd>−{formatCedis(preview.vatDeducted)}</dd></div>}
                   <div><dt>Other deductions</dt><dd>−{formatCedis(preview.otherDeductionsTotal)}</dd></div>
                   <div className="py-sum-net"><dt>Take-home</dt><dd>{formatCedis(preview.takeHome)}</dd></div>
                   <div className="py-sum-was"><dt>Currently</dt><dd>{formatCedis(line.calc.takeHome)}</dd></div>

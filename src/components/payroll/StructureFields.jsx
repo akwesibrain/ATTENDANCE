@@ -104,8 +104,14 @@ export function TaxEditor({ value, onChange, errors = {}, idPrefix, rules }) {
   return (
     <div className="py-grid">
       <div className="py-field">
-        <span className="py-label">Method — one per employee, never both</span>
-        <div className="py-segment" role="radiogroup" aria-label="Tax method">
+        <label className="py-label" htmlFor={`${idPrefix}-tier2`}>Tier 2 (% of basic salary)</label>
+        <input id={`${idPrefix}-tier2`} className="form-input py-line-value" type="number" inputMode="decimal" min="0" max="100" step="0.01" value={tax.tier2Rate ?? ''} onChange={(e) => setTax({ tier2Rate: e.target.value })} aria-invalid={Boolean(errors['tax.tier2Rate'])} aria-describedby={`${idPrefix}-tier2-hint`} />
+        <p className="py-hint" id={`${idPrefix}-tier2-hint`}>Set by HR for this {idPrefix.startsWith('ov') ? 'employee' : 'category'}. The system works out the amount from each employee&apos;s basic salary.</p>
+        {errors['tax.tier2Rate'] && <p className="py-error">{errors['tax.tier2Rate']}</p>}
+      </div>
+      <div className="py-field">
+        <span className="py-label">Employee SSNIT</span>
+        <div className="py-segment" role="radiogroup" aria-label="Employee SSNIT method">
           {Object.entries(TAX_METHODS).map(([k, t]) => (
             <button key={k} type="button" role="radio" aria-checked={tax.method === k} className={tax.method === k ? 'is-on' : ''} onClick={() => setTax({ method: k })}>{t.label}</button>
           ))}
@@ -113,12 +119,12 @@ export function TaxEditor({ value, onChange, errors = {}, idPrefix, rules }) {
       </div>
       {tax.method === 'statutory' ? (
         <p className="py-hint">
-          PAYE from the Ghana monthly tax bands on (gross − employee SSNIT); employee SSNIT {rules?.ssnitEmployeeRate ?? 5.5}% of basic.
+          Employee SSNIT {rules?.ssnitEmployeeRate ?? 5.5}% of basic.
           Employer SSNIT {rules?.ssnitEmployerRate ?? 13}% is calculated separately and never deducted from pay.
         </p>
       ) : (
         <>
-          {[['paye', 'PAYE', 'gross'], ['ssnit', 'Employee SSNIT', 'basic']].map(([k, label, of]) => (
+          {[['ssnit', 'Employee SSNIT', 'basic']].map(([k, label, of]) => (
             <div className="py-field" key={k}>
               <label className="py-label" htmlFor={`${idPrefix}-${k}`}>{label}</label>
               <div className="py-inline">
@@ -128,7 +134,7 @@ export function TaxEditor({ value, onChange, errors = {}, idPrefix, rules }) {
               {errors[`tax.${k}`] && <p className="py-error">{errors[`tax.${k}`]}</p>}
             </div>
           ))}
-          <p className="py-hint">Manual figures replace the automatic PAYE and employee SSNIT for this {idPrefix.startsWith('ov') ? 'employee' : 'category'}. Employer SSNIT is still shown separately.</p>
+          <p className="py-hint">This figure replaces the automatic employee SSNIT for this {idPrefix.startsWith('ov') ? 'employee' : 'category'}. Employer SSNIT is still shown separately.</p>
         </>
       )}
     </div>
@@ -151,7 +157,7 @@ export function groupSummary(key, s, companyRate) {
     return on.length ? on.map((a) => `${a.name} ${a.kind === 'percent' ? `${a.value}%` : formatCedis(a.value)}`).join(' · ') : 'None'
   }
   if (key === 'overtime') return s.overtimeEligible === false ? 'Not eligible' : s.overtimeRate === null ? `Company rate${companyRate ? ` (${formatCedis(companyRate)}/h)` : ''}` : `${formatCedis(s.overtimeRate)}/h`
-  if (key === 'tax') return s.tax.method === 'statutory' ? TAX_METHODS.statutory.label : `Manual — PAYE ${s.tax.paye.kind === 'percent' ? `${s.tax.paye.value}%` : formatCedis(s.tax.paye.value)}, SSNIT ${s.tax.ssnit.kind === 'percent' ? `${s.tax.ssnit.value}%` : formatCedis(s.tax.ssnit.value)}`
+  if (key === 'tax') return `Tier 2 ${s.tax.tier2Rate === null ? 'not set' : `${s.tax.tier2Rate}% of basic`} · ${s.tax.method === 'statutory' ? TAX_METHODS.statutory.label : `SSNIT ${s.tax.ssnit.kind === 'percent' ? `${s.tax.ssnit.value}%` : formatCedis(s.tax.ssnit.value)} (HR)`}`
   if (key === 'deductions') return s.deductions.length ? s.deductions.map((d) => `${d.name} ${d.kind === 'percent' ? `${d.value}%` : formatCedis(d.value)}`).join(' · ') : 'None'
   return ''
 }

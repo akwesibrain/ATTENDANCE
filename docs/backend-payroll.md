@@ -74,6 +74,41 @@ POST /hr/payroll/:companyId/:periodKey/adjustments   { staffId, type, amount, re
 
 When these exist, `src/services/payrollService.js` swaps its `current()`/`commit()` storage for `rows()`/`submit()`. The screens don't need to change.
 
+## Tier 2 and VAT on salary (company decision, 12 November 2026)
+
+- **Tier 2 replaces the PAYE line.** HR sets a percentage for each salary category, stored as `structure.tax.tier2Rate` (0 to 100, required; an employee override can set its own). Amount = `round2(basic pay × tier2Rate / 100)`. The GRA PAYE bands are no longer used, and `chargeable` is always `null`. The amount is still stored in the `paye` field of a payroll line, so older runs stay readable.
+- **Employee SSNIT is unchanged**: 5.5% of basic, or HR's manual figure (`tax.method = 'manual'`, with `tax.ssnit`).
+- **VAT on salary** is always deducted. Amount = `round2((basic pay + allowances) × company vat_rate / 100)`. It is returned as `salaryVat: { rate, base, amount }`.
+- **Total VAT deducted** = VAT on salary + VAT on overtime (when the overtime mode is `deduct`). It is returned as `vatDeducted` and included in `totalDeductions`; it is not part of `otherDeductionsTotal`.
+- Example: basic GH₵1,500, Tier 2 at 5%, 10 hours of overtime at GH₵10/hour:
+  - Tier 2: GH₵75
+  - SSNIT: GH₵82.50
+  - VAT on salary: GH₵82.50
+  - VAT on overtime: GH₵5.50
+  - Take-home: GH₵1,600 − GH₵245.50 = **GH₵1,354.50**
+
+## VAT on overtime (added 12 November 2026)
+
+The company decided that VAT applies to overtime. HR chooses how it applies, per company, in **Settings → Overtime Pay & VAT → VAT on overtime**:
+
+| Mode | Effect (example: GH₵100 overtime, VAT 5.5%) |
+|---|---|
+| `none` | Not applied. The employee gets GH₵100. |
+| `deduct` | **The default** (company decision, 12 November 2026). Deducted from the employee. The employee gets GH₵94.50, and GH₵5.50 appears as the deduction "VAT on overtime" on the payslip. Tier 2 does not change, because it is a percentage of basic. |
+| `add` | Added on top as a company cost. The employee gets GH₵100; the company's cost is GH₵105.50. It appears like employer SSNIT: shown, not deducted. |
+
+The amount is `round2(approved overtime pay × vat_rate / 100)`. Only approved overtime counts. The rule is `overtimeVat()` in `src/services/payroll/payrollRules.js`, which `calculatePay()` uses.
+
+**Frontend-only for now.** The mode is stored in the browser's `localStorage` (key `workforce:vat-overtime:v1`, newest first: `{ mode, previous, savedBy, savedAt }`). The VAT *rate* is already on the server. The backend needs to:
+
+1. Add `vat_overtime_mode text not null default 'deduct' check (vat_overtime_mode in ('none','deduct','add'))` to `settings_company`, together with who changed it and when.
+2. Accept `{ rate?, overtimeMode? }` on `PUT /hr/settings/vat/:companyId`, validate it, write an audit row and return it in the settings facts. Also change the audit wording "VAT … is not deducted from overtime pay" in `hr.ts`, which is no longer true.
+3. Store `overtimeVat` (mode, rate, amount) in each frozen payroll run line. A mode change affects draft payroll only. Approved runs never change.
+
+When the server supports it, `src/services/vatOvertimeService.js` swaps `localStorage` for `settings_company`. The screens don't need to change.
+
+**Please confirm with the accountant:** VAT in Ghana normally applies to sales, not wages. Check whether this deduction or cost should really be VAT, or a different levy, and whether a `deduct` amount should reduce the PAYE base. At present it doesn't.
+
 ## Statutory compliance: please confirm before live payroll
 
 - **PAYE bands and SSNIT rates.** The bands in `statutory.js` are the GRA monthly resident bands from January 2024. The SSNIT rates are 5.5% from the employee and 13% from the employer, both on basic salary. Please check them with the company's accountant or GRA. Add new versions by effective date; never edit old ones.

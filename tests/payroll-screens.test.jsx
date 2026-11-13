@@ -16,7 +16,7 @@ vi.mock('../src/services/overtimeService', () => ({
   formatOvertime: (m) => `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`,
   overtimeReport: ({ companyId }) => ({ employees: companyId === 'box-for-less' ? [{ employeeId: 'BFL-001', minutes: 300, pay: 250 }] : [] }),
 }))
-vi.mock('../src/services/settingsService', () => ({ companyDisplayName: (id) => ({ 'box-for-less': 'Box For Less', 'double-a': 'Double A' })[id], overtimeRateFor: () => 50 }))
+vi.mock('../src/services/settingsService', () => ({ companyDisplayName: (id) => ({ 'box-for-less': 'Box For Less', 'double-a': 'Double A' })[id], overtimeRateFor: () => 50, vatRateFor: () => 5.5 }))
 vi.mock('../src/services/permissionsService', () => ({
   can: () => true,
   canAccessCompany: () => true,
@@ -37,7 +37,7 @@ describe('payroll screens (SSR smoke)', async () => {
     const preview = svc.previewStructureChange({ companyId: 'box-for-less', categoryId: 'warehouse', appliesTo: 'all', effectiveFrom: '2026-01-01' })
     expect(preview.first).toBe(true)
     expect(preview.affected).toBe(1) // Ama; Kofi joined after the date
-    const r = svc.saveCategoryStructure({ user, companyId: 'box-for-less', categoryId: 'warehouse', structure: { payType: 'monthly', basic: 1500, allowances: [], overtimeEligible: true, overtimeRate: 60, tax: { method: 'statutory', paye: { kind: 'amount', value: 0 }, ssnit: { kind: 'amount', value: 0 } }, deductions: [] }, appliesTo: 'all', effectiveFrom: '2026-01-01' })
+    const r = svc.saveCategoryStructure({ user, companyId: 'box-for-less', categoryId: 'warehouse', structure: { payType: 'monthly', basic: 1500, allowances: [], overtimeEligible: true, overtimeRate: 60, tax: { method: 'statutory', tier2Rate: 5, paye: { kind: 'amount', value: 0 }, ssnit: { kind: 'amount', value: 0 } }, deductions: [] }, appliesTo: 'all', effectiveFrom: '2026-01-01' })
     expect(r.ok).toBe(true)
 
     const p = svc.buildPayroll({ user, companyId: 'box-for-less', period })

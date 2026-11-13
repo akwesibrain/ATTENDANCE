@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { accraTodayKey, formatAccraDate } from '../../utils/accraTime'
 import { formatCedis } from '../../services/overtimeService'
-import { overtimeRateFor } from '../../services/settingsService'
+import { overtimeRateFor, vatRateFor } from '../../services/settingsService'
 import {
   PAY_TYPES,
   canEditPayroll,
@@ -12,7 +12,7 @@ import {
   saveCategoryStructure,
 } from '../../services/payrollService'
 import { emptyStructure, normaliseStructure, validateStructure } from '../../services/payroll/payrollRules'
-import { GH_STATUTORY_VERSIONS, describeBands, statutoryRulesFor } from '../../services/payroll/statutory'
+import { GH_STATUTORY_VERSIONS, statutoryRulesFor } from '../../services/payroll/statutory'
 import { AllowancesEditor, DeductionsEditor, OvertimeEditor, PayEditor, TaxEditor } from './StructureFields'
 import '../../styles/payroll.css'
 
@@ -86,11 +86,11 @@ function Group({ title, hint, children }) {
   )
 }
 
-function PreviewCard({ structure, companyRate }) {
+function PreviewCard({ structure, companyRate, companyId }) {
   const [otHours, setOtHours] = useState('5')
   const errors = validateStructure(structure)
   const valid = !Object.keys(errors).length
-  const calc = valid ? previewStructure(normaliseStructure(structure), { overtimeHours: otHours, companyRate }) : null
+  const calc = valid ? previewStructure(normaliseStructure(structure), { overtimeHours: otHours, companyRate, companyId }) : null
   return (
     <aside className="py-preview" aria-live="polite">
       <h4>Live take-home preview</h4>
@@ -105,11 +105,14 @@ function PreviewCard({ structure, companyRate }) {
           <div><dt>Allowances</dt><dd>{formatCedis(calc.allowanceTotal)}</dd></div>
           <div><dt>Overtime{calc.overtime.eligible ? ` (${calc.overtime.hours} h)` : ''}</dt><dd>{calc.overtime.eligible ? formatCedis(calc.overtime.pay) : 'Not eligible'}</dd></div>
           <div className="py-sum-total"><dt>Gross earnings</dt><dd>{formatCedis(calc.gross)}</dd></div>
-          <div><dt>PAYE</dt><dd>−{formatCedis(calc.paye)}</dd></div>
+          <div><dt>Tier 2{calc.tier2Rate !== null ? ` (${calc.tier2Rate}% of basic)` : ' (not set)'}</dt><dd>−{formatCedis(calc.paye)}</dd></div>
           <div><dt>Employee SSNIT</dt><dd>−{formatCedis(calc.ssnitEmployee)}</dd></div>
+          {calc.salaryVat.amount > 0 && <div><dt>VAT on salary ({calc.salaryVat.rate}% of basic + allowances)</dt><dd>−{formatCedis(calc.salaryVat.amount)}</dd></div>}
+          {calc.overtimeVatDeduction > 0 && <div><dt>VAT on overtime ({calc.overtime.vat.rate}%)</dt><dd>−{formatCedis(calc.overtimeVatDeduction)}</dd></div>}
           {calc.otherDeductionsTotal > 0 && <div><dt>Other deductions</dt><dd>−{formatCedis(calc.otherDeductionsTotal)}</dd></div>}
           <div className="py-sum-net"><dt>Take-home</dt><dd>{formatCedis(calc.takeHome)}</dd></div>
           <div className="py-sum-employer"><dt>Employer SSNIT (company cost)</dt><dd>{formatCedis(calc.employerSsnit)}</dd></div>
+          {calc.employerOvertimeVat > 0 && <div className="py-sum-employer"><dt>VAT on overtime ({calc.overtime.vat.rate}%, company cost)</dt><dd>{formatCedis(calc.employerOvertimeVat)}</dd></div>}
         </dl>
       )}
     </aside>
@@ -207,7 +210,7 @@ export default function SalaryStructures({ user, company }) {
               <Group title="Basic salary"><PayEditor value={draft} onChange={patch} errors={errors} idPrefix="cat" /></Group>
               <Group title="Allowances" hint="Exact GH₵ amounts, or a % of basic"><AllowancesEditor value={draft} onChange={patch} errors={errors} idPrefix="cat" /></Group>
               <Group title="Overtime" hint="Only HR-approved overtime is paid"><OvertimeEditor value={draft} onChange={patch} errors={errors} idPrefix="cat" companyRate={companyRate} /></Group>
-              <Group title="PAYE and employee SSNIT"><TaxEditor value={draft} onChange={patch} errors={errors} idPrefix="cat" rules={rules} /></Group>
+              <Group title="Tier 2 and employee SSNIT"><TaxEditor value={draft} onChange={patch} errors={errors} idPrefix="cat" rules={rules} /></Group>
               <Group title="Other deductions"><DeductionsEditor value={draft} onChange={patch} errors={errors} idPrefix="cat" /></Group>
               <div className="py-actions">
                 {Object.keys(errors).length > 0 && <p className="py-error" role="alert">Check the highlighted fields.</p>}
@@ -215,7 +218,7 @@ export default function SalaryStructures({ user, company }) {
                 <button type="button" className="btn btn-primary" onClick={trySave} disabled={!editable} title={editable ? undefined : 'You can view but not change payroll'}>Save salary structure</button>
               </div>
             </div>
-            <PreviewCard structure={draft} companyRate={companyRate} />
+            <PreviewCard structure={draft} companyRate={companyRate} companyId={companyId} />
           </div>
 
           {open.versions.length > 0 && (
@@ -243,23 +246,15 @@ export default function SalaryStructures({ user, company }) {
       )}
 
       <section className="sm-panel">
-        <div className="sm-panel-head"><h3>Statutory rules in use</h3><span className="sm-muted">{rules.label} · effective {formatAccraDate(rules.effectiveFrom)}</span></div>
+        <div className="sm-panel-head"><h3>Deductions in use</h3><span className="sm-muted">{rules.label} · effective {formatAccraDate(rules.effectiveFrom)}</span></div>
         <div className="py-rules">
-          <div className="sm-table-wrap">
-            <table className="sm-table py-bands">
-              <thead><tr><th scope="col">Monthly chargeable income</th><th scope="col">PAYE rate</th></tr></thead>
-              <tbody>
-                {describeBands(rules.payeBands).map((b) => (
-                  <tr key={b.from}><td>{b.first ? `First ${formatCedis(b.width)}` : b.to === null ? `Above ${formatCedis(b.from)}` : `Next ${formatCedis(b.width)}`}</td><td>{b.rate}%</td></tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
           <ul className="py-rule-list">
+            <li><strong>Tier 2</strong> the percentage HR sets in each category&apos;s salary structure, of basic salary — deducted.</li>
+            <li><strong>VAT on salary</strong> {vatRateFor(companyId)}% (Settings → Overtime Pay &amp; VAT) of basic + allowances — deducted.</li>
+            <li><strong>VAT on overtime</strong> {vatRateFor(companyId)}% of approved overtime pay — deducted, unless Settings says otherwise.</li>
             <li><strong>Employee SSNIT</strong> {rules.ssnitEmployeeRate}% of basic salary — deducted.</li>
             <li><strong>Employer SSNIT</strong> {rules.ssnitEmployerRate}% of basic salary — company cost, shown separately, never deducted.</li>
-            <li><strong>Chargeable income</strong> = gross earnings − employee SSNIT.</li>
-            <li className="py-warn">Check these figures against current GRA and SSNIT guidance before running live payroll. {GH_STATUTORY_VERSIONS.length} rule version{GH_STATUTORY_VERSIONS.length === 1 ? '' : 's'} configured.</li>
+            <li className="py-warn">Check these figures with the company&apos;s accountant before running live payroll. {GH_STATUTORY_VERSIONS.length} SSNIT rule version{GH_STATUTORY_VERSIONS.length === 1 ? '' : 's'} configured.</li>
           </ul>
         </div>
       </section>

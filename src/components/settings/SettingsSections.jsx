@@ -34,6 +34,7 @@ import {
   vatRateFor,
 } from '../../services/settingsService'
 import { formatCedis, formatOvertime, overtimePay } from '../../services/overtimeService'
+import { overtimeVat, saveVatOnOvertime, VAT_OVERTIME_MODES, vatOnOvertimeFor, vatOnOvertimeHistory } from '../../services/vatOvertimeService'
 import { recordExport } from '../../services/auditStore'
 import { attendanceRecordsToCsv, listAttendanceRecords, listAttendanceRoster, recordOrigin } from '../../services/attendanceRecordsService'
 import { listAllShops } from '../../services/shopsService'
@@ -379,7 +380,7 @@ function HoursForm({ companyId, user }) {
 
 function PayForm({ companyId, user }) {
   const today = accraTodayKey()
-  const initial = { overtimeRate: overtimeRateFor(companyId, today), effectiveFrom: today, vatRate: vatRateFor(companyId) }
+  const initial = { overtimeRate: overtimeRateFor(companyId, today), effectiveFrom: today, vatRate: vatRateFor(companyId), vatOvertimeMode: vatOnOvertimeFor(companyId).mode }
   const s = useSection(initial)
   const readOnly = !canEditCompanySettings(user, companyId)
   const f = s.form
@@ -399,11 +400,16 @@ function PayForm({ companyId, user }) {
       if (r.errors) Object.assign(errors, r.errors)
       else message.push(`VAT ${Number(f.vatRate)}%`)
     }
+    if (f.vatOvertimeMode !== initial.vatOvertimeMode) {
+      const r = saveVatOnOvertime({ user, companyId, mode: f.vatOvertimeMode })
+      if (r.errors) Object.assign(errors, r.errors)
+      else message.push(`VAT on overtime: ${VAT_OVERTIME_MODES[f.vatOvertimeMode].label}`)
+    }
     if (Object.keys(errors).length) return s.fail(errors)
-    s.done(message.length ? `Saved: ${message.join(' · ')}.` : 'Nothing has changed.', { overtimeRate: overtimeRateFor(companyId, today), effectiveFrom: today, vatRate: vatRateFor(companyId) })
+    s.done(message.length ? `Saved: ${message.join(' · ')}.` : 'Nothing has changed.', { overtimeRate: overtimeRateFor(companyId, today), effectiveFrom: today, vatRate: vatRateFor(companyId), vatOvertimeMode: vatOnOvertimeFor(companyId).mode })
   }
   return (
-    <SectionCard title={`Overtime Pay & VAT — ${name}`} description="Hourly overtime rate in Ghana cedis and the company VAT percentage." readOnly={readOnly} readOnlyReason={readOnly ? 'Editing needs Settings → Edit for this company.' : null} dirty={s.dirty} flash={s.flash} error={s.errors.form} onSave={() => s.setConfirming(true)} onCancel={s.reset}>
+    <SectionCard title={`Overtime Pay & VAT — ${name}`} description="Hourly overtime rate in Ghana cedis, and the company VAT percentage for salaries and overtime." readOnly={readOnly} readOnlyReason={readOnly ? 'Editing needs Settings → Edit for this company.' : null} dirty={s.dirty} flash={s.flash} error={s.errors.form} onSave={() => s.setConfirming(true)} onCancel={s.reset}>
       <div className="st-grid">
         <Field id="p-rate" label="Overtime rate (GH₵ per hour)" hint="Overtime pay = (overtime minutes ÷ 60) × this rate." error={s.errors.overtimeRate}>
           <input id="p-rate" type="number" min={0} step="0.01" className="sh-form-input" value={f.overtimeRate} disabled={readOnly} onChange={(e) => s.set('overtimeRate', e.target.value)} />
@@ -417,18 +423,53 @@ function PayForm({ companyId, user }) {
             {examples.map((m) => <li key={m}>{formatOvertime(m)} overtime → <strong>{formatCedis(overtimePay(m, rate))}</strong></li>)}
           </ul>
         </div>
-        <Field id="p-vat" label="VAT rate (%)" hint="A separate tax setting shown where relevant. It is not deducted from overtime pay." error={s.errors.vatRate}>
+        <Field id="p-vat" label="VAT rate (%)" hint="The company VAT percentage. It is deducted from salaries (basic + allowances), and applies to overtime as chosen below." error={s.errors.vatRate}>
           <input id="p-vat" type="number" min={0} max={100} step="0.01" className="sh-form-input" value={f.vatRate} disabled={readOnly} onChange={(e) => s.set('vatRate', e.target.value)} />
         </Field>
-        <Locked label="VAT on overtime" value="Not applied" hint="Until an approved payroll requirement defines how VAT applies." />
+        <Locked label="VAT on salary" value={`Deducted — ${Number(f.vatRate) || 0}% of basic + allowances`} hint="Taken off every employee's pay and shown on the payslip as 'VAT on salary'." />
+        <Field id="p-vat-ot" label="VAT on overtime" hint={VAT_OVERTIME_MODES[f.vatOvertimeMode]?.hint} error={s.errors.vatOvertimeMode}>
+          <select id="p-vat-ot" className="sh-form-select" value={f.vatOvertimeMode} disabled={readOnly} onChange={(e) => s.set('vatOvertimeMode', e.target.value)}>
+            {Object.entries(VAT_OVERTIME_MODES).map(([k, m]) => <option key={k} value={k}>{m.label}</option>)}
+          </select>
+        </Field>
+        {f.vatOvertimeMode !== 'none' && (
+          <div className="st-field is-full">
+            <span className="sh-form-label">Worked examples with {Number(f.vatRate) || 0}% VAT</span>
+            <ul className="st-examples">
+              {examples.map((m) => {
+                const v = overtimeVat(overtimePay(m, rate), { mode: f.vatOvertimeMode, rate: Number(f.vatRate) || 0 })
+                return (
+                  <li key={m}>
+                    {formatOvertime(m)} overtime → {formatCedis(overtimePay(m, rate))}, VAT {formatCedis(v.amount)} → <strong>{f.vatOvertimeMode === 'deduct' ? `employee gets ${formatCedis(v.employeeGets)}` : `company pays ${formatCedis(v.companyCost)}`}</strong>
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+        )}
       </div>
+      {vatOnOvertimeHistory(companyId).length > 0 && (
+        <div className="st-versions">
+          <span className="sm-detail-label">VAT on overtime history</span>
+          <ul>
+            {vatOnOvertimeHistory(companyId).map((h) => (
+              <li key={h.savedAt}>
+                <strong>{VAT_OVERTIME_MODES[h.mode]?.label ?? h.mode}</strong>
+                <span>was {VAT_OVERTIME_MODES[h.previous]?.label ?? 'Not applied'}</span>
+                <span className="st-hint">{h.savedBy} · {formatAccraDateTime(h.savedAt)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <VersionTable versions={overtimeRateVersions(companyId)} render={(v) => `${formatCedis(v.overtimeRate)} per hour`} />
       {s.confirming && (
         <ConfirmChange
           title={`Change ${name}'s overtime pay settings?`}
           lines={[
             ...(Number(f.overtimeRate) !== initial.overtimeRate ? [`Overtime rate: ${formatCedis(initial.overtimeRate)} → ${formatCedis(Number(f.overtimeRate))} per hour, from ${formatAccraDate(f.effectiveFrom)}`] : []),
-            ...(Number(f.vatRate) !== initial.vatRate ? [`VAT: ${initial.vatRate}% → ${Number(f.vatRate)}% (not deducted from overtime)`] : []),
+            ...(Number(f.vatRate) !== initial.vatRate ? [`VAT: ${initial.vatRate}% → ${Number(f.vatRate)}%`] : []),
+            ...(f.vatOvertimeMode !== initial.vatOvertimeMode ? [`VAT on overtime: ${VAT_OVERTIME_MODES[initial.vatOvertimeMode].label} → ${VAT_OVERTIME_MODES[f.vatOvertimeMode].label}. Changes draft payroll and the Overtime page; approved payroll runs stay as they are.`] : []),
             'Recorded in the audit log.',
           ]}
           onConfirm={save}

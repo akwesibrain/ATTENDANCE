@@ -11,8 +11,10 @@
  *                      Never changes the category template.
  *   Gross earnings     basic + allowances + bonus + commission
  *                      + APPROVED overtime + other earnings
- *   Deductions         PAYE + employee SSNIT + structure deductions
- *                      + loans + advances + other period deductions
+ *   Deductions         Tier 2 (HR % of basic, per category) + employee SSNIT
+ *                      + VAT on salary (company VAT % of basic + allowances)
+ *                      + VAT on overtime (when the company deducts it)
+ *                      + structure deductions + loans + advances + other
  *   Take-home          gross − deductions
  *   Employer SSNIT     shown separately; never deducted from the employee.
  *   Approved runs      frozen snapshots. Changes after approval are
@@ -20,7 +22,7 @@
  * ============================================================================
  */
 
-import { payeFromBands, round2, statutoryRulesFor } from './statutory.js'
+import { round2, statutoryRulesFor } from './statutory.js'
 
 export { round2 }
 
@@ -40,9 +42,10 @@ export const STANDARD_ALLOWANCES = [
   ['other', 'Other allowances'],
 ]
 
+/** How employee SSNIT is worked out. Tier 2 is always HR's percentage of basic. */
 export const TAX_METHODS = {
-  statutory: { label: 'Automatic statutory calculation', short: 'Statutory (auto)' },
-  manual: { label: 'HR manual configuration', short: 'Manual (HR)' },
+  statutory: { label: 'Automatic SSNIT', short: 'SSNIT auto' },
+  manual: { label: 'HR manual SSNIT', short: 'SSNIT manual (HR)' },
 }
 
 /** Field groups an employee can override; each shows its own source label. */
@@ -50,7 +53,7 @@ export const OVERRIDE_GROUPS = [
   { key: 'pay', label: 'Basic salary', fields: ['payType', 'basic'] },
   { key: 'allowances', label: 'Allowances', fields: ['allowances'] },
   { key: 'overtime', label: 'Overtime', fields: ['overtimeEligible', 'overtimeRate'] },
-  { key: 'tax', label: 'Tax configuration', fields: ['tax'] },
+  { key: 'tax', label: 'Tier 2 and SSNIT', fields: ['tax'] },
   { key: 'deductions', label: 'Other deductions', fields: ['deductions'] },
 ]
 
@@ -73,7 +76,8 @@ export function emptyStructure() {
     allowances: STANDARD_ALLOWANCES.map(([id, name]) => ({ id, name, kind: 'amount', value: 0, standard: true })),
     overtimeEligible: true,
     overtimeRate: null, // null = the company rate in Settings → Working Hours (per day)
-    tax: { method: 'statutory', paye: { kind: 'amount', value: 0 }, ssnit: { kind: 'amount', value: 0 } },
+    // tier2Rate: % of basic salary set by HR for the category (null = not set yet).
+    tax: { method: 'statutory', tier2Rate: null, paye: { kind: 'amount', value: 0 }, ssnit: { kind: 'amount', value: 0 } },
     deductions: [],
   }
 }
@@ -103,6 +107,7 @@ export function normaliseStructure(s = {}) {
     overtimeRate: s.overtimeRate === null || s.overtimeRate === '' || s.overtimeRate === undefined ? null : round2(num(s.overtimeRate)),
     tax: {
       method: tax.method === 'manual' ? 'manual' : 'statutory',
+      tier2Rate: tax.tier2Rate === null || tax.tier2Rate === '' || tax.tier2Rate === undefined ? null : round2(num(tax.tier2Rate)),
       paye: { kind: tax.paye?.kind === 'percent' ? 'percent' : 'amount', value: round2(num(tax.paye?.value)) },
       ssnit: { kind: tax.ssnit?.kind === 'percent' ? 'percent' : 'amount', value: round2(num(tax.ssnit?.value)) },
     },
@@ -127,8 +132,12 @@ export function validateStructure(s, { partial = false } = {}) {
   if (has('overtimeRate') && s.overtimeRate !== null && s.overtimeRate !== '' && (bad(s.overtimeRate) || Number(s.overtimeRate) <= 0)) {
     e.overtimeRate = 'Enter an hourly rate above 0, or use the company rate.'
   }
+  if (has('tax')) {
+    const t = s.tax?.tier2Rate
+    if (bad(t) || Number(t) < 0 || Number(t) > 100) e['tax.tier2Rate'] = 'Enter the Tier 2 percentage of basic salary (0 to 100).'
+  }
   if (has('tax') && s.tax?.method === 'manual') {
-    ;['paye', 'ssnit'].forEach((k) => {
+    ;['ssnit'].forEach((k) => {
       const item = s.tax[k] ?? {}
       if (bad(item.value) || Number(item.value) < 0) e[`tax.${k}`] = 'Enter 0 or more.'
       else if (item.kind === 'percent' && Number(item.value) > 100) e[`tax.${k}`] = 'A percentage cannot be over 100.'
@@ -172,6 +181,36 @@ export function resolveProfile({ template = null, override = null }) {
   return { structure: normaliseStructure(structure), sources, template, override }
 }
 
+/**
+ * How the company VAT rate (Settings → Overtime Pay & VAT) applies to overtime.
+ * Chosen per company by HR.
+ */
+export const VAT_OVERTIME_MODES = Object.freeze({
+  none: { label: 'Not applied', hint: 'Overtime is paid in full. VAT does not change it.' },
+  deduct: { label: 'Deducted from overtime pay', hint: 'The VAT amount is taken off the employee’s overtime pay and shown as a deduction on the payslip.' },
+  add: { label: 'Added on top (company cost)', hint: 'The employee gets the full overtime pay. The company pays the VAT amount on top.' },
+})
+
+/**
+ * VAT on an overtime amount.
+ * @param {number} pay gross overtime pay
+ * @param {{ mode?: 'none'|'deduct'|'add', rate?: number }} [vat]
+ * @returns {{ mode: string, rate: number, amount: number, employeeGets: number, companyCost: number }}
+ */
+export function overtimeVat(pay, vat = {}) {
+  const mode = VAT_OVERTIME_MODES[vat?.mode] ? vat.mode : 'none'
+  const rate = Math.max(0, num(vat?.rate))
+  const gross = round2(num(pay))
+  const amount = mode === 'none' ? 0 : round2((gross * rate) / 100)
+  return {
+    mode,
+    rate,
+    amount,
+    employeeGets: round2(mode === 'deduct' ? gross - amount : gross),
+    companyCost: round2(mode === 'add' ? gross + amount : gross),
+  }
+}
+
 const lineAmount = (line, base) => round2(line.kind === 'percent' ? (base * line.value) / 100 : line.value)
 
 /**
@@ -179,12 +218,13 @@ const lineAmount = (line, base) => round2(line.kind === 'percent' ? (base * line
  * @param {object} p
  * @param {object} p.structure       resolved structure (normalised)
  * @param {{ daysWorked: number, workedMinutes: number }} p.attendance
- * @param {{ recordedMinutes: number, approvedMinutes: number|null, companyRatePay: number }} p.overtime
- *        approvedMinutes null = not approved yet (counts as 0)
+ * @param {{ recordedMinutes: number, approvedMinutes: number|null, companyRatePay: number, vat?: { mode: string, rate: number } }} p.overtime
+ *        approvedMinutes null = not approved yet (counts as 0); vat = how the company VAT rate applies to overtime
  * @param {object} p.inputs          period earnings/deductions entered by HR
  * @param {string} p.dateKey         rules date (period end)
+ * @param {{ rate: number }} [p.salaryVat] company VAT % deducted from basic + allowances
  */
-export function calculatePay({ structure, attendance = {}, overtime = {}, inputs = {}, dateKey }) {
+export function calculatePay({ structure, attendance = {}, overtime = {}, inputs = {}, dateKey, salaryVat = null }) {
   const s = normaliseStructure(structure)
   const rules = statutoryRulesFor(dateKey)
   const days = num(attendance.daysWorked)
@@ -216,25 +256,32 @@ export function calculatePay({ structure, attendance = {}, overtime = {}, inputs
     rate: usesCompanyRate ? (otMinutes ? round2(otPay / (otMinutes / 60)) : null) : s.overtimeRate,
     rateSource: usesCompanyRate ? 'company' : 'structure',
     pay: otPay,
+    vat: overtimeVat(otPay, overtime.vat),
   }
+  // "deduct": taken off take-home after tax (PAYE is still worked out on the full overtime pay).
+  // "add": a company cost, like employer SSNIT; the employee is not affected.
+  const overtimeVatDeduction = overtimeOut.vat.mode === 'deduct' ? overtimeOut.vat.amount : 0
+  const employerOvertimeVat = overtimeOut.vat.mode === 'add' ? overtimeOut.vat.amount : 0
 
   const bonus = round2(num(inputs.bonus))
   const commission = round2(num(inputs.commission))
   const otherEarnings = round2(num(inputs.otherEarnings))
   const gross = round2(basicPay + allowanceTotal + bonus + commission + otPay + otherEarnings)
 
-  // Statutory or manual — never both for the same item.
-  let ssnitEmployee
-  let paye
-  let chargeable = null
-  if (s.tax.method === 'manual') {
-    ssnitEmployee = lineAmount(s.tax.ssnit, basicPay)
-    paye = lineAmount(s.tax.paye, gross)
-  } else {
-    ssnitEmployee = round2((basicPay * rules.ssnitEmployeeRate) / 100)
-    chargeable = round2(Math.max(0, gross - ssnitEmployee))
-    paye = payeFromBands(chargeable, rules.payeBands)
-  }
+  // Tier 2: HR's percentage of basic salary for the category. (Field name `paye` kept for stored runs.)
+  const tier2Rate = s.tax.tier2Rate
+  const paye = tier2Rate === null ? 0 : round2((basicPay * tier2Rate) / 100)
+  const chargeable = null
+  // Employee SSNIT: statutory or HR manual — never both.
+  const ssnitEmployee = s.tax.method === 'manual'
+    ? lineAmount(s.tax.ssnit, basicPay)
+    : round2((basicPay * rules.ssnitEmployeeRate) / 100)
+
+  // VAT on salary: company VAT % of basic + allowances, deducted from the employee.
+  const salaryVatRate = Math.max(0, num(salaryVat?.rate))
+  const salaryVatBase = round2(basicPay + allowanceTotal)
+  const salaryVatAmount = round2((salaryVatBase * salaryVatRate) / 100)
+  const vatDeducted = round2(salaryVatAmount + overtimeVatDeduction)
   const employerSsnit = round2((basicPay * rules.ssnitEmployerRate) / 100)
 
   const deductions = s.deductions
@@ -245,7 +292,7 @@ export function calculatePay({ structure, attendance = {}, overtime = {}, inputs
   const advance = round2(num(inputs.advance))
   const otherDeduction = round2(num(inputs.otherDeduction))
   const otherDeductionsTotal = round2(structureDeductions + loan + advance + otherDeduction)
-  const totalDeductions = round2(paye + ssnitEmployee + otherDeductionsTotal)
+  const totalDeductions = round2(paye + ssnitEmployee + vatDeducted + otherDeductionsTotal)
   const takeHome = round2(gross - totalDeductions)
 
   return {
@@ -266,16 +313,24 @@ export function calculatePay({ structure, attendance = {}, overtime = {}, inputs
     statutory: { id: rules.id, label: rules.label, ssnitEmployeeRate: rules.ssnitEmployeeRate, ssnitEmployerRate: rules.ssnitEmployerRate },
     chargeable,
     paye,
+    tier2Rate,
+    salaryVat: { rate: salaryVatRate, base: salaryVatBase, amount: salaryVatAmount },
+    vatDeducted,
     ssnitEmployee,
     deductions,
     loan,
     advance,
     otherDeduction,
+    overtimeVatDeduction,
     otherDeductionsTotal,
     totalDeductions,
     takeHome,
     employerSsnit,
-    warnings: takeHome < 0 ? ['Deductions are higher than earnings.'] : [],
+    employerOvertimeVat,
+    warnings: [
+      ...(tier2Rate === null ? ['Tier 2 percentage is not set for this salary structure.'] : []),
+      ...(takeHome < 0 ? ['Deductions are higher than earnings.'] : []),
+    ],
   }
 }
 

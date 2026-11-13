@@ -29,12 +29,14 @@ export function payslipModel(line, period) {
     ...(c.otherEarnings ? [{ label: 'Other earnings', amount: c.otherEarnings }] : []),
   ]
   const deductions = [
-    { label: 'PAYE (income tax)', note: c.taxMethod === 'statutory' ? `GRA bands on ${cedis(c.chargeable)} chargeable` : TAX_METHODS.manual.short, amount: c.paye },
+    { label: 'Tier 2', note: c.tier2Rate === null || c.tier2Rate === undefined ? 'Rate not set' : `${c.tier2Rate}% of basic`, amount: c.paye },
+    ...(c.salaryVat?.amount ? [{ label: 'VAT on salary', note: `${c.salaryVat.rate}% of ${cedis(c.salaryVat.base)} (basic + allowances)`, amount: c.salaryVat.amount }] : []),
     { label: 'Employee SSNIT', note: c.taxMethod === 'statutory' ? `${c.statutory.ssnitEmployeeRate}% of basic` : TAX_METHODS.manual.short, amount: c.ssnitEmployee },
     ...c.deductions.map((d) => ({ label: d.name, note: d.kind === 'percent' ? `${d.value}% of basic` : '', amount: d.amount })),
     ...(c.loan ? [{ label: 'Loan repayment', amount: c.loan }] : []),
     ...(c.advance ? [{ label: 'Salary advance', amount: c.advance }] : []),
     ...(c.otherDeduction ? [{ label: 'Other deductions', amount: c.otherDeduction }] : []),
+    ...(c.overtimeVatDeduction ? [{ label: 'VAT on overtime', note: `${c.overtime.vat.rate}% of ${cedis(c.overtime.pay)} overtime pay`, amount: c.overtimeVatDeduction }] : []),
   ]
   const adjustments = (line.adjustments ?? []).map((a) => ({ label: a.type === 'earning' ? 'Adjustment (added)' : 'Adjustment (deducted)', note: a.reason, amount: a.type === 'earning' ? a.amount : -a.amount }))
   return {
@@ -55,6 +57,8 @@ export function payslipModel(line, period) {
     takeHome: line.adjustedTakeHome ?? c.takeHome,
     employerSsnit: c.employerSsnit,
     employerRate: c.statutory.ssnitEmployerRate,
+    employerOvertimeVat: c.employerOvertimeVat ?? 0,
+    employerOvertimeVatNote: c.employerOvertimeVat ? `VAT on overtime (${c.overtime.vat.rate}% of ${cedis(c.overtime.pay)}) — paid by the company, not deducted` : '',
     status: PAYMENT_STATUS[line.status] ?? PAYMENT_STATUS.draft,
     taxMethod: TAX_METHODS[c.taxMethod].label,
     rules: c.statutory.label,
@@ -90,6 +94,7 @@ export function payslipHtml(line, period) {
 ${m.adjustments.length ? `<table style="margin-top:14px"><thead><tr><th>Adjustments after approval</th><th class="n">GH₵</th></tr></thead><tbody>${rows(m.adjustments)}</tbody></table>` : ''}
 <div class="net"><span>Take-home pay</span><span>${esc(cedis(m.takeHome))}</span></div>
 <div class="employer"><span>Employer SSNIT contribution (${m.employerRate}% of basic) — paid by the company, not deducted</span><strong>${esc(cedis(m.employerSsnit))}</strong></div>
+${m.employerOvertimeVat ? `<div class="employer"><span>${esc(m.employerOvertimeVatNote)}</span><strong>${esc(cedis(m.employerOvertimeVat))}</strong></div>` : ''}
 <footer>Tax method: ${esc(m.taxMethod)} · Rules: ${esc(m.rules)} · Generated ${esc(new Date().toLocaleString('en-GH'))}</footer>
 <script>window.addEventListener('load',()=>setTimeout(()=>window.print(),150))</script>
 </body></html>`
@@ -170,6 +175,12 @@ export function payslipPdf(line, period) {
   pdf.rect(M, y, R - M, 26, { fill: '#f5f8fd', stroke: '#9db6dc' })
   pdf.text(M + 12, y + 16.5, `Employer SSNIT (${m.employerRate}% of basic) — paid by the company, not deducted`, { size: 9, color: '#14213d' })
   pdf.text(R - 12, y + 16.5, cedis(m.employerSsnit), { size: 9.5, bold: true, align: 'right' })
+  if (m.employerOvertimeVat) {
+    y += 32
+    pdf.rect(M, y, R - M, 26, { fill: '#f5f8fd', stroke: '#9db6dc' })
+    pdf.text(M + 12, y + 16.5, m.employerOvertimeVatNote, { size: 9, color: '#14213d' })
+    pdf.text(R - 12, y + 16.5, cedis(m.employerOvertimeVat), { size: 9.5, bold: true, align: 'right' })
+  }
   y += 44
   pdf.text(M, y, `Tax method: ${m.taxMethod} · Rules: ${m.rules}`, { size: 8, color: '#5b6b86' })
   pdf.text(M, y + 12, `Generated ${new Date().toLocaleString('en-GH')}`, { size: 8, color: '#5b6b86' })

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { can, canCorrectAttendance } from '../constants/hrUser'
-import { overtimeReport, overtimeToCsv, formatCedis, formatOvertime, OVERTIME_KINDS } from '../services/overtimeService'
+import { overtimeReport, overtimeToCsv, formatCedis, formatOvertime, OVERTIME_KINDS, vatModeLabel } from '../services/overtimeService'
 import { listAttendanceRoster } from '../services/attendanceRecordsService'
 import { defaultHoursFor } from '../services/settingsService'
 import { scopeCompanyIds } from '../services/permissionsService'
@@ -53,6 +53,9 @@ function EmployeeDrawer({ row, canCorrect, onCorrect, onClose }) {
             <div><span>Overtime</span><strong>{formatOvertime(row.minutes)}</strong></div>
             <div><span>Days</span><strong>{row.days}</strong></div>
             <div><span>Earnings</span><strong>{formatCedis(row.pay)}</strong></div>
+            {row.vat.mode !== 'none' && <div><span>VAT ({vatModeLabel(row.vat)})</span><strong>{formatCedis(row.vat.amount)}</strong></div>}
+            {row.vat.mode === 'deduct' && <div><span>Employee gets</span><strong>{formatCedis(row.vat.employeeGets)}</strong></div>}
+            {row.vat.mode === 'add' && <div><span>Company cost</span><strong>{formatCedis(row.vat.companyCost)}</strong></div>}
           </div>
           <div className="sm-table-wrap">
             <table className="sm-table ot-day-table">
@@ -139,7 +142,7 @@ export default function Overtime({ company, user, onChanged }) {
       <p className="hu-warning" role="note">
         Saturdays, Sundays and holidays are overtime:
         all time worked on those days counts. On weekdays, only time after the overtime start counts. Overtime pay = (overtime minutes ÷ 60)
-        × the hourly rate. VAT is a separate tax setting and is not deducted from overtime.
+        × the hourly rate. VAT on overtime follows each company's choice in Settings → Overtime Pay &amp; VAT: not applied, deducted from the employee, or added on top as a company cost.
       </p>
 
       <div className="sm-controls">
@@ -154,6 +157,9 @@ export default function Overtime({ company, user, onChanged }) {
         <div className="sm-stat"><span className="sm-stat-label">Total overtime</span><span className="sm-stat-value">{formatOvertime(report.totals.minutes)}</span></div>
         <div className="sm-stat"><span className="sm-stat-label">Overtime hours</span><span className="sm-stat-value">{report.totals.hours.toFixed(2)}</span></div>
         <div className="sm-stat"><span className="sm-stat-label">Overtime earnings</span><span className="sm-stat-value sm-stat-accent">{formatCedis(report.totals.pay)}</span></div>
+        {report.totals.vatAmount > 0 && <div className="sm-stat"><span className="sm-stat-label">VAT on overtime</span><span className="sm-stat-value">{formatCedis(report.totals.vatAmount)}</span></div>}
+        {report.totals.employeeGets !== report.totals.pay && <div className="sm-stat"><span className="sm-stat-label">Employees get (after VAT)</span><span className="sm-stat-value">{formatCedis(report.totals.employeeGets)}</span></div>}
+        {report.totals.companyCost !== report.totals.pay && <div className="sm-stat"><span className="sm-stat-label">Company cost (with VAT)</span><span className="sm-stat-value">{formatCedis(report.totals.companyCost)}</span></div>}
         <div className="sm-stat"><span className="sm-stat-label">Employees with overtime</span><span className="sm-stat-value">{report.totals.employees}</span></div>
         <div className="sm-stat"><span className="sm-stat-label">Overtime days</span><span className="sm-stat-value">{report.totals.days}</span></div>
         <div className="sm-stat"><span className="sm-stat-label">Excluded records</span><span className="sm-stat-value sm-stat-warn">{report.excluded.length}</span></div>
@@ -163,7 +169,7 @@ export default function Overtime({ company, user, onChanged }) {
         <div className="sm-panel-head"><h3>Rates and rules</h3><span className="sm-muted">From Settings → Working Hours &amp; Timezone</span></div>
         <div className="sm-table-wrap">
           <table className="sm-table ot-rates-table">
-            <thead><tr><th scope="col">Company</th><th scope="col">Official hours</th><th scope="col">Late after</th><th scope="col">Overtime from</th><th scope="col">Rate</th><th scope="col">VAT (not applied)</th><th scope="col">Overtime</th><th scope="col">Earnings</th></tr></thead>
+            <thead><tr><th scope="col">Company</th><th scope="col">Official hours</th><th scope="col">Late after</th><th scope="col">Overtime from</th><th scope="col">Rate</th><th scope="col">VAT on overtime</th><th scope="col">Overtime</th><th scope="col">Earnings</th><th scope="col">VAT</th></tr></thead>
             <tbody>
               {report.companies.map((c) => {
                 const h = defaultHoursFor(c.companyId)
@@ -174,9 +180,10 @@ export default function Overtime({ company, user, onChanged }) {
                     <td data-label="Late after">{h.lateAfter}</td>
                     <td data-label="Overtime from">{h.overtimeStart}</td>
                     <td data-label="Rate">{formatCedis(c.currentRate)}/h</td>
-                    <td data-label="VAT (not applied)">{c.vatRate}%</td>
+                    <td data-label="VAT on overtime">{vatModeLabel({ mode: c.vatMode, rate: c.vatRate })}</td>
                     <td data-label="Overtime">{formatOvertime(c.minutes)}</td>
                     <td data-label="Earnings"><strong>{formatCedis(c.pay)}</strong></td>
+                    <td data-label="VAT">{c.vatMode === 'none' ? '—' : formatCedis(c.vatAmount)}</td>
                   </tr>
                 )
               })}
@@ -217,7 +224,7 @@ export default function Overtime({ company, user, onChanged }) {
           <div className="sm-table-wrap">
             <table className="sm-table ot-emp-table">
               <thead>
-                <tr><th scope="col">Employee</th>{combined && <th scope="col">Company</th>}<th scope="col">Days</th><th scope="col">Overtime</th><th scope="col">Hours</th><th scope="col">Rate</th><th scope="col">Earnings</th><th scope="col"><span className="sr-only">Details</span></th></tr>
+                <tr><th scope="col">Employee</th>{combined && <th scope="col">Company</th>}<th scope="col">Days</th><th scope="col">Overtime</th><th scope="col">Hours</th><th scope="col">Rate</th><th scope="col">Earnings</th><th scope="col">VAT</th><th scope="col"><span className="sr-only">Details</span></th></tr>
               </thead>
               <tbody>
                 {rows.map((e) => (
@@ -229,6 +236,14 @@ export default function Overtime({ company, user, onChanged }) {
                     <td data-label="Hours" className="at-time">{e.hours.toFixed(2)}</td>
                     <td data-label="Rate" className="at-time">{e.rates.map((r) => formatCedis(r)).join(' / ')}/h</td>
                     <td data-label="Earnings" className="at-time"><strong>{formatCedis(e.pay)}</strong></td>
+                    <td data-label="VAT" className="at-time">
+                      {e.vat.mode === 'none' ? '—' : (
+                        <span className="at-stack">
+                          <span>{e.vat.mode === 'deduct' ? '−' : '+'}{formatCedis(e.vat.amount)}</span>
+                          <span className="at-sub">{e.vat.mode === 'deduct' ? `gets ${formatCedis(e.vat.employeeGets)}` : `company pays ${formatCedis(e.vat.companyCost)}`}</span>
+                        </span>
+                      )}
+                    </td>
                     <td data-label="Details" className="at-actions"><button type="button" className="sm-actions-btn" onClick={() => setOpen(e.employeeId)}>Daily overtime</button></td>
                   </tr>
                 ))}
