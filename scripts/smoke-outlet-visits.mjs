@@ -172,11 +172,6 @@ async function checkOut(staffId, atMs, date = accraDate(atMs)) {
       from public.employees where staff_id = '${staffId}';`)
 }
 
-/** A point `metresEast` of the test shop, at `ms`. */
-const point = (ms, metresEast = 0, extra = {}) => ({
-  latitude: SHOP.latitude, longitude: SHOP.longitude + metresEast / METRES_PER_DEG_LNG, accuracy: 12, recordedAt: new Date(ms).toISOString(), isMock: false, ...extra,
-})
-
 const MIN = 60000
 
 /** A repeatable stand-in for a phone's face reading; each seed is a different person. */

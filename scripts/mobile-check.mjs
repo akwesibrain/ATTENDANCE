@@ -327,7 +327,7 @@ export const SCREENS = [
  * Running
  * ------------------------------------------------------------------------ */
 
-async function newContext(browser, size, base) {
+async function newContext(browser, size) {
   const context = await browser.newContext({
     viewport: { width: size.width, height: size.height },
     deviceScaleFactor: 2,
@@ -360,7 +360,7 @@ async function newContext(browser, size, base) {
 }
 
 async function runState(browser, base, size, screen, state) {
-  const context = await newContext(browser, size, base)
+  const context = await newContext(browser, size)
   try {
     if (state.setup) await state.setup(context)
     const page = await context.newPage()

@@ -12,7 +12,8 @@ import {
 } from '../../services/payrollService'
 import { OVERRIDE_GROUPS, normaliseStructure, validateStructure } from '../../services/payroll/payrollRules'
 import { statutoryRulesFor } from '../../services/payroll/statutory'
-import { GROUP_EDITORS, SourceBadge, groupSummary } from './StructureFields'
+import { SourceBadge } from './StructureFields'
+import { GROUP_EDITORS, groupSummary } from './structureEditors'
 
 /**
  * Individual salary profile. Each group shows where its value comes from

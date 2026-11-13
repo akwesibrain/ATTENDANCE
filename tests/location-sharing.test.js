@@ -16,7 +16,9 @@ const {
   flushLocationQueue,
   queueLocationPoint,
   readLocationQueue,
+  startLocationSharing,
 } = await import('../src/services/locationTrackingService.js')
+const { MAX_POINTS_PER_DAY, MAX_POINTS_PER_REQUEST } = await import('../supabase/functions/_shared/rules/tracking.js')
 
 const future = new Date(Date.now() + 3600000).toISOString()
 const reply = (status, body) => ({ ok: status < 400, status, json: async () => body })
@@ -77,6 +79,102 @@ describe('phone location queue and backend delivery', () => {
     expect(res).toEqual({ ok: false, reason: 'session_closed' })
     expect(trackingSession()).toBeNull()
     expect(readLocationQueue()).toEqual([])
+  })
+
+  it('does not drop unsent points when MAX_POINTS_PER_DAY shifts the queue mid-flush', async () => {
+    saveTrackingSession({ type: 'check-in', staffId: 'BFL-0007', trackingToken: 'tok-cap', trackingClosesAt: future })
+    const baseMs = Date.parse('2026-11-13T08:00:00Z')
+    const initial = Array.from({ length: MAX_POINTS_PER_DAY }, (_, i) => ({
+      latitude: 5.6037 + i * 0.0002,
+      longitude: -0.187,
+      accuracy: 10,
+      recordedAt: new Date(baseMs + i * 25000).toISOString(),
+    }))
+    store.set(QUEUE_KEY, JSON.stringify(initial))
+
+    let firstBatch = true
+    const deliveredTimestamps = []
+    fetchMock.mockImplementation(async (_url, init) => {
+      const { points } = JSON.parse(init.body)
+      deliveredTimestamps.push(...points.map((p) => p.recordedAt))
+      if (firstBatch) {
+        firstBatch = false
+        // Queue 3 new points while the first 500-point batch is in flight,
+        // shifting the oldest 3 items off the 2000-point cap.
+        for (let j = 0; j < 3; j += 1) {
+          queueLocationPoint(
+            { latitude: 6.1 + j * 0.001, longitude: -0.2, accuracy: 8 },
+            new Date(baseMs + (MAX_POINTS_PER_DAY + j) * 25000),
+          )
+        }
+      }
+      return reply(200, { accepted: points.length, rejected: 0, sessionOpen: true })
+    })
+
+    const res = await flushLocationQueue()
+    expect(res.ok).toBe(true)
+    expect(readLocationQueue()).toEqual([])
+    expect(deliveredTimestamps).toHaveLength(MAX_POINTS_PER_DAY + 3)
+    // Specifically verify boundary items right after the first batch were never skipped
+    expect(deliveredTimestamps).toContain(initial[MAX_POINTS_PER_REQUEST].recordedAt)
+    expect(deliveredTimestamps).toContain(initial[MAX_POINTS_PER_REQUEST + 1].recordedAt)
+    expect(deliveredTimestamps).toContain(initial[MAX_POINTS_PER_REQUEST + 2].recordedAt)
+  })
+
+  it('does not send a previous worker’s unsent queue after another worker checks in', async () => {
+    saveTrackingSession({ type: 'check-in', staffId: 'BFL-0007', trackingToken: 'tok-a', trackingClosesAt: future })
+    queueLocationPoint({ latitude: 5.6037, longitude: -0.187, accuracy: 11 }, new Date('2026-11-13T09:00:00Z'))
+    expect(readLocationQueue()).toHaveLength(1)
+
+    saveTrackingSession({ type: 'check-in', staffId: 'BFL-0008', trackingToken: 'tok-b', trackingClosesAt: future })
+    expect(readLocationQueue()).toEqual([])
+
+    const res = await flushLocationQueue()
+    expect(res).toEqual({ ok: true, sent: 0, at: null })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('flushes queued points and restarts a stalled watch on visibilitychange', async () => {
+    saveTrackingSession({ type: 'check-in', staffId: 'BFL-0007', trackingToken: 'tok-vis', trackingClosesAt: future })
+    const docListeners = new Map()
+    const winListeners = new Map()
+    const watchPosition = vi.fn().mockReturnValueOnce(101).mockReturnValueOnce(102)
+    const clearWatch = vi.fn()
+    vi.stubGlobal('navigator', { onLine: true, geolocation: { watchPosition, clearWatch } })
+    vi.stubGlobal('window', {
+      addEventListener: (ev, fn) => winListeners.set(ev, fn),
+      removeEventListener: (ev) => winListeners.delete(ev),
+    })
+    const doc = {
+      visibilityState: 'hidden',
+      addEventListener: (ev, fn) => docListeners.set(ev, fn),
+      removeEventListener: (ev) => docListeners.delete(ev),
+    }
+    vi.stubGlobal('document', doc)
+
+    let nowMs = Date.parse('2026-11-13T10:00:00Z')
+    const dateSpy = vi.spyOn(Date, 'now').mockImplementation(() => nowMs)
+    try {
+      const stop = startLocationSharing(() => {})
+      expect(watchPosition).toHaveBeenCalledTimes(1)
+
+      // Queue an offline point and simulate returning to foreground after >30s sleep
+      queueLocationPoint({ latitude: 5.6037, longitude: -0.187, accuracy: 12 }, new Date(nowMs))
+      fetchMock.mockResolvedValueOnce(reply(200, { accepted: 1, rejected: 0, sessionOpen: true }))
+      nowMs += 45000
+      doc.visibilityState = 'visible'
+      docListeners.get('visibilitychange')?.()
+
+      await vi.waitFor(() => expect(readLocationQueue()).toEqual([]))
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(clearWatch).toHaveBeenCalledWith(101)
+      expect(watchPosition).toHaveBeenCalledTimes(2)
+
+      stop()
+      expect(docListeners.has('visibilitychange')).toBe(false)
+    } finally {
+      dateSpy.mockRestore()
+    }
   })
 })
 

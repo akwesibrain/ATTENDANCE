@@ -122,8 +122,11 @@ async function doFlush() {
 
     const payload = await response.json().catch(() => null)
     if (response.status === 409 || response.status === 401 || payload?.code === 'session_closed' || payload?.code === 'invalid_token') {
-      clearTrackingSession()
-      clearLocationQueue()
+      const active = trackingSession()
+      if (!active || active.token === session.token) {
+        clearTrackingSession()
+        clearLocationQueue()
+      }
       return { ok: false, reason: 'session_closed' }
     }
     if (!response.ok) {
@@ -131,7 +134,8 @@ async function doFlush() {
       return { ok: false, reason: 'offline' }
     }
 
-    const remaining = readLocationQueue().slice(batch.length)
+    const flushedAt = new Set(batch.map((point) => point.recordedAt))
+    const remaining = readLocationQueue().filter((point) => !flushedAt.has(point.recordedAt))
     writeLocationQueue(remaining)
     totalSent += Number(payload?.accepted ?? batch.length)
     lastAcceptedAt = batch[batch.length - 1]?.recordedAt ?? new Date().toISOString()
@@ -146,6 +150,8 @@ export function flushLocationQueue() {
   }
   return inFlight
 }
+
+const WATCH_STALE_MS = 30000
 
 /**
  * Start sending this phone's location while a tracking session is open.
@@ -167,6 +173,7 @@ export function startLocationSharing(staffIdOrOnState, maybeOnState) {
   let stopped = false
   let watchId = null
   let timer = null
+  let lastFixAt = 0
 
   const stop = () => {
     if (stopped) return
@@ -174,6 +181,7 @@ export function startLocationSharing(staffIdOrOnState, maybeOnState) {
     if (watchId != null) navigator.geolocation.clearWatch(watchId)
     if (timer != null) clearInterval(timer)
     if (typeof window !== 'undefined') window.removeEventListener('online', onOnline)
+    if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', onVisibilityChange)
   }
 
   const endSession = () => {
@@ -209,37 +217,62 @@ export function startLocationSharing(staffIdOrOnState, maybeOnState) {
     onState?.({ status: 'sharing', at: res.at ?? new Date().toISOString(), accuracy })
   }
 
+  const startWatch = () => {
+    if (stopped) return
+    if (watchId != null) {
+      navigator.geolocation.clearWatch(watchId)
+      watchId = null
+    }
+    lastFixAt = Date.now()
+    watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        if (stopped || !checkSession()) return
+        lastFixAt = Date.now()
+        const fixTime = new Date(pos.timestamp || Date.now())
+        const q = queueLocationPoint(pos.coords, fixTime, { isMock: pos.coords?.isMock === true || pos.mocked === true })
+        if (!q.ok && q.reason === 'session_closed') {
+          endSession()
+          return
+        }
+        if (!q.queued && readLocationQueue().length === 0) {
+          onState?.({ status: 'sharing', at: fixTime.toISOString(), accuracy: pos.coords.accuracy })
+          return
+        }
+        void syncQueue(pos.coords.accuracy)
+      },
+      (err) => {
+        if (stopped) return
+        watchId = null
+        lastFixAt = 0
+        onState?.(err?.code === 1
+          ? { status: 'denied' }
+          : { status: 'unavailable', message: 'Turn on Location (GPS) on this phone.' })
+      },
+      { enableHighAccuracy: true, maximumAge: 10000, timeout: 30000 },
+    )
+  }
+
   function onOnline() {
     void syncQueue()
   }
 
+  function onVisibilityChange() {
+    if (stopped || typeof document === 'undefined' || document.visibilityState !== 'visible') return
+    if (!checkSession()) return
+    if (watchId == null || Date.now() - lastFixAt >= WATCH_STALE_MS) {
+      startWatch()
+    }
+    if (readLocationQueue().length) {
+      void syncQueue()
+    }
+  }
+
   onState?.({ status: 'starting' })
   if (typeof window !== 'undefined') window.addEventListener('online', onOnline)
+  if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onVisibilityChange)
   if (readLocationQueue().length) void syncQueue()
 
-  watchId = navigator.geolocation.watchPosition(
-    (pos) => {
-      if (stopped || !checkSession()) return
-      const fixTime = new Date(pos.timestamp || Date.now())
-      const q = queueLocationPoint(pos.coords, fixTime, { isMock: pos.coords?.isMock === true || pos.mocked === true })
-      if (!q.ok && q.reason === 'session_closed') {
-        endSession()
-        return
-      }
-      if (!q.queued && readLocationQueue().length === 0) {
-        onState?.({ status: 'sharing', at: fixTime.toISOString(), accuracy: pos.coords.accuracy })
-        return
-      }
-      void syncQueue(pos.coords.accuracy)
-    },
-    (err) => {
-      if (stopped) return
-      onState?.(err?.code === 1
-        ? { status: 'denied' }
-        : { status: 'unavailable', message: 'Turn on Location (GPS) on this phone.' })
-    },
-    { enableHighAccuracy: true, maximumAge: 10000, timeout: 30000 },
-  )
+  startWatch()
 
   timer = setInterval(checkSession, 15000)
   return stop
