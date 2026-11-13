@@ -52,11 +52,12 @@ jobs:
           npm test
 
       - name: Install Vercel CLI
+        if: github.repository != 'Kim-owen/ATTENDANCE'
         run: npm install --global vercel@65.15.0
 
       - name: Deploy to Production
         id: deploy-prod
-        if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.target == 'production')
+        if: github.repository != 'Kim-owen/ATTENDANCE' && ((github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.target == 'production'))
         run: |
           vercel pull --yes --environment=production
           vercel build --prod
@@ -67,7 +68,7 @@ jobs:
 
       - name: Deploy Preview
         id: deploy-preview
-        if: (github.event_name == 'push' && github.ref != 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.target == 'preview')
+        if: github.repository != 'Kim-owen/ATTENDANCE' && ((github.event_name == 'push' && github.ref != 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.target == 'preview'))
         run: |
           vercel pull --yes --environment=preview
           vercel build
