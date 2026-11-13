@@ -61,7 +61,7 @@ export function trackingSession() {
   return session
 }
 
-async function call(method, body) {
+async function call(method, body, path = '/tracking/visits') {
   const session = trackingSession()
   if (!session) {
     const error = new Error('Clock in first. Visits can only be recorded while you are clocked in.')
@@ -71,7 +71,7 @@ async function call(method, body) {
   }
   let response
   try {
-    response = await fetch(`${API}/tracking/visits`, {
+    response = await fetch(`${API}${path}`, {
       method,
       headers: { 'content-type': 'application/json', authorization: `Bearer ${session.token}` },
       body: body === undefined ? undefined : JSON.stringify(body),
@@ -101,4 +101,14 @@ export function getVisitsToday() {
 /** Record a visit: a listed shop (`shopId`) or a typed-in outlet, the phone's location, and a face scan. */
 export function recordVisit({ shopId, outlet, location, faceImage, faceDescriptor }) {
   return call('POST', shopId ? { shopId, location, faceImage, faceDescriptor } : { outlet, location, faceImage, faceDescriptor })
+}
+
+/** The person's shops, and which have a location or a suggestion of theirs waiting for HR. */
+export function getShopLocations() {
+  return call('GET', undefined, '/tracking/shop-locations')
+}
+
+/** Suggest a shop's location from a GPS reading taken at the shop. HR confirms it before it is used. */
+export function proposeShopLocation({ shopId, location }) {
+  return call('POST', { shopId, location }, '/tracking/shop-locations')
 }

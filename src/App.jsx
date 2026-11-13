@@ -18,6 +18,7 @@ const EnrolFace = lazy(() => import('./pages/EnrolFace'))
 const HrSetup = lazy(() => import('./pages/HrSetup'))
 const PasswordReset = lazy(() => import('./pages/PasswordReset'))
 const RecordVisit = lazy(() => import('./pages/RecordVisit'))
+const SetShopLocation = lazy(() => import('./pages/SetShopLocation'))
 
 const VIEW = {
   home: 'home',
@@ -65,6 +66,7 @@ const ENROL_PATH = /^\/enroll\/([^/]+)$/
 const HR_SETUP_PATH = /^\/hr\/setup\/([^/]+)$/
 const PASSWORD_RESET_PATH = /^\/hr\/reset\/([^/]+)$/
 const VISIT_PATH = /^\/visit\/?$/
+const SHOP_LOCATION_PATH = /^\/shop-location\/?$/
 
 function App() {
   const path = window.location.pathname
@@ -88,6 +90,14 @@ function App() {
     return (
       <>
         <Suspense fallback={<PageSkeleton label="Loading your shops" />}><RecordVisit /></Suspense>
+        <Suspense fallback={null}><LocationSharingBar /></Suspense>
+      </>
+    )
+  }
+  if (SHOP_LOCATION_PATH.test(path)) {
+    return (
+      <>
+        <Suspense fallback={<PageSkeleton label="Loading your shops" />}><SetShopLocation /></Suspense>
         <Suspense fallback={null}><LocationSharingBar /></Suspense>
       </>
     )

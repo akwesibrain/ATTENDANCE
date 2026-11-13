@@ -10,14 +10,16 @@ import { compareFaces } from '../_shared/faceMatcher.ts'
 import { categoryForPosition } from '../_shared/rules/categories.js'
 import {
   MAX_VISIT_FACE_ATTEMPTS,
+  parseShopCapture,
   parseVisitLocation,
   parseVisitOutlet,
+  proposalRow,
   visitFromRow,
   visitRow,
 } from '../_shared/rules/tracking.js'
 import { faceSample, loadEnrolledPhoto, readable } from './enrolment.ts'
 import { syncNotifications } from './facts.ts'
-import { ApiError, clientIp, db, found, invalid, later, must, rateLimit, readJson, rpc } from './lib.ts'
+import { ApiError, applyChange, clientIp, db, found, invalid, later, must, rateLimit, readJson, rpc } from './lib.ts'
 import { assertSessionOpen, bearerToken, sessionClosed, sessionFor } from './tracking.ts'
 
 export const publicVisitRoutes = new Hono()
@@ -122,4 +124,46 @@ publicVisitRoutes.post('/tracking/visits', async (c) => {
   if (!stored) throw sessionClosed()
   later(syncNotifications())
   return c.json({ visit: visitFromRow(stored) }, 201)
+})
+
+/* --------------------------------------------------------------------------
+ * Shop locations captured at the shop. Any tracked role may suggest one for a
+ * shop on their list; nothing changes on the shop until HR accepts it.
+ * ------------------------------------------------------------------------ */
+
+publicVisitRoutes.get('/tracking/shop-locations', async (c) => {
+  await rateLimit(`visits:ip:${clientIp(c)}`, ...LIMITS.byIp)
+  const session = await openSession(bearerToken(c))
+  const ids = await shopList(session.staff_id)
+  const [shops, pending] = await Promise.all([
+    ids.length ? found(db.from('shops').select('shop_id, shop_name, latitude').in('shop_id', ids)) : Promise.resolve([]),
+    found(db.from('shop_location_proposals').select('shop_id').eq('staff_id', session.staff_id).eq('status', 'pending')),
+  ])
+  const byId = new Map<string, Row>(shops.map((s: Row) => [s.shop_id, s]))
+  const waiting = new Set(pending.map((p: Row) => p.shop_id))
+  return c.json({
+    shops: ids.flatMap((id) => {
+      const shop = byId.get(id)
+      return shop ? [{ shopId: id, shopName: shop.shop_name, hasLocation: shop.latitude != null, pending: waiting.has(id) }] : []
+    }),
+  })
+})
+
+publicVisitRoutes.post('/tracking/shop-locations', async (c) => {
+  await rateLimit(`visits:ip:${clientIp(c)}`, ...LIMITS.byIp)
+  const session = await openSession(bearerToken(c))
+  await rateLimit(`shop-locations:token:${session.token_hash.slice(0, 16)}`, ...LIMITS.byToken)
+
+  const capture = parseShopCapture(await readJson(c))
+  if ('error' in capture) throw invalid({ location: capture.error })
+  if (!(await shopList(session.staff_id)).includes(capture.shopId)) throw invalid({ shop: 'That shop is not on your list.' })
+  const shop = await must(
+    db.from('shops').select('shop_id, latitude, longitude')
+      .eq('shop_id', capture.shopId).eq('company_id', session.company_id).eq('status', 'active').maybeSingle(),
+  )
+  if (!shop) throw invalid({ shop: NOT_IN_DIRECTORY })
+
+  const row = proposalRow({ session, shop, capture, now: new Date() })
+  await applyChange([{ table: 'shop_location_proposals', op: 'upsert', conflict: ['shop_id', 'staff_id'], row }])
+  return c.json({ ok: true, shopId: capture.shopId, accuracyM: row.accuracy_m, distanceFromCurrentM: row.distance_from_current_m }, 201)
 })

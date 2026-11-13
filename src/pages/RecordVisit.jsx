@@ -129,7 +129,7 @@ export default function RecordVisit() {
                 {today.shops.map((shop) => (
                   <label key={shop.shopId} className="form-field" style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
                     <input type="radio" name="outlet" value={shop.shopId} checked={choice === shop.shopId} onChange={() => setChoice(shop.shopId)} />
-                    <span>{shop.shopName}{shop.visited ? ' ✓ visited' : ''}</span>
+                    <span>{shop.shopName}{shop.visited ? ' ✓ visited' : ''}{shop.hasLocation ? '' : ' · no location yet'}</span>
                   </label>
                 ))}
                 <label className="form-field" style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
@@ -168,6 +168,7 @@ export default function RecordVisit() {
                 {!cameraOn
                   ? <button type="button" className="btn btn-primary" onClick={startCamera} disabled={today.attemptsLeft === 0}>Scan face and save</button>
                   : <button type="button" className="btn btn-primary" onClick={save} disabled={busy}>{busy ? 'Saving…' : 'Save visit'}</button>}
+                {!cameraOn && <a className="btn btn-secondary" href="/shop-location">Set a shop's location</a>}
               </div>
             </>
           )}

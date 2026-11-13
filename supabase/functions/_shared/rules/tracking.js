@@ -364,3 +364,42 @@ export function outletLabel(outlet, shopsById) {
   if (outlet.shopId) return shopsById?.get(outlet.shopId)?.shopName ?? outlet.name ?? outlet.shopId
   return [outlet.name, outlet.town].filter(Boolean).join(', ')
 }
+
+/* --------------------------------------------------------------------------
+ * Shop locations captured at the shop (suggested by field staff, confirmed by HR)
+ * ------------------------------------------------------------------------ */
+
+/** A GPS reading less accurate than this cannot be suggested as a shop's location. */
+export const MAX_CAPTURE_ACCURACY_M = 30
+
+/**
+ * A reading taken at a shop, to suggest as its location.
+ * @returns {{ shopId: string, latitude: number, longitude: number, accuracy: number } | { error: string }}
+ */
+export function parseShopCapture(body) {
+  const shopId = typeof body?.shopId === 'string' ? body.shopId.trim().slice(0, 200) : ''
+  if (!shopId) return { error: 'Choose the shop.' }
+  const location = parseVisitLocation(body)
+  if (!location || location.accuracy == null) return { error: 'Location is not available. Turn on Location (GPS).' }
+  if (location.accuracy > MAX_CAPTURE_ACCURACY_M) {
+    return { error: `The GPS reading is not accurate enough yet (±${location.accuracy} m). Move into the open and try again.` }
+  }
+  return { shopId, ...location }
+}
+
+/** The shop_location_proposals row for a reading. A new one replaces the person's earlier one for that shop. */
+export function proposalRow({ session, shop, capture, now }) {
+  return {
+    shop_id: capture.shopId,
+    company_id: session.company_id,
+    staff_id: session.staff_id,
+    latitude: capture.latitude,
+    longitude: capture.longitude,
+    accuracy_m: capture.accuracy,
+    distance_from_current_m: distanceMetres(capture, shop),
+    status: 'pending',
+    proposed_at: now.toISOString(),
+    decided_by: null,
+    decided_at: null,
+  }
+}

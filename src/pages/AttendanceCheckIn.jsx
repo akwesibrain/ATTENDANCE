@@ -484,6 +484,9 @@ export default function AttendanceCheckIn({ onBack }) {
               {result.type === 'check-in' && result.trackingToken && trackingSession()?.canRecordVisits && (
                 <a className="btn btn-secondary" href="/visit">Record a visit</a>
               )}
+              {result.type === 'check-in' && result.trackingToken && (
+                <a className="btn btn-secondary" href="/shop-location">Set a shop's location</a>
+              )}
               <button type="button" className="btn btn-primary" onClick={onBack}>
                 Done
               </button>

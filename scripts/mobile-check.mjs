@@ -163,6 +163,15 @@ const toCheckInScan = async (page) => {
 const withVisitSession = (session = TRACKING_SESSION) => async (context) => {
   await context.addInitScript((s) => { try { localStorage.setItem('tracking:session', JSON.stringify(s)) } catch { /* none */ } }, session)
 }
+/** A visit session on a phone whose GPS answers at once (the headless browser's own never does). */
+const withGpsSession = async (context) => {
+  await withVisitSession()(context)
+  await context.addInitScript(() => {
+    const fix = { coords: { latitude: 5.6037, longitude: -0.187, accuracy: 8 }, timestamp: Date.now() }
+    const gps = { watchPosition: (ok) => { setTimeout(() => ok(fix), 50); return 1 }, getCurrentPosition: (ok) => setTimeout(() => ok(fix), 50), clearWatch: () => {} }
+    Object.defineProperty(navigator, 'geolocation', { value: gps, configurable: true })
+  })
+}
 const withHrSession = async (context) => {
   await context.addInitScript(([key, session]) => { try { localStorage.setItem(key, JSON.stringify(session)) } catch { /* none */ } }, [`sb-${REF}-auth-token`, hrSession()])
 }
@@ -214,6 +223,25 @@ export const SCREENS = [
           await page.waitForFunction(() => document.querySelector('video')?.videoWidth > 0, null, { timeout: 8000 })
           await page.getByRole('button', { name: /save visit/i }).click()
           await page.waitForSelector('[role=status]', { timeout: 8000 })
+        },
+      },
+    ],
+  },
+  {
+    name: 'shop-location', path: '/shop-location', states: [
+      { name: 'no-session' },
+      { name: 'shops', setup: withVisitSession() },
+      {
+        name: 'reading', setup: withGpsSession, act: async (page) => {
+          await page.getByRole('button', { name: /set location here/i }).click()
+          await page.getByRole('button', { name: /send this location to hr/i }).waitFor({ timeout: 8000 })
+        },
+      },
+      {
+        name: 'sent', setup: withGpsSession, act: async (page) => {
+          await page.getByRole('button', { name: /set location here/i }).click()
+          await page.getByRole('button', { name: /send this location to hr/i }).click({ timeout: 8000 })
+          await page.waitForSelector('.form-success', { timeout: 8000 })
         },
       },
     ],

@@ -47,6 +47,16 @@ export function apiFixture(method, path) {
   if (path === '/tracking/visits' && method === 'POST') {
     return [201, { visit: { id: 'v2', time: NOW, outlet: { shopId: 'shop-2', name: null, town: null }, onList: true, distanceM: 40, status: 'recorded' } }]
   }
+  if (path === '/tracking/shop-locations' && method === 'GET') {
+    return [200, {
+      shops: [
+        { shopId: 'shop-1', shopName: LONG_SHOP, hasLocation: true, pending: false },
+        { shopId: 'shop-2', shopName: 'China Mall', hasLocation: false, pending: true },
+        { shopId: 'shop-3', shopName: 'Shoprite Accra Mall', hasLocation: false, pending: false },
+      ],
+    }]
+  }
+  if (path === '/tracking/shop-locations' && method === 'POST') return [201, { ok: true, shopId: 'shop-3', accuracyM: 8, distanceFromCurrentM: null }]
   if (path.startsWith('/public/enroll/closed')) return [404, { error: 'This link has already been used or has expired. Ask HR for a new one.' }]
   if (path.startsWith('/public/enroll/')) return [200, { staffId: 'BFL-0007', fullName: LONG_NAME, companyName: 'Box For Less' }]
   if (path.startsWith('/public/hr-setup/')) return [200, { email: 'abenaa.konadu-mensah.hr@boxforless.example.com', name: LONG_NAME, existingAccount: false }]

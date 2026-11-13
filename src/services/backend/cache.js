@@ -28,6 +28,8 @@ const TABLES = {
     select: 'id,staff_id,company_id,date,clock_in_at,closes_at,clock_out_at,status,closed_reason,closed_at,summarised_at,trail_expired',
   },
   outlet_visits: { order: ['occurred_at', 'id'], since: 'date' },
+  // Optional: the portal still loads if this table's migration has not been applied yet.
+  shop_location_proposals: { order: ['proposed_at', 'id'], optional: true },
   tracking_day_summaries: { order: ['date', 'staff_id'], since: 'date' },
   tracking_flags: { order: ['date', 'staff_id'], since: 'date' },
   leave_records: { order: 'start_date', since: 'end_date' },
@@ -55,6 +57,7 @@ const LIVE_TABLES = [
   'tracking_latest',
   'tracking_sessions',
   'outlet_visits',
+  'shop_location_proposals',
   'tracking_flags',
   'notifications',
   'notification_history',
@@ -73,8 +76,12 @@ function announce() {
   listeners.forEach((listener) => listener())
 }
 
+/** Optional tables the server does not have. Asked once per page load, not on every refresh. */
+const missing = new Set()
+
 async function fetchTable(name) {
-  const { order, since, select } = TABLES[name]
+  const { order, since, select, optional } = TABLES[name]
+  if (missing.has(name)) return []
   const cutoff = addDaysToKey(accraDateKey(), -HISTORY_DAYS)
   const all = []
   for (let from = 0; ; from += PAGE) {
@@ -82,6 +89,10 @@ async function fetchTable(name) {
     if (since) query = query.gte(since, cutoff)
     for (const column of [order].flat()) query = query.order(column)
     const { data, error } = await query.range(from, from + PAGE - 1)
+    if (error && optional) {
+      missing.add(name)
+      return []
+    }
     if (error) throw new Error(`Could not load ${name}: ${error.message}`)
     all.push(...data)
     if (data.length < PAGE) return all
