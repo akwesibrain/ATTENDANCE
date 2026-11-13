@@ -329,6 +329,31 @@ export default function AttendanceManagement({ company, user, onChanged, focus =
         </span>
       </div>
 
+      {/* Period summary */}
+      <section className="sm-panel">
+        <div className="sm-panel-head">
+          <h3>Period summary — {period.label}</h3>
+          <span className="sm-muted">
+            {periodRangeText(period)} · {companyName} · counted up to {formatAccraDate(today, { day: 'numeric', month: 'short' })}
+          </span>
+        </div>
+        <div className="at-period-grid" aria-busy={loading}>
+          <Stat label="Present (incl. late)" value={loading ? <SkeletonLine width="52px" size="xl" /> : periodSummary.present} tone="ok" sub="employee-days" />
+          <Stat label="Absent" value={loading ? <SkeletonLine width="52px" size="xl" /> : periodSummary.absent} tone="crit" sub="employee-days" />
+          <Stat label="Late" value={loading ? <SkeletonLine width="52px" size="xl" /> : periodSummary.late} tone="warn" sub="arrivals" />
+          <Stat label="On leave" value={loading ? <SkeletonLine width="52px" size="xl" /> : periodSummary.onLeave} sub="employee-days" />
+          <Stat label="Incomplete" value={loading ? <SkeletonLine width="52px" size="xl" /> : periodSummary.incomplete} tone="warn" sub="records" />
+          <Stat label="Total working hours" value={loading ? <SkeletonLine width="52px" size="xl" /> : periodSummary.totalHours.toLocaleString()} tone="accent" sub="completed records" />
+        </div>
+        <p className="at-rules">
+          Future dates, rest days, public holidays and approved leave are never counted as absences.
+          Nobody is absent before the working day has ended. Missed SMS verifications are reviewed as
+          exceptions, not absences.
+          {periodSummary.unknown > 0 &&
+            ` ${periodSummary.unknown} historical day${periodSummary.unknown === 1 ? ' is' : 's are'} Unknown because the register entry is missing.`}
+        </p>
+      </section>
+
       {/* Daily summary */}
       <div className="sm-stats" role="status" aria-label={`Attendance summary ${dayLabel}`} aria-busy={loading}>
         <Stat label={`Present ${dayLabel}`} value={loading ? <SkeletonLine width="52px" size="xl" /> : daySummary.present} tone="ok" />
@@ -532,31 +557,6 @@ export default function AttendanceManagement({ company, user, onChanged, focus =
             </nav>
           </>
         )}
-      </section>
-
-      {/* Period summary */}
-      <section className="sm-panel">
-        <div className="sm-panel-head">
-          <h3>Period summary — {period.label}</h3>
-          <span className="sm-muted">
-            {periodRangeText(period)} · {companyName} · counted up to {formatAccraDate(today, { day: 'numeric', month: 'short' })}
-          </span>
-        </div>
-        <div className="at-period-grid" aria-busy={loading}>
-          <Stat label="Present (incl. late)" value={loading ? <SkeletonLine width="52px" size="xl" /> : periodSummary.present} tone="ok" sub="employee-days" />
-          <Stat label="Absent" value={loading ? <SkeletonLine width="52px" size="xl" /> : periodSummary.absent} tone="crit" sub="employee-days" />
-          <Stat label="Late" value={loading ? <SkeletonLine width="52px" size="xl" /> : periodSummary.late} tone="warn" sub="arrivals" />
-          <Stat label="On leave" value={loading ? <SkeletonLine width="52px" size="xl" /> : periodSummary.onLeave} sub="employee-days" />
-          <Stat label="Incomplete" value={loading ? <SkeletonLine width="52px" size="xl" /> : periodSummary.incomplete} tone="warn" sub="records" />
-          <Stat label="Total working hours" value={loading ? <SkeletonLine width="52px" size="xl" /> : periodSummary.totalHours.toLocaleString()} tone="accent" sub="completed records" />
-        </div>
-        <p className="at-rules">
-          Future dates, rest days, public holidays and approved leave are never counted as absences.
-          Nobody is absent before the working day has ended. Missed SMS verifications are reviewed as
-          exceptions, not absences.
-          {periodSummary.unknown > 0 &&
-            ` ${periodSummary.unknown} historical day${periodSummary.unknown === 1 ? ' is' : 's are'} Unknown because the register entry is missing.`}
-        </p>
       </section>
 
       </>}
