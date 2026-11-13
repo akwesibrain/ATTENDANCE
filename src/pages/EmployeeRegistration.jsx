@@ -11,6 +11,7 @@ import {
 import RegistrationReview from '../components/registration/RegistrationReview'
 import RegistrationSuccess from '../components/registration/RegistrationSuccess'
 import { submitRegistration } from '../services/registrationService'
+import { validateShopCount } from '../utils/shopSelection'
 import { getCompanyById } from '../constants/companies'
 import '../styles/registration.css'
 
@@ -27,6 +28,9 @@ const PROGRESS_LABELS = ['Personal', 'Face', 'Position', 'Review']
 
 const INITIAL_FORM_DATA = {
   companyId: null,
+  // Other companies this employee ALSO works for (one Staff ID, attendance
+  // counted under the main company `companyId`).
+  additionalCompanyIds: [],
   firstName: '',
   middleName: '',
   lastName: '',
@@ -39,6 +43,10 @@ const INITIAL_FORM_DATA = {
   faceDescriptor: null,
   position: '',
   assignedShopId: null,
+  // Field staff: shops ticked from the list and shops added by hand
+  // (1 to MAX_SHOPS in total — see utils/shopSelection).
+  assignedShopIds: [],
+  newShops: [],
   // Field positions: choose an existing shop, or enter a new allocated shop.
   shopMode: 'existing',
   newShop: { shopName: '', town: '', area: '', address: '', latitude: '', longitude: '', locationSource: null, locationLabel: null },
@@ -70,7 +78,7 @@ export default function EmployeeRegistration({ onBack }) {
       case STEP.face:
         return Boolean(formData.faceImage && formData.faceDescriptor)
       case STEP.position:
-        return isJobPositionValid(formData)
+        return isJobPositionValid(formData) && validateShopCount(formData) === ''
       case STEP.review:
         return (
           formData.confirmed &&
@@ -134,7 +142,19 @@ export default function EmployeeRegistration({ onBack }) {
     return (
       <RegistrationWelcome
         selectedCompanyId={formData.companyId}
-        onSelectCompany={(companyId) => updateField('companyId', companyId)}
+        onSelectCompany={(companyId) => setFormData((prev) => ({
+          ...prev,
+          companyId,
+          // The main company can't also be an "also works for" company.
+          additionalCompanyIds: prev.additionalCompanyIds.filter((id) => id !== companyId),
+        }))}
+        additionalCompanyIds={formData.additionalCompanyIds}
+        onToggleAdditional={(companyId) => setFormData((prev) => ({
+          ...prev,
+          additionalCompanyIds: prev.additionalCompanyIds.includes(companyId)
+            ? prev.additionalCompanyIds.filter((id) => id !== companyId)
+            : [...prev.additionalCompanyIds, companyId],
+        }))}
         onContinue={() => {
           if (formData.companyId) goToStep(STEP.personal)
         }}

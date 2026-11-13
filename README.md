@@ -283,3 +283,39 @@ supabase/
 tests/               # the business rules
 scripts/             # HR account creation and live checks
 ```
+
+## Frontend updates (11 November 2026)
+
+Added on the frontend; backend work still needed is listed after the table.
+Full spec for the backend:
+[docs/backend-live-tracker-and-sms-verification.md](docs/backend-live-tracker-and-sms-verification.md).
+
+| Feature | Where | Works today? |
+|---|---|---|
+| **Live Tracker**: 3D street map (OpenStreetMap) or 3D outline of Ghana, figures for Supervisors (S), Sales Reps (R) and Merchandisers (M), light theme only, place search | HR → Live Tracker | Yes — positions from merchandiser shops and verification checks |
+| **Live tracking from clock-in to clock-out** (phone sends its location; refused after clock-out) | Employee phone + Live Tracker | **Needs backend** — today points are kept only in the browser (`src/services/locationTrackingService.js`), so the phone side stays hidden |
+| **Daily tracking report** (time tracked, live coverage, signal lost, distance, shop visits; past days; CSV) | Under the Live Tracker map | Layout yes; figures need the tracking backend |
+| **Daily shop lists + visit proof** for Sales Reps / Supervisors (proven = scan inside the shop area **and** a 10-minute stay on live tracking) | HR → Field Monitoring → Sales Rep / Supervisor Monitoring | **Needs backend** — lists are kept in the browser (`visitListService.js`); outlet visits are not recorded by the backend yet |
+| **Installable app** (manifest, icons, service worker, install card) | Home screen | Yes (service worker in production builds; needs https) |
+| **Policies**: Privacy, Location Tracking, Terms, Cookies | `/privacy`, `/tracking-policy`, `/terms`, `/cookies` | Yes — **drafts** until company details in `src/constants/legal.js` are filled in and a lawyer has reviewed them |
+| **Employees who work for both companies**: pick the main company, tick "I also work for …"; one Staff ID, attendance under the main company | Registration → company step | **Needs backend** — sent as `additionalCompanyIds`, ignored until the backend stores it ([spec](docs/backend-dual-company-employees.md)) |
+| **1 to 7 shops** per field employee: Sales Reps and Merchandisers tick shops and/or add shops not in the list (1 shop plus up to 6 more); HR shop lists 1 to 7 | Registration → job position; Field Monitoring | **Needs backend** — sent as `assignedShopIds` + `newShops` (first shop still sent the old way) ([spec](docs/backend-multi-shop-and-places.md)) |
+| **Distance only, HR decides**: no 150 m pass/fail; HR sees "40 m" / "2.3 km" from the shop on visits, SMS checks and the tracker (nearest shop); a visit is proven by a 10+ minute stay within 100 m (GPS-error allowance) | Monitoring pages, tracker, report, policies | Frontend done; backend still computes geofence results for merchandiser SMS checks ([spec](docs/backend-multi-shop-and-places.md)) |
+| **300 real places** (shops, supermarkets, malls) for both companies | `scripts/build-osm-shop-import.mjs` → `docs/data/` | Not generated yet — OpenStreetMap was at capacity; run the script later, HR reviews the CSV, backend runs the SQL |
+| **Leave** in the employee directory | HR → Employees | Read-only from `leave_records`; recording leave needs a backend endpoint |
+
+**Needed from the backend** (in the spec): tracking sessions and points
+(`POST /tracking/points`, token in the clock-in response), live map and daily
+report endpoints, end-of-day summaries, daily shop lists
+(`GET/PUT /employees/:staffId/visit-list`), outlet visits and breaks at the
+kiosk, employee categories, leave recording, and SMS verification for **all**
+field staff (Supervisors, Sales Reps, Merchandisers).
+
+**Working together without conflicts:** frontend-only features live in their
+own files (`src/services/locationTrackingService.js`, `visitListService.js`,
+`trackingReportService.js`, `liveTrackerService.js`, `fieldVisitsService.js`,
+`leaveView.js`, `mapSearch.js`, `src/utils/localStore.js`,
+`src/components/tracker/`, `src/components/tracking/`, `src/content/`). They
+only *read* through the backend's services and never change them. When the
+backend adds an endpoint, replace the matching browser-storage function in
+those files.

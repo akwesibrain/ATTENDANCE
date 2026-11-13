@@ -988,3 +988,17 @@
 @media (prefers-reduced-motion: no-preference) {
   .lf-cluster-halo { transition: stroke-width 0.15s, fill 0.15s; }
 }
+
+/* Sales Rep / Supervisor shop-visit proof */
+.fv-proven { display: inline-flex; align-items: center; gap: 8px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.fv-proven-bar { width: 56px; height: 6px; border-radius: 999px; background: var(--rule); overflow: hidden; }
+.fv-proven-bar > span { display: block; height: 100%; background: var(--ok); border-radius: inherit; }
+.fv-subhead { margin: 0; padding: 14px 18px 6px; font-size: 14px; color: var(--ink); }
+.fv-editor { border-color: var(--accent); }
+.fv-shop-list { list-style: none; margin: 0; padding: 12px 18px; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; }
+.fv-shop { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 8px 12px; border: 1px solid var(--rule); border-radius: 10px; cursor: pointer; }
+.fv-shop.is-on { border-color: var(--accent); background: var(--accent-soft); }
+.fv-shop input { width: 18px; height: 18px; flex: none; }
+.fv-shop .at-badge { margin-left: auto; }
+.fv-editor-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; padding: 0 18px 16px; }
+.fv-editor-actions .sm-muted { margin-right: auto; }

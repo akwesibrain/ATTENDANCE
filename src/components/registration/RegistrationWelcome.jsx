@@ -1,4 +1,5 @@
 import { COMPANIES } from '../../constants/companies'
+import '../../styles/registration-extra.css'
 
 function ShieldCheckIcon({ size = 18 }) {
   return (
@@ -60,6 +61,8 @@ const HERO_POINTS = [
 export default function RegistrationWelcome({
   selectedCompanyId,
   onSelectCompany,
+  additionalCompanyIds = [],
+  onToggleAdditional,
   onContinue,
   onBack,
 }) {
@@ -133,7 +136,7 @@ export default function RegistrationWelcome({
           >
             <h2 className="landing-card-title">Start your registration</h2>
             <p className="landing-card-subtitle">
-              Choose your company to begin
+              Choose your main company — the one you mainly work for
             </p>
 
             <div className="landing-options" role="radiogroup" aria-label="Company">
@@ -181,6 +184,28 @@ export default function RegistrationWelcome({
                 )
               })}
             </div>
+
+            {selectedCompanyId && onToggleAdditional && (
+              <fieldset className="landing-also">
+                <legend className="landing-also-title">Do you also work for another company?</legend>
+                {COMPANIES.filter((c) => c.id !== selectedCompanyId).map((c) => (
+                  <label key={c.id} className="landing-also-option">
+                    <input
+                      type="checkbox"
+                      checked={additionalCompanyIds.includes(c.id)}
+                      onChange={() => onToggleAdditional(c.id)}
+                    />
+                    <span>I also work for <strong>{c.name}</strong></span>
+                  </label>
+                ))}
+                {additionalCompanyIds.length > 0 && (
+                  <p className="landing-also-note">
+                    You get one Staff ID and can clock in at both companies’ workplaces. Your attendance and pay
+                    are counted under {COMPANIES.find((c) => c.id === selectedCompanyId)?.name}.
+                  </p>
+                )}
+              </fieldset>
+            )}
 
             <button
               type="button"

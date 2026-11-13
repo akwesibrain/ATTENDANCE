@@ -25,7 +25,7 @@ export const VERIFICATION_STATUS = {
 
 export const ATTENDANCE_SOURCE = {
   digital: { label: 'Digital attendance', short: 'Digital' },
-  'sms-verification': { label: 'Sales rep SMS verification', short: 'SMS verification' },
+  'sms-verification': { label: 'Merchandiser SMS verification', short: 'SMS verification' },
   historical: { label: 'Historical – Manually Recorded', short: 'Historical' },
   'hr-correction': { label: 'HR manual correction', short: 'HR correction' },
 }

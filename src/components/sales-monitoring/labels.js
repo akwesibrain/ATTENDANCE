@@ -1,4 +1,4 @@
-/** Shared label/class maps for the Sales Rep Monitoring module. */
+/** Shared label/class maps for the Merchandiser Monitoring module. */
 
 export const REP_STATUS = {
   'not-checked-in': { label: 'Not Checked In', className: 'sm-status-not-checked-in' },

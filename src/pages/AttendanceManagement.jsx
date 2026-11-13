@@ -21,6 +21,7 @@ import '../styles/sales-monitoring.css'
 import '../styles/shifts.css'
 import '../styles/attendance.css'
 import { SkeletonLine, SkeletonTable } from '../components/common/Skeletons'
+import { CATEGORIES } from '../constants/employeeCategories'
 
 const PAGE_SIZE = 12
 const NON_WORKING = ['rest-day', 'holiday']
@@ -28,6 +29,7 @@ const LOADING_MS = 250
 
 const EMPTY_FILTERS = {
   search: '',
+  category: '',
   position: '',
   shopId: '',
   status: '',
@@ -148,6 +150,7 @@ export default function AttendanceManagement({ company, user, onChanged, focus =
     if (term && !r.fullName.toLowerCase().includes(term) && !r.employeeId.toLowerCase().includes(term)) {
       return false
     }
+    if (filters.category && r.category !== filters.category) return false
     if (filters.position && r.position !== filters.position) return false
     if (filters.shopId && r.shopId !== filters.shopId) return false
     return true
@@ -326,6 +329,31 @@ export default function AttendanceManagement({ company, user, onChanged, focus =
         </span>
       </div>
 
+      {/* Period summary */}
+      <section className="sm-panel">
+        <div className="sm-panel-head">
+          <h3>Period summary — {period.label}</h3>
+          <span className="sm-muted">
+            {periodRangeText(period)} · {companyName} · counted up to {formatAccraDate(today, { day: 'numeric', month: 'short' })}
+          </span>
+        </div>
+        <div className="at-period-grid" aria-busy={loading}>
+          <Stat label="Present (incl. late)" value={loading ? <SkeletonLine width="52px" size="xl" /> : periodSummary.present} tone="ok" sub="employee-days" />
+          <Stat label="Absent" value={loading ? <SkeletonLine width="52px" size="xl" /> : periodSummary.absent} tone="crit" sub="employee-days" />
+          <Stat label="Late" value={loading ? <SkeletonLine width="52px" size="xl" /> : periodSummary.late} tone="warn" sub="arrivals" />
+          <Stat label="On leave" value={loading ? <SkeletonLine width="52px" size="xl" /> : periodSummary.onLeave} sub="employee-days" />
+          <Stat label="Incomplete" value={loading ? <SkeletonLine width="52px" size="xl" /> : periodSummary.incomplete} tone="warn" sub="records" />
+          <Stat label="Total working hours" value={loading ? <SkeletonLine width="52px" size="xl" /> : periodSummary.totalHours.toLocaleString()} tone="accent" sub="completed records" />
+        </div>
+        <p className="at-rules">
+          Future dates, rest days, public holidays and approved leave are never counted as absences.
+          Nobody is absent before the working day has ended. Missed SMS verifications are reviewed as
+          exceptions, not absences.
+          {periodSummary.unknown > 0 &&
+            ` ${periodSummary.unknown} historical day${periodSummary.unknown === 1 ? ' is' : 's are'} Unknown because the register entry is missing.`}
+        </p>
+      </section>
+
       {/* Daily summary */}
       <div className="sm-stats" role="status" aria-label={`Attendance summary ${dayLabel}`} aria-busy={loading}>
         <Stat label={`Present ${dayLabel}`} value={loading ? <SkeletonLine width="52px" size="xl" /> : daySummary.present} tone="ok" />
@@ -352,6 +380,10 @@ export default function AttendanceManagement({ company, user, onChanged, focus =
             onChange={(e) => setFilter('search', e.target.value)}
             aria-label="Search by employee name or ID"
           />
+          <select className="sm-select" value={filters.category} onChange={(e) => setFilter('category', e.target.value)} aria-label="Filter by employee category">
+            <option value="">All categories</option>
+            {Object.values(CATEGORIES).map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
+          </select>
           <select className="sm-select" value={filters.position} onChange={(e) => setFilter('position', e.target.value)} aria-label="Filter by position">
             <option value="">All positions</option>
             {positions.map((p) => <option key={p} value={p}>{p}</option>)}
@@ -525,31 +557,6 @@ export default function AttendanceManagement({ company, user, onChanged, focus =
             </nav>
           </>
         )}
-      </section>
-
-      {/* Period summary */}
-      <section className="sm-panel">
-        <div className="sm-panel-head">
-          <h3>Period summary — {period.label}</h3>
-          <span className="sm-muted">
-            {periodRangeText(period)} · {companyName} · counted up to {formatAccraDate(today, { day: 'numeric', month: 'short' })}
-          </span>
-        </div>
-        <div className="at-period-grid" aria-busy={loading}>
-          <Stat label="Present (incl. late)" value={loading ? <SkeletonLine width="52px" size="xl" /> : periodSummary.present} tone="ok" sub="employee-days" />
-          <Stat label="Absent" value={loading ? <SkeletonLine width="52px" size="xl" /> : periodSummary.absent} tone="crit" sub="employee-days" />
-          <Stat label="Late" value={loading ? <SkeletonLine width="52px" size="xl" /> : periodSummary.late} tone="warn" sub="arrivals" />
-          <Stat label="On leave" value={loading ? <SkeletonLine width="52px" size="xl" /> : periodSummary.onLeave} sub="employee-days" />
-          <Stat label="Incomplete" value={loading ? <SkeletonLine width="52px" size="xl" /> : periodSummary.incomplete} tone="warn" sub="records" />
-          <Stat label="Total working hours" value={loading ? <SkeletonLine width="52px" size="xl" /> : periodSummary.totalHours.toLocaleString()} tone="accent" sub="completed records" />
-        </div>
-        <p className="at-rules">
-          Future dates, rest days, public holidays and approved leave are never counted as absences.
-          Nobody is absent before the working day has ended. Missed SMS verifications are reviewed as
-          exceptions, not absences.
-          {periodSummary.unknown > 0 &&
-            ` ${periodSummary.unknown} historical day${periodSummary.unknown === 1 ? ' is' : 's are'} Unknown because the register entry is missing.`}
-        </p>
       </section>
 
       </>}

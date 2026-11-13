@@ -374,3 +374,34 @@
 @media (max-width: 560px) {
   .ed-fields { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* Details confirmed by HR (locked) */
+.emp-card-locked { margin: 10px 0 0; display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; color: var(--ok); }
+.ed-lock-warning { margin: 0; padding: 10px 14px; border-radius: var(--radius-md); background: var(--warn-soft); color: var(--ink); font-size: 13.5px; line-height: 1.5; }
+
+/* Leave */
+.emp-card-leave { margin: 6px 0 0; display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; color: var(--accent); }
+.emp-card-leave.is-now { color: var(--warn); }
+.lv-pad { margin: 12px 14px 0; }
+.lv-full { grid-column: 1 / -1; }
+.lv-actions { display: flex; flex-wrap: wrap; gap: 10px; padding: 0 14px 14px; }
+.lv-confirm .lv-actions { padding: 0; }
+.lv-list { list-style: none; margin: 0; padding: 0; }
+.lv-item { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; font-size: 13.5px; min-width: 0; }
+.lv-item + .lv-item { border-top: 1px solid var(--rule); }
+.lv-item.is-cancelled .lv-dates { text-decoration: line-through; color: var(--ink-2); }
+.lv-item-main { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.lv-dates { font-weight: 600; font-variant-numeric: tabular-nums; }
+.lv-note { color: var(--ink); overflow-wrap: anywhere; }
+.lv-meta { font-size: 12px; color: var(--ink-2); overflow-wrap: anywhere; }
+.lv-item-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.lv-confirm { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; padding: 12px; border-radius: var(--radius-md); background: var(--accent-soft); }
+.lv-confirm .sh-form-label { display: flex; flex-direction: column; gap: 5px; }
+
+/* Employee categories */
+.emp-category-filter { flex-wrap: wrap; margin: 0 0 14px; }
+.emp-card-category { display: inline-block; margin-top: 6px; padding: 2px 10px; border-radius: var(--radius-pill); font-size: 12px; font-weight: 700; background: var(--accent-soft); color: var(--brand); }
+.emp-cat-warehouse { background: #fdf0dc; color: #7a4d03; }
+.emp-cat-sales-rep { background: #e5f4ec; color: #145f35; }
+.emp-cat-supervisor { background: #efe8fb; color: #4b2a85; }
+.emp-cat-office { background: #eef1f6; color: #3f4e66; }

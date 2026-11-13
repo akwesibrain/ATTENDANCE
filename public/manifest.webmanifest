@@ -1,0 +1,18 @@
+{
+  "name": "Workforce Attendance",
+  "short_name": "Attendance",
+  "description": "Clock in and out, record outlet visits and share your location with HR while on duty.",
+  "id": "/",
+  "start_url": "/attendance",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f6f9fd",
+  "theme_color": "#0b3d91",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

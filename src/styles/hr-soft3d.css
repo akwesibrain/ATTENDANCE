@@ -1,0 +1,447 @@
+/* ==========================================================================
+ * HR portal — 3D Soft Realism theme
+ * A blend of the UI/UX Pro Max "claymorphism" (soft 3D depth, double
+ * shadows) and "soft UI evolution" (professional contrast) styles:
+ *   - white surfaces lit from above (gentle top-to-bottom gradient and a
+ *     1px top highlight), floating on a soft blue backdrop;
+ *   - realistic layered shadows: a tight contact shadow + a soft ambient one;
+ *   - tactile buttons with a visible lower edge that sink when pressed;
+ *   - recessed (inset) fields; cards lift slightly on hover (200 ms).
+ * Safeguards: text ≥ 4.5:1, fields keep a 3:1 border, visible focus, no
+ * movement under prefers-reduced-motion. Scoped to the HR portal only.
+ * ========================================================================== */
+
+.hr-layout,
+.ac-shell {
+  --s3d-bg-top: #eef3fb;
+  --s3d-bg-bottom: #e2eaf6;
+  /* Slightly see-through so the logo watermark shows faintly behind cards. */
+  --s3d-surface-top: rgba(255, 255, 255, 0.9);
+  --s3d-surface-bottom: rgba(245, 248, 253, 0.9);
+  --s3d-edge: rgba(16, 42, 90, 0.08);
+  --s3d-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  --s3d-shadow:
+    0 1px 1px rgba(16, 42, 90, 0.06),
+    0 3px 6px rgba(16, 42, 90, 0.06),
+    0 14px 28px -10px rgba(16, 42, 90, 0.18);
+  --s3d-shadow-lift:
+    0 2px 2px rgba(16, 42, 90, 0.06),
+    0 8px 14px rgba(16, 42, 90, 0.08),
+    0 26px 40px -14px rgba(16, 42, 90, 0.26);
+  --s3d-shadow-sm:
+    0 1px 1px rgba(16, 42, 90, 0.08),
+    0 2px 5px rgba(16, 42, 90, 0.08);
+  --s3d-inset: inset 0 2px 4px rgba(16, 42, 90, 0.08), inset 0 1px 1px rgba(16, 42, 90, 0.06);
+  --s3d-blue-top: #1d68d6;
+  --s3d-blue-bottom: #1452a8;
+  --s3d-blue-edge: #0d3f86;
+
+  /* A shade darker than the global tokens so text that sits directly on the
+     page stays ≥ 4.5:1 even over the logo watermark. */
+  --ink-2: #3f4e66;
+  --accent: #1452a8;
+  --accent-hover: #124a98;
+  --focus: #1452a8;
+  --ground: var(--s3d-bg-top);
+  --surface: #ffffff;
+  --rule: #e3eaf4;
+  --shadow-card: var(--s3d-shadow);
+  --shadow-raised: var(--s3d-shadow-lift);
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+
+  background:
+    radial-gradient(1200px 600px at 85% -10%, rgba(29, 104, 214, 0.10), transparent 60%),
+    radial-gradient(900px 500px at -10% 110%, rgba(29, 104, 214, 0.08), transparent 60%),
+    linear-gradient(180deg, var(--s3d-bg-top), var(--s3d-bg-bottom));
+  background-attachment: fixed;
+}
+
+/* Shared "lit from above" surface */
+.hr-layout .hr-panel,
+.hr-layout .sm-panel,
+.hr-layout .st-card,
+.hr-layout .emp-card,
+.hr-layout .hr-chooser-card,
+.hr-layout .hr-stat,
+.hr-layout .sm-stat,
+.hr-layout .sm-event,
+.hr-layout .ac-denied,
+.hr-layout .skel-card,
+.ac-shell .ac-card {
+  background: linear-gradient(180deg, var(--s3d-surface-top), var(--s3d-surface-bottom));
+  border: 1px solid var(--s3d-edge);
+  box-shadow: var(--s3d-highlight), var(--s3d-shadow);
+}
+.hr-layout .hr-stat,
+.hr-layout .sm-stat { border-radius: var(--radius-lg); }
+
+@media (prefers-reduced-motion: no-preference) {
+  .hr-layout .emp-card,
+  .hr-layout .hr-chooser-card,
+  .hr-layout .hr-stat,
+  .hr-layout .sm-stat,
+  .hr-layout .lf-stat {
+    transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .hr-layout .emp-card:hover,
+  .hr-layout .hr-chooser-card:hover,
+  .hr-layout .lf-stat:hover {
+    transform: translateY(-3px);
+  }
+}
+.hr-layout .emp-card:hover,
+.hr-layout .hr-chooser-card:hover,
+.hr-layout .lf-stat:hover {
+  box-shadow: var(--s3d-highlight), var(--s3d-shadow-lift);
+}
+
+/* Stat values get a little more weight */
+.hr-layout .hr-stat-value,
+.hr-layout .sm-stat-value { letter-spacing: -0.01em; }
+
+/* ---------- Sidebar: a floating white panel ---------- */
+.hr-layout .hr-sidebar {
+  background: linear-gradient(180deg, #ffffff, #f4f7fd);
+  color: var(--ink);
+  margin: 14px 0 14px 14px;
+  height: calc(100vh - 28px);
+  height: calc(100dvh - 28px);
+  top: 14px;
+  border-radius: 22px;
+  border: 1px solid var(--s3d-edge);
+  box-shadow: var(--s3d-highlight), var(--s3d-shadow-lift);
+}
+.hr-layout .hr-brand,
+.hr-layout .hr-sidebar-footer { border-color: var(--rule); }
+.hr-layout .hr-brand-mark {
+  background: linear-gradient(180deg, var(--s3d-blue-top), var(--s3d-blue-bottom));
+  color: #fff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 2px 0 var(--s3d-blue-edge), 0 6px 12px rgba(20, 82, 168, 0.3);
+}
+.hr-layout .hr-brand-text { color: var(--brand); }
+.hr-layout .hr-brand-text span,
+.hr-layout .hr-footer-sub { color: var(--ink-2); }
+.hr-layout .hr-sidebar-footer { color: var(--ink); }
+
+.hr-layout .hr-nav { gap: 6px; }
+.hr-layout .hr-nav-item {
+  color: var(--ink-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+}
+.hr-layout .hr-nav-item:hover {
+  background: #f0f5fd;
+  color: var(--brand);
+}
+.hr-layout .hr-nav-item.is-active {
+  background: linear-gradient(180deg, var(--s3d-blue-top), var(--s3d-blue-bottom));
+  color: #fff;
+  font-weight: 700;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 2px 0 var(--s3d-blue-edge), 0 8px 16px -4px rgba(20, 82, 168, 0.45);
+}
+
+/* ---------- Top bar: scrolls with the page (not pinned) ---------- */
+.hr-layout .hr-topbar {
+  background: rgba(255, 255, 255, 0.78);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow: 0 1px 0 var(--s3d-edge), 0 10px 24px -18px rgba(16, 42, 90, 0.35);
+  position: relative;
+  top: auto;
+  z-index: 1;
+}
+.hr-layout .hr-icon-btn,
+.hr-layout .hr-avatar-lg {
+  background: linear-gradient(180deg, #ffffff, #eef3fb);
+  border: 1px solid var(--s3d-edge);
+  box-shadow: var(--s3d-highlight), var(--s3d-shadow-sm);
+  color: var(--brand);
+}
+
+/* ---------- Buttons: tactile, with an edge that sinks on press ---------- */
+.hr-layout .btn,
+.hr-layout .sm-actions-btn,
+.hr-layout .emp-page-btn,
+.hr-layout .sm-modal-close,
+.ac-shell .btn,
+.ac-shell .ac-user {
+  border-radius: var(--radius-md);
+  transition: transform 0.12s ease-out, box-shadow 0.12s ease-out, background 0.15s ease-out, color 0.15s ease-out;
+}
+.hr-layout .btn-primary,
+.ac-shell .btn-primary {
+  background: linear-gradient(180deg, var(--s3d-blue-top), var(--s3d-blue-bottom));
+  color: #fff;
+  border: 1px solid var(--s3d-blue-edge);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 3px 0 var(--s3d-blue-edge), 0 8px 16px -6px rgba(20, 82, 168, 0.5);
+}
+.hr-layout .btn-primary:hover:not(:disabled),
+.ac-shell .btn-primary:hover:not(:disabled) {
+  background: linear-gradient(180deg, #1a60c9, #124a98);
+}
+.hr-layout .btn-secondary,
+.hr-layout .btn-outline,
+.hr-layout .sm-actions-btn,
+.hr-layout .emp-page-btn,
+.hr-layout .sm-modal-close,
+.ac-shell .btn-secondary,
+.ac-shell .ac-user {
+  background: linear-gradient(180deg, #ffffff, #eef3fb);
+  color: var(--brand);
+  border: 1px solid #d3deee;
+  box-shadow: var(--s3d-highlight), 0 2px 0 #c9d6ea, 0 4px 10px -4px rgba(16, 42, 90, 0.18);
+}
+.hr-layout .btn-secondary:hover:not(:disabled),
+.hr-layout .btn-outline:hover:not(:disabled),
+.hr-layout .sm-actions-btn:hover:not(:disabled),
+.hr-layout .emp-page-btn:hover:not(:disabled),
+.ac-shell .ac-user:hover:not(:disabled) {
+  background: linear-gradient(180deg, #ffffff, #e7eefa);
+  color: var(--accent);
+}
+.hr-layout .btn:active:not(:disabled),
+.hr-layout .sm-actions-btn:active:not(:disabled),
+.hr-layout .emp-page-btn:active:not(:disabled),
+.hr-layout .sm-modal-close:active,
+.ac-shell .btn:active:not(:disabled),
+.ac-shell .ac-user:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow: var(--s3d-inset);
+}
+.hr-layout .btn:disabled,
+.hr-layout .sm-actions-btn:disabled,
+.hr-layout .emp-page-btn:disabled {
+  box-shadow: none;
+  opacity: 0.55;
+}
+.hr-layout .emp-page-btn.is-active {
+  background: linear-gradient(180deg, var(--s3d-blue-top), var(--s3d-blue-bottom));
+  color: #fff;
+  border-color: var(--s3d-blue-edge);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 2px 0 var(--s3d-blue-edge);
+}
+
+/* ---------- Fields: recessed ---------- */
+.hr-layout .form-input,
+.hr-layout .sh-form-input,
+.hr-layout .sh-form-select,
+.hr-layout .sm-select,
+.hr-layout .hr-company-select,
+.hr-layout .as-input,
+.hr-layout .hr-search {
+  background: linear-gradient(180deg, #f6f9fd, #ffffff);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--s3d-inset);
+}
+.hr-layout .form-input:focus,
+.hr-layout .sh-form-input:focus,
+.hr-layout .sh-form-select:focus,
+.hr-layout .sm-select:focus,
+.hr-layout .hr-company-select:focus,
+.hr-layout .hr-search:focus {
+  border-color: var(--accent);
+  box-shadow: var(--s3d-inset), 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+/* ---------- Tabs: a raised tray with a blue selected key ---------- */
+.hr-layout .hr-subtabs {
+  border-bottom: 0;
+  gap: 6px;
+  padding: 5px;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(180deg, #e9eff9, #f3f6fc);
+  box-shadow: var(--s3d-inset);
+  width: fit-content;
+  max-width: 100%;
+}
+.hr-layout .hr-subtab,
+.hr-layout .sm-tab {
+  border: 0;
+  margin-bottom: 0;
+  border-radius: 12px;
+}
+.hr-layout .hr-subtab.is-active,
+.hr-layout .sm-tab.is-active {
+  background: linear-gradient(180deg, #ffffff, #f4f7fd);
+  color: var(--accent);
+  font-weight: 700;
+  box-shadow: var(--s3d-highlight), var(--s3d-shadow-sm);
+}
+
+/* Settings section list and day toggles */
+.hr-layout .st-nav-item { border-radius: var(--radius-md); }
+.hr-layout .st-nav-item.is-active {
+  background: linear-gradient(180deg, #ffffff, #eef4fd);
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+  box-shadow: var(--s3d-highlight), var(--s3d-shadow-sm);
+}
+.hr-layout .sh-day.is-selected {
+  background: linear-gradient(180deg, var(--s3d-blue-top), var(--s3d-blue-bottom));
+  color: #fff;
+  border-color: var(--s3d-blue-edge);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 2px 0 var(--s3d-blue-edge);
+}
+
+/* ---------- Wells inside cards ---------- */
+.hr-layout .sm-section,
+.hr-layout .emp-card-emergency,
+.hr-layout .hol-list,
+.hr-layout .at-history {
+  background: linear-gradient(180deg, #f8fafe, #ffffff);
+  border: 1px solid var(--rule);
+  box-shadow: inset 0 1px 2px rgba(16, 42, 90, 0.05);
+}
+.hr-layout .sm-section-title { background: transparent; }
+
+/* Tables: soft row hover */
+.hr-layout .hr-table tbody tr:hover,
+.hr-layout .sm-table tbody tr:hover { background: #f3f7fd; }
+
+/* Badges: small glossy pills */
+.hr-layout .at-badge,
+.hr-layout .status-badge,
+.hr-layout .report-tier {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 1px 2px rgba(16, 42, 90, 0.08);
+}
+
+/* Avatars: soft sphere */
+.hr-layout .hr-avatar,
+.hr-layout .emp-card-photo-fallback,
+.hr-layout .sm-profile-photo-fallback {
+  background: radial-gradient(circle at 35% 30%, #ffffff, #dbe6f6 70%);
+  box-shadow: inset 0 -2px 4px rgba(16, 42, 90, 0.08), 0 2px 6px rgba(16, 42, 90, 0.12);
+}
+
+/* ---------- Modals, drawer, assistant ---------- */
+.hr-layout .sm-modal,
+.hr-layout .nt-drawer,
+.hr-layout .nt-confirm,
+.hr-layout .as-panel {
+  background: linear-gradient(180deg, #ffffff, #f7f9fd);
+  border: 1px solid var(--s3d-edge);
+  box-shadow: var(--s3d-highlight), 0 30px 60px -20px rgba(16, 42, 90, 0.45), 0 10px 20px rgba(16, 42, 90, 0.1);
+}
+.hr-layout .sm-modal-head,
+.hr-layout .sm-modal-foot,
+.hr-layout .nt-drawer-head { background: transparent; }
+.hr-layout .sm-modal-body > .sm-alert-actions:last-child,
+.hr-layout .sm-modal-body > form > .sm-alert-actions:last-child { background: #f9fbfe; }
+.hr-layout .sm-modal-overlay,
+.hr-layout .nt-drawer-overlay {
+  background: rgba(20, 36, 66, 0.42);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+
+/* ---------- Access screens ---------- */
+.ac-shell { min-height: 100vh; min-height: 100dvh; }
+.ac-shell .ac-card { border-radius: 24px; }
+
+/* ---------- Focus ---------- */
+.hr-layout :focus-visible,
+.ac-shell :focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+
+/* ---------- Reduced motion: no lift or press movement ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .hr-layout .btn:active:not(:disabled),
+  .hr-layout .sm-actions-btn:active:not(:disabled),
+  .hr-layout .emp-page-btn:active:not(:disabled),
+  .ac-shell .btn:active:not(:disabled),
+  .ac-shell .ac-user:active:not(:disabled) { transform: none; }
+}
+
+/* ---------- Never wider than the screen ---------- */
+.hr-layout .hr-main { min-width: 0; }
+
+/* ---------- Phones: sidebar becomes a floating top bar ---------- */
+@media (max-width: 720px) {
+  .hr-layout { background-attachment: scroll; }
+  .hr-layout .hr-sidebar {
+    margin: 10px 10px 0;
+    height: auto;
+    border-radius: 18px;
+    min-width: 0;
+    max-width: calc(100% - 20px);
+  }
+  .hr-layout .hr-nav { min-width: 0; flex: 1 1 auto; padding: 4px 2px 8px; }
+  .hr-layout .hr-topbar { flex-wrap: wrap; position: static; }
+}
+
+/* ---------- Background: Double A logo watermark ----------
+ * A large, faint copy of the logo fixed behind the content (it does not
+ * scroll). Kept very light so it never competes with text or data:
+ * every card sits on its own white surface above it. */
+.hr-layout { position: relative; isolation: isolate; }
+.hr-layout::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: url('../assets/double-a-watermark.webp') no-repeat;
+  background-position: calc(50% + 130px) 55%;
+  background-size: min(62vw, 760px) auto;
+  opacity: 0.13;
+}
+@media (max-width: 720px) {
+  .hr-layout::before {
+    background-position: 50% 60%;
+    background-size: 88vw auto;
+  }
+}
+@media print {
+  .hr-layout::before { display: none; }
+}
+
+/* ---------- Login and other access screens: same fields and buttons ---------- */
+.ac-shell .sh-form-input {
+  background: linear-gradient(180deg, #f6f9fd, #ffffff);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--s3d-inset);
+}
+.ac-shell .sh-form-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: var(--s3d-inset), 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+.ac-shell .sm-actions-btn {
+  background: linear-gradient(180deg, #ffffff, #eef3fb);
+  color: var(--brand);
+  border: 1px solid #d3deee;
+  border-radius: var(--radius-md);
+  box-shadow: var(--s3d-highlight), 0 2px 0 #c9d6ea, 0 4px 10px -4px rgba(16, 42, 90, 0.18);
+}
+.ac-shell .sm-actions-btn:active { transform: translateY(2px); box-shadow: var(--s3d-inset); }
+
+/* ---------- Login and other access screens: Double A logo watermark ---------- */
+.ac-shell { position: relative; isolation: isolate; }
+.ac-shell::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: url('../assets/double-a-watermark.webp') no-repeat 50% 52%;
+  background-size: min(96vw, 1180px) auto;
+  opacity: 0.16;
+}
+@media (max-width: 560px) {
+  .ac-shell::before { background-position: 50% 55%; background-size: 150vw auto; }
+}
+@media print {
+  .ac-shell::before { display: none; }
+}
+
+/* HR sign-in and authenticator screens: the submit button sits in the
+   centre of the card (frontend styling only; the screens are unchanged). */
+.ac-card form button[type="submit"] {
+  display: block;
+  min-width: 200px;
+  margin: 18px auto 0;
+}

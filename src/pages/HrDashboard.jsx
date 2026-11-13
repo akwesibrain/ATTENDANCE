@@ -1,15 +1,16 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
 import { COMPANIES } from '../constants/companies'
 import { listPayPeriods, payPeriodDates } from '../utils/payPeriod'
-import { holidayForKey } from '../utils/attendanceRules'
 import { accraTodayKey, formatAccraDate, formatAccraTime } from '../utils/accraTime'
 import { getPaymentMethodLabel } from '../constants/paymentMethods'
 import { authorisedCompanies, can } from '../constants/hrUser'
 import { signOut } from '../services/permissionsService'
 import { refresh as reloadTables, useCacheVersion } from '../services/backend/cache'
 import { AccessDenied, HrGate } from '../components/access/AccessScreens'
-import { overtimeForRecord, formatCedis } from '../services/overtimeService'
-import { ATTENDANCE_STATUS } from '../constants/attendanceLabels'
+import { formatCedis } from '../services/overtimeService'
+import { buildMonthlyReport, monthlyReportDailyCsv, monthlyReportSummaryCsv } from '../services/categoryReportService'
+import { CATEGORIES, REPORT_CATEGORIES } from '../constants/employeeCategories'
+import { VERIFICATION_STATUS } from '../constants/attendanceLabels'
 import HrAssistant from '../components/assistant/HrAssistant'
 import { companySettings, generalSettings } from '../services/settingsService'
 import { listEmployees } from '../services/registrationService'
@@ -38,7 +39,8 @@ import '../styles/overtime.css'
 import '../styles/settings.css'
 import '../styles/shops.css'
 import '../styles/assistant.css'
-import '../styles/hr-neumorphism.css'
+import '../styles/live-tracker.css'
+import '../styles/hr-soft3d.css'
 
 // HR pages are downloaded when first opened (and prefetched when the browser
 // is idle), keeping the first load of the portal small.
@@ -49,10 +51,18 @@ const loaders = {
   settings: () => import('./Settings'),
   audit: () => import('./AuditLogs'),
   notifications: () => import('./NotificationsCenter'),
+  visits: () => import('./FieldVisitsMonitoring'),
+  tracker: () => import('./LiveFieldTracker'),
+  payroll: () => import('./Payroll'),
+  payrollSettings: () => import('../components/payroll/SalaryStructures'),
 }
+const LiveFieldTracker = lazy(loaders.tracker)
+const FieldVisitsMonitoring = lazy(loaders.visits)
 const AttendanceManagement = lazy(loaders.attendance)
 const SalesMonitoring = lazy(loaders.sales)
 const Overtime = lazy(loaders.overtime)
+const Payroll = lazy(loaders.payroll)
+const SalaryStructures = lazy(loaders.payrollSettings)
 const Settings = lazy(loaders.settings)
 const AuditLogs = lazy(loaders.audit)
 const NotificationsCenter = lazy(loaders.notifications)
@@ -76,14 +86,21 @@ const NAV = [
   { id: 'dashboard', label: 'Dashboard', icon: 'grid', module: 'dashboard' },
   { id: 'employees', label: 'Employees', icon: 'users', module: 'employees' },
   { id: 'attendance', label: 'Attendance', icon: 'clock', module: 'attendance' },
-  { id: 'sales-monitoring', label: 'Sales Reps', icon: 'mappin', module: 'sales-monitoring' },
+  { id: 'live-tracker', label: 'Live Tracker', icon: 'radar', module: 'sales-monitoring' },
+  // Field monitoring: one sidebar item, a tab per employee category.
+  { id: 'sales-monitoring', label: 'Merchandiser Monitoring', icon: 'mappin', module: 'sales-monitoring', group: 'field' },
+  { id: 'sales-rep-monitoring', label: 'Sales Rep Monitoring', icon: 'mappin', module: 'sales-monitoring', group: 'field' },
+  { id: 'supervisor-monitoring', label: 'Supervisor Monitoring', icon: 'mappin', module: 'sales-monitoring', group: 'field' },
   { id: 'reports', label: 'Reports', icon: 'report', module: 'reports', group: 'reports' },
   { id: 'overtime', label: 'Overtime', icon: 'clock', module: 'reports', group: 'reports' },
+  // Payroll: the payroll run, and Payroll Settings → Salary Structures & Categories.
+  { id: 'payroll', label: 'Payroll', icon: 'wallet', module: 'payroll', group: 'payroll' },
+  { id: 'payroll-settings', label: 'Salary Structures & Categories', icon: 'wallet', module: 'payroll', group: 'payroll' },
   { id: 'settings', label: 'Settings', icon: 'gear', module: 'settings', group: 'settings' },
   { id: 'audit-logs', label: 'Audit Logs', icon: 'list', module: 'audit-logs', group: 'settings' },
   { id: 'notifications', label: 'Notifications', icon: 'bell', module: 'notifications', hidden: true },
 ]
-const GROUP_LABELS = { reports: { label: 'Reports', icon: 'report' }, settings: { label: 'Settings', icon: 'gear' } }
+const GROUP_LABELS = { field: { label: 'Field Monitoring', icon: 'mappin' }, reports: { label: 'Reports', icon: 'report' }, payroll: { label: 'Payroll', icon: 'wallet' }, settings: { label: 'Settings', icon: 'gear' } }
 
 function navFromHash() {
   if (typeof window === 'undefined' || !window.location) return null
@@ -157,6 +174,14 @@ function Icon({ name, size = 20 }) {
         <path d="M16 2v4M8 2v4M3 10h18M8 14h2M14 14h2M8 18h2" />
       </>
     ),
+    radar: (
+      <>
+        <circle cx="12" cy="12" r="9" />
+        <circle cx="12" cy="12" r="5" />
+        <path d="M12 12l6.5-6.5" />
+        <circle cx="12" cy="12" r="1.2" />
+      </>
+    ),
     mappin: (
       <>
         <path d="M12 21s-7-5.1-7-11a7 7 0 1 1 14 0c0 5.9-7 11-7 11z" />
@@ -192,6 +217,12 @@ function Icon({ name, size = 20 }) {
       <>
         <circle cx="12" cy="12" r="3" />
         <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+      </>
+    ),
+    wallet: (
+      <>
+        <path d="M20 7V5a2 2 0 0 0-2-2H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-4a2 2 0 0 0 0 4h4v3a1 1 0 0 1-1 1H5a2 2 0 0 1-2-2V5" />
+        <path d="M17 14h.01" />
       </>
     ),
     list: (
@@ -279,6 +310,9 @@ function HrDashboardContent({ onBack, user }) {
   const [reportPeriodKey, setReportPeriodKey] = useState(() => listPayPeriods(1)[0].key)
   // Reports: per-employee summary, or one row per attendance day.
   const [reportView, setReportView] = useState('summary')
+  // Reports: which employee category, and optionally one employee.
+  const [reportCategory, setReportCategory] = useState('all')
+  const [reportEmployee, setReportEmployee] = useState('')
   // The employee being assigned a shop (HR action), or null.
   const [assigningEmployee, setAssigningEmployee] = useState(null)
   const [assignRefreshKey, setAssignRefreshKey] = useState(0)
@@ -423,124 +457,42 @@ function HrDashboardContent({ onBack, user }) {
     [isCombined, company.id, reportPeriod, attendanceVersion, assignRefreshKey],
   )
 
-  const reportRows = useMemo(() => {
-    const dates = payPeriodDates(reportPeriod)
-    const holidays = dates.filter((d) => holidayForKey(d)).length
-    const records = reportRecords
-    return listAttendanceRoster(company.id).map((emp) => {
-      const own = records.filter((r) => r.employeeId === emp.employeeId)
-      const scheduled = own.filter((r) => r.workday)
-      const present = scheduled.filter((r) => r.hasAttendance).length
-      const late = scheduled.filter((r) => r.isLate).length
-      const absent = scheduled.filter((r) => r.status === 'absent').length
-      const leave = scheduled.filter((r) => r.status === 'on-leave').length
-      const unknown = scheduled.filter((r) => r.status === 'unknown').length
-      const workingDays = present + absent + leave + unknown
-      // Same calculation as the Overtime page: all time worked on Saturdays,
-      // Sundays and holidays, plus time after the overtime start on weekdays,
-      // added together into one overtime total.
-      const ot = own.map(overtimeForRecord).filter((o) => o.status === 'counted')
-      const overtimeMinutes = ot.reduce((sum, o) => sum + o.minutes, 0)
-      const overtimePay = Math.round((ot.reduce((sum, o) => sum + o.minutes * o.rate, 0) / 60) * 100) / 100
-      const workingHours = Math.round((own.reduce((sum, r) => sum + (r.workingMinutes ?? 0), 0) / 60) * 100) / 100
-      const due = present + absent
-      const rate = due ? (present / due) * 100 : 0
-      let tier = 'needs-attention'
-      if (!due) tier = 'good'
-      else if (rate >= 99) tier = 'perfect'
-      else if (rate >= 95) tier = 'excellent'
-      else if (rate >= 90) tier = 'good'
-      return {
-        emp: {
-          staffId: emp.employeeId,
-          fullName: emp.fullName,
-          position: emp.position,
-          paymentMethod: emp.paymentMethod,
-          faceImage: emp.photo,
-        },
-        workingDays,
-        present,
-        late,
-        absent,
-        leave,
-        overtime: Math.round((overtimeMinutes / 60) * 100) / 100,
-        overtimePay,
-        workingHours,
-        holidays,
-        rate,
-        due,
-        tier,
-      }
-    })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [company.id, reportPeriod, reportRecords])
-
-  // Daily records view: every day with attendance, absence, leave or an
-  // incomplete record. Manual and system-recorded days are treated the same.
-  const reportDetail = useMemo(
-    () => reportRecords
-      .filter((r) => r.hasAttendance || ['absent', 'on-leave', 'incomplete'].includes(r.status))
-      .map((r) => ({ r, ot: overtimeForRecord(r) }))
-      .sort((a, b) => a.r.fullName.localeCompare(b.r.fullName) || a.r.date.localeCompare(b.r.date)),
-    [reportRecords],
+  // Monthly report for the chosen category (or everyone), from the shared
+  // report service so it matches Attendance and Overtime exactly.
+  const report = useMemo(
+    () => (isCombined
+      ? { rows: [], detail: [], totals: {} }
+      : buildMonthlyReport({ companyId: company.id, period: reportPeriod, category: reportCategory, employeeId: reportEmployee, records: reportRecords })),
+    [isCombined, company.id, reportPeriod, reportCategory, reportEmployee, reportRecords],
   )
+  const reportRows = report.rows
+  const reportDetail = report.detail
+  const reportPeople = useMemo(
+    () => (isCombined ? [] : listAttendanceRoster(company.id).filter((e) => reportCategory === 'all' || e.category === reportCategory)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [isCombined, company.id, reportCategory, assignRefreshKey],
+  )
+  const showBreaks = reportCategory === 'all' || reportCategory === 'warehouse'
+  const showVisits = reportCategory === 'sales-rep' || reportCategory === 'supervisor'
+  const reportCategoryName = reportCategory === 'all' ? 'All employees' : CATEGORIES[reportCategory].label
 
-  // Download the current report as a CSV file.
-  const downloadReport = () => {
-    if (reportView === 'detail') {
-      const head = ['Date', 'Employee Name', 'Employee ID', 'Position', 'Clock-In', 'Clock-Out', 'Status', 'Working Hours', 'Overtime (min)', 'Overtime Pay (GH₵)']
-      const body = reportDetail.map(({ r, ot }) => [
-        r.date, r.fullName, r.employeeId, r.position,
-        r.clockInUnknown ? 'Unknown' : r.clockIn ? formatAccraTime(r.clockIn) : '',
-        r.clockOutUnknown ? 'Unknown' : r.clockOut ? formatAccraTime(r.clockOut) : '',
-        ATTENDANCE_STATUS[r.status]?.label ?? r.status,
-        r.workingMinutes ? (r.workingMinutes / 60).toFixed(2) : '',
-        ot.status === 'counted' ? ot.minutes : '',
-        ot.status === 'counted' ? ot.pay.toFixed(2) : '',
-      ])
-      const text = [head, ...body].map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n')
-      const blob = new Blob([text], { type: 'text/csv;charset=utf-8' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `attendance-daily-records-${company.id}-${reportPeriod.key}.csv`
-      document.body.appendChild(a)
-      a.click()
-      a.remove()
-      URL.revokeObjectURL(url)
-      return
-    }
-    const header = ['#', 'Employee Name', 'Employee ID', 'Position', 'Payment Method', 'Working Days', 'Present', 'Late', 'Absent', 'On Leave', 'Working Hours', 'Overtime (hrs)', 'Overtime Pay (GH₵)', 'Holidays', 'Attendance Rate', 'Status']
-    const lines = reportRows.map((r, i) => [
-      i + 1,
-      r.emp.fullName,
-      r.emp.staffId,
-      r.emp.position,
-      getPaymentMethodLabel(r.emp.paymentMethod),
-      r.workingDays,
-      r.present,
-      r.late,
-      r.absent,
-      r.leave,
-      r.workingHours,
-      r.overtime,
-      r.overtimePay.toFixed(2),
-      r.holidays,
-      r.due ? `${r.rate.toFixed(1)}%` : '—',
-      TIER_LABELS[r.tier],
-    ])
-    const csv = [header, ...lines]
-      .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
-      .join('\n')
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+  const saveCsv = (text, name) => {
+    const blob = new Blob([text], { type: 'text/csv;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `attendance-report-${company.id}-${reportPeriod.key}.csv`
+    a.download = name
     document.body.appendChild(a)
     a.click()
     a.remove()
     URL.revokeObjectURL(url)
+  }
+  // Download the current category's report (summary or daily records).
+  const downloadReport = (scope = reportCategory) => {
+    const r = scope === reportCategory ? report : buildMonthlyReport({ companyId: company.id, period: reportPeriod, category: scope, records: reportRecords })
+    const kind = reportView === 'detail' ? 'daily' : 'summary'
+    const text = reportView === 'detail' ? monthlyReportDailyCsv(r) : monthlyReportSummaryCsv(r)
+    saveCsv(text, `attendance-${kind}-${scope === 'all' ? 'all-employees' : scope}-${company.id}-${reportPeriod.key}.csv`)
   }
 
   return (
@@ -701,6 +653,20 @@ function HrDashboardContent({ onBack, user }) {
 
           {permitted && activeNav === 'audit-logs' && <AuditLogs user={user} />}
 
+          {permitted && activeNav === 'payroll' && (
+            <Payroll
+              key={scopeCompany.id || 'all'}
+              user={user}
+              company={scopeCompany}
+              companies={myCompanies.map((c) => ({ id: c.id, name: nameOf(c.id) }))}
+              onNavigate={goTo}
+            />
+          )}
+
+          {permitted && !isCombined && activeNav === 'payroll-settings' && (
+            <SalaryStructures key={company.id} user={user} company={{ id: company.id, name: nameOf(company.id) }} />
+          )}
+
           {permitted && activeNav === 'overtime' && (
             <Overtime
               key={scopeCompany.id || 'all'}
@@ -714,7 +680,7 @@ function HrDashboardContent({ onBack, user }) {
           )}
 
 
-          {permitted && isCombined && ['employees', 'sales-monitoring', 'reports'].includes(activeNav) && (
+          {permitted && isCombined && ['employees', 'payroll-settings', 'live-tracker', 'sales-monitoring', 'sales-rep-monitoring', 'supervisor-monitoring', 'reports'].includes(activeNav) && (
             <section className="hr-panel hr-chooser" aria-label="Choose a company">
               <h2>{navItem.label} is kept per company</h2>
               <p>Choose which company to open. Employee, shop and report data are never mixed between companies.</p>
@@ -793,6 +759,36 @@ function HrDashboardContent({ onBack, user }) {
                   <span className="hr-stat-value hr-stat-warn">{stats.late}</span>
                 </div>
               </div>
+
+              <section className="hr-panel hr-categories" aria-label="Today by employee category">
+                <div className="hr-panel-head"><h2>Today by employee category</h2></div>
+                <div className="hr-table-wrap">
+                  <table className="hr-table">
+                    <thead><tr><th>Category</th><th className="hr-num">Employees</th><th className="hr-num">Present</th><th className="hr-num">Absent</th><th className="hr-num">On leave</th><th>Today</th></tr></thead>
+                    <tbody>
+                      {[...REPORT_CATEGORIES, 'office'].map((c) => {
+                        const rs = todayRecords.filter((r) => r.category === c)
+                        if (!rs.length) return null
+                        const extra = c === 'warehouse'
+                          ? `${rs.filter((r) => r.onBreak).length} on break now · ${rs.filter((r) => r.breakIssue).length} break scans to review`
+                          : c === 'sales-rep' || c === 'supervisor'
+                            ? `${rs.reduce((n, r) => n + r.visits.length, 0)} outlet visits recorded`
+                            : c === 'merchandiser' ? 'At their allocated shops' : 'Standard office day'
+                        return (
+                          <tr key={c}>
+                            <td><strong>{CATEGORIES[c].label}</strong></td>
+                            <td className="hr-num">{rs.length}</td>
+                            <td className="hr-num">{rs.filter((r) => r.hasAttendance).length}</td>
+                            <td className="hr-num">{rs.filter((r) => r.status === 'absent').length}</td>
+                            <td className="hr-num">{rs.filter((r) => r.status === 'on-leave').length}</td>
+                            <td className="at-sub">{extra}</td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
 
               <section className="hr-panel hr-register">
                 <div className="hr-panel-head">
@@ -899,6 +895,15 @@ function HrDashboardContent({ onBack, user }) {
           {permitted && !isCombined && activeNav === 'sales-monitoring' && (
             <SalesMonitoring key={company.id} company={company} user={user} />
           )}
+          {permitted && !isCombined && activeNav === 'live-tracker' && (
+            <LiveFieldTracker key={`lt-${company.id}`} company={company} user={user} />
+          )}
+          {permitted && !isCombined && activeNav === 'sales-rep-monitoring' && (
+            <FieldVisitsMonitoring key={`sr-${company.id}`} company={company} category="sales-rep" user={user} onOpenAttendance={can(user, 'attendance', 'view') ? openAttendanceHistory : null} />
+          )}
+          {permitted && !isCombined && activeNav === 'supervisor-monitoring' && (
+            <FieldVisitsMonitoring key={`sv-${company.id}`} company={company} category="supervisor" user={user} onOpenAttendance={can(user, 'attendance', 'view') ? openAttendanceHistory : null} />
+          )}
 
           {permitted && !isCombined && activeNav === 'reports' && (
             <section className="hr-panel hr-report">
@@ -929,6 +934,11 @@ function HrDashboardContent({ onBack, user }) {
                       </option>
                     ))}
                   </select>
+                  <label className="sr-only" htmlFor="report-employee">Employee</label>
+                  <select id="report-employee" className="hr-company-select hr-report-period" value={reportEmployee} onChange={(e) => setReportEmployee(e.target.value)}>
+                    <option value="">All employees in view</option>
+                    {reportPeople.map((e) => <option key={e.employeeId} value={e.employeeId}>{e.fullName} ({e.employeeId})</option>)}
+                  </select>
                   <div className="sm-tabs hr-report-views" role="tablist" aria-label="Report view">
                     <button type="button" role="tab" aria-selected={reportView === 'summary'} className={`sm-tab${reportView === 'summary' ? ' is-active' : ''}`} onClick={() => setReportView('summary')}>Summary</button>
                     <button type="button" role="tab" aria-selected={reportView === 'detail'} className={`sm-tab${reportView === 'detail' ? ' is-active' : ''}`} onClick={() => setReportView('detail')}>Daily records</button>
@@ -937,9 +947,18 @@ function HrDashboardContent({ onBack, user }) {
                     <button
                       type="button"
                       className="btn btn-secondary hr-report-btn"
-                      onClick={downloadReport}
+                      onClick={() => downloadReport()}
                     >
-                      <Icon name="download" size={16} /> Download Report
+                      <Icon name="download" size={16} /> Export {reportCategoryName}
+                    </button>
+                  )}
+                  {can(user, 'reports', 'export') && reportCategory !== 'all' && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary hr-report-btn"
+                      onClick={() => downloadReport('all')}
+                    >
+                      <Icon name="download" size={16} /> Export combined
                     </button>
                   )}
                   <button
@@ -952,10 +971,20 @@ function HrDashboardContent({ onBack, user }) {
                 </div>
               </div>
 
+              <div className="sm-tabs hr-report-categories" role="tablist" aria-label="Employee category">
+                {['all', ...REPORT_CATEGORIES, 'office'].map((c) => (
+                  <button key={c} type="button" role="tab" aria-selected={reportCategory === c} className={`sm-tab${reportCategory === c ? ' is-active' : ''}`} onClick={() => { setReportCategory(c); setReportEmployee('') }}>
+                    {c === 'all' ? 'All employees' : CATEGORIES[c].label}
+                  </button>
+                ))}
+              </div>
               <p className="hr-report-note">
-                Attendance for the {reportPeriod.label} period (26th–25th). One record per employee per day, whether clocked in
-                through the system or entered manually. Overtime includes all hours worked on Saturdays, Sundays and holidays. Future
-                dates are never counted as absences.
+                {reportCategoryName} · attendance cycle {reportPeriod.label} (26th–25th). One record per employee per day, whether clocked
+                in through the system or entered manually.
+                {reportCategory === 'warehouse' && ' Working hours exclude the breaks Warehouse Workers scanned; a break without a return scan is held for HR review.'}
+                {(reportCategory === 'sales-rep' || reportCategory === 'supervisor') && ' No scheduled break; working hours run from clock-in to clock-out.'}
+                {reportCategory === 'merchandiser' && ' Merchandisers work from their allocated shop with random verification checks.'}
+                {' '}Overtime includes all hours worked on Saturdays, Sundays and holidays. Future dates are never counted as absences.
               </p>
               {reportView === 'summary' && <div className="hr-table-wrap">
                 <table className="hr-table hr-report-table">
@@ -964,7 +993,7 @@ function HrDashboardContent({ onBack, user }) {
                       <th>#</th>
                       <th>Employee Name</th>
                       <th>Employee ID</th>
-                      <th>Position</th>
+                      <th>Category</th>
                       <th>Payment Method</th>
                       <th className="hr-num">Working Days</th>
                       <th className="hr-num">Present</th>
@@ -972,6 +1001,9 @@ function HrDashboardContent({ onBack, user }) {
                       <th className="hr-num">Absent</th>
                       <th className="hr-num">On Leave</th>
                       <th className="hr-num">Working hrs</th>
+                      {showBreaks && <th className="hr-num">Break hrs</th>}
+                      {showVisits && <th className="hr-num">Outlet visits</th>}
+                      <th className="hr-num">Verified days</th>
                       <th className="hr-num">Overtime (hrs)</th>
                       <th className="hr-num">Overtime pay</th>
                       <th className="hr-num">Holidays</th>
@@ -980,7 +1012,7 @@ function HrDashboardContent({ onBack, user }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {reportRows.map(({ emp, workingDays, present, late, absent, leave, overtime, overtimePay, workingHours, holidays, rate, due, tier }, i) => (
+                    {reportRows.map(({ emp, category, workingDays, present, late, absent, leave, overtime, overtimePay, workingHours, breakHours, breakIssues, visits, verifiedDays, reviewDays, holidays, rate, due, tier }, i) => (
                       <tr key={emp.staffId}>
                         <td className="hr-num hr-rownum">{i + 1}</td>
                         <td>
@@ -996,7 +1028,7 @@ function HrDashboardContent({ onBack, user }) {
                           </div>
                         </td>
                         <td className="hr-mono">{emp.staffId}</td>
-                        <td>{emp.position}</td>
+                        <td>{CATEGORIES[category]?.single ?? '—'}<span className="at-sub"> · {emp.position}</span></td>
                         <td>{getPaymentMethodLabel(emp.paymentMethod) || '—'}</td>
                         <td className="hr-num">{workingDays}</td>
                         <td className="hr-num">{present}</td>
@@ -1008,6 +1040,9 @@ function HrDashboardContent({ onBack, user }) {
                         </td>
                         <td className="hr-num">{leave}</td>
                         <td className="hr-num">{workingHours.toFixed(2)}</td>
+                        {showBreaks && <td className="hr-num">{breakHours == null ? '—' : breakHours.toFixed(2)}{breakIssues > 0 && <span className="hr-cell-warn" title="Break return not scanned"> · {breakIssues} to review</span>}</td>}
+                        {showVisits && <td className="hr-num">{visits}</td>}
+                        <td className="hr-num">{verifiedDays}{reviewDays > 0 && <span className="hr-cell-warn"> · {reviewDays} review</span>}</td>
                         <td className="hr-num">
                           {overtime > 0 ? <span className="hr-cell-overtime">{overtime}</span> : overtime}
                         </td>
@@ -1023,8 +1058,8 @@ function HrDashboardContent({ onBack, user }) {
                     ))}
                     {reportRows.length === 0 && (
                       <tr>
-                        <td colSpan="16" className="hr-empty">
-                          No employees registered for {company.name} yet.
+                        <td colSpan="20" className="hr-empty">
+                          No {reportCategory === 'all' ? 'employees' : CATEGORIES[reportCategory].label.toLowerCase()} registered for {company.name}.
                         </td>
                       </tr>
                     )}
@@ -1040,9 +1075,14 @@ function HrDashboardContent({ onBack, user }) {
                         <th>Employee</th>
                         <th>Date</th>
                         <th>Clock-in</th>
+                        {showBreaks && <th>Break out</th>}
+                        {showBreaks && <th>Break in</th>}
                         <th>Clock-out</th>
                         <th>Status</th>
+                        <th className="hr-num">Late</th>
                         <th className="hr-num">Hours</th>
+                        {showVisits && <th className="hr-num">Visits</th>}
+                        <th>Verification</th>
                         <th className="hr-num">Overtime</th>
                         <th className="hr-num">Overtime pay</th>
                       </tr>
@@ -1050,18 +1090,23 @@ function HrDashboardContent({ onBack, user }) {
                     <tbody>
                       {reportDetail.map(({ r, ot }) => (
                         <tr key={r.key}>
-                          <td data-label="Employee"><span className="at-stack"><span className="at-emp-name">{r.fullName}</span><span className="at-sub"><span className="sm-mono">{r.employeeId}</span></span></span></td>
+                          <td data-label="Employee"><span className="at-stack"><span className="at-emp-name">{r.fullName}</span><span className="at-sub"><span className="sm-mono">{r.employeeId}</span> · {CATEGORIES[r.category]?.single}</span></span></td>
                           <td data-label="Date" className="hr-time">{formatAccraDate(r.date, { weekday: 'short', day: 'numeric', month: 'short' })}</td>
                           <td data-label="Clock-in" className="hr-time">{r.clockInUnknown ? 'Unknown' : r.clockIn ? formatAccraTime(r.clockIn) : '—'}</td>
+                          {showBreaks && <td data-label="Break out" className="hr-time">{r.breaks.length ? r.breaks.map((b) => formatAccraTime(b.start)).join(' / ') : '—'}</td>}
+                          {showBreaks && <td data-label="Break in" className="hr-time">{r.breaks.length ? r.breaks.map((b) => (b.end ? formatAccraTime(b.end) : 'Not scanned')).join(' / ') : '—'}</td>}
                           <td data-label="Clock-out" className="hr-time">{r.clockOutUnknown ? 'Unknown' : r.clockOut ? formatAccraTime(r.clockOut) : '—'}</td>
                           <td data-label="Status"><StatusBadge status={r.status} /></td>
-                          <td data-label="Hours" className="hr-num">{r.workingMinutes ? (r.workingMinutes / 60).toFixed(2) : '—'}</td>
+                          <td data-label="Late" className="hr-num">{r.isLate ? `${r.lateMinutes} min` : '—'}</td>
+                          <td data-label="Hours" className="hr-num">{r.breakIssue ? <span className="hr-cell-warn">Review</span> : r.workingMinutes ? (r.workingMinutes / 60).toFixed(2) : '—'}</td>
+                          {showVisits && <td data-label="Visits" className="hr-num">{r.visits.length}</td>}
+                          <td data-label="Verification">{VERIFICATION_STATUS[r.verification]?.label ?? '—'}</td>
                           <td data-label="Overtime" className="hr-num">{ot.status === 'counted' ? `${ot.minutes} min` : '—'}</td>
                           <td data-label="Overtime pay" className="hr-num">{ot.status === 'counted' ? formatCedis(ot.pay) : '—'}</td>
                         </tr>
                       ))}
                       {reportDetail.length === 0 && (
-                        <tr><td colSpan="8" className="hr-empty">No attendance records in this period yet.</td></tr>
+                        <tr><td colSpan="14" className="hr-empty">No attendance records in this period yet.</td></tr>
                       )}
                     </tbody>
                   </table>

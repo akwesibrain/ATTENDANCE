@@ -67,7 +67,7 @@ function AssignModal({ shop, reps, onClose, onAssigned }) {
             {error && <p className="at-form-alert" role="alert">{error}</p>}
           <div>
             <label className="sm-detail-label" htmlFor="assign-rep" style={{ display: 'block', marginBottom: 6 }}>
-              Sales representative
+              Merchandiser
             </label>
             <select
               id="assign-rep"

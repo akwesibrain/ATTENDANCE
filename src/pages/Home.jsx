@@ -1,3 +1,8 @@
+import InstallAppCard from '../components/common/InstallAppCard'
+// The landing page brings its own styles (it used to rely on the registration
+// screen loading them, which stopped once pages were loaded separately).
+import '../styles/registration.css'
+import '../styles/landing.css'
 import { hasRegisteredOnThisDevice } from '../services/registrationService'
 
 /**
@@ -7,10 +12,17 @@ import { hasRegisteredOnThisDevice } from '../services/registrationService'
  * "New Employee Registration" option is hidden — returning employees only
  * see Attendance (and HR). Registration is for first-time setup only.
  */
-export default function Home({ onRegister, onAttendance, onHr }) {
+const POLICY_LINKS = [
+  ['/privacy', 'Privacy Policy'],
+  ['/tracking-policy', 'Tracking Policy'],
+  ['/terms', 'Terms and Conditions'],
+  ['/cookies', 'Cookie Policy'],
+]
+
+export default function Home({ onRegister, onAttendance, onHr, onPolicy }) {
   const hasRegistered = hasRegisteredOnThisDevice()
   return (
-    <main className="registration-page">
+    <main className="registration-page landing-page">
       <div className="registration-shell">
         <header className="registration-brand">
           <span className="registration-brand-mark" aria-hidden="true">
@@ -46,6 +58,8 @@ export default function Home({ onRegister, onAttendance, onHr }) {
                 : 'Box For Less & Double A employee portal.'}
             </p>
           </div>
+
+          <InstallAppCard />
 
           <div className="home-actions">
             <button
@@ -179,6 +193,22 @@ export default function Home({ onRegister, onAttendance, onHr }) {
             </button>
           </div>
         </section>
+
+        <nav className="legal-links" aria-label="Policies">
+          {POLICY_LINKS.map(([path, label]) => (
+            <a
+              key={path}
+              href={path}
+              onClick={(e) => {
+                if (!onPolicy || e.metaKey || e.ctrlKey || e.shiftKey) return
+                e.preventDefault()
+                onPolicy(path)
+              }}
+            >
+              {label}
+            </a>
+          ))}
+        </nav>
       </div>
     </main>
   )

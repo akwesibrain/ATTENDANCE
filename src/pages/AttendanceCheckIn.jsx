@@ -5,6 +5,7 @@ import { clearPass, currentPass, passFromCode } from '../services/workplaceDispl
 import '../styles/display.css'
 import { captureFrame } from '../utils/captureFrame'
 import '../styles/registration.css'
+import '../styles/checkin-entry.css'
 
 const STEP = {
   staffId: 0,
@@ -12,12 +13,40 @@ const STEP = {
   success: 2,
 }
 
+const ACCRA_NOW = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'Africa/Accra', weekday: 'long', day: 'numeric', month: 'long', hour: 'numeric', minute: '2-digit', hour12: true,
+})
+
+/** Today's date and the time in Accra, so staff see when they are clocking. */
+function AccraClock() {
+  const [now, setNow] = useState(() => new Date())
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 15000)
+    return () => clearInterval(id)
+  }, [])
+  const parts = Object.fromEntries(ACCRA_NOW.formatToParts(now).map((p) => [p.type, p.value]))
+  return (
+    <p className="ce-clock">
+      <time dateTime={now.toISOString()}>
+        <span>{parts.weekday} {parts.day} {parts.month}</span>
+        <strong>{parts.hour}:{parts.minute} {String(parts.dayPeriod ?? '').toUpperCase()}</strong>
+      </time>
+    </p>
+  )
+}
+
+const ENTRY_STEPS = ['Staff ID', 'Face scan', 'Done']
+
 /**
  * Attendance check-in / check-out: enter a Staff ID, scan a face, see the result.
  * The server decides what is allowed, compares the face and sets the time.
  * An employee completes at most one check-in and one check-out per day.
  */
-export default function AttendanceCheckIn({ onBack }) {
+/**
+ * `kiosk` = running as the installed app: there is no home page to go back
+ * to, so the first step has no Back button and "Done" starts over.
+ */
+export default function AttendanceCheckIn({ onBack, kiosk = false }) {
   const [step, setStep] = useState(STEP.staffId)
   const [staffId, setStaffId] = useState('')
   const [employee, setEmployee] = useState(null)
@@ -175,7 +204,7 @@ export default function AttendanceCheckIn({ onBack }) {
   const actionLabel = nextAction === 'check-in' ? 'Check In' : 'Check Out'
 
   return (
-    <main className="registration-page">
+    <main className={`registration-page${step === STEP.staffId || step === STEP.scan ? ' checkin-entry' : ''}`}>
       <div className="registration-shell">
         <header className="registration-brand">
           <span className="registration-brand-mark" aria-hidden="true">
@@ -185,12 +214,19 @@ export default function AttendanceCheckIn({ onBack }) {
         </header>
 
         {step === STEP.staffId && (
-          <section className="card">
-            <p className="step-eyebrow">Attendance</p>
-            <h2 className="step-title">Enter your Staff ID</h2>
+          <section className="card ce-card" aria-labelledby="ce-title">
+            <AccraClock />
+            <ol className="ce-steps" aria-label="Steps">
+              {ENTRY_STEPS.map((label, i) => (
+                <li key={label} className={i === 0 ? 'is-current' : ''} aria-current={i === 0 ? 'step' : undefined}>
+                  <span aria-hidden="true">{i + 1}</span>{label}
+                </li>
+              ))}
+            </ol>
+            <h2 className="step-title" id="ce-title">Enter your Staff ID</h2>
             <p className="step-description">
-              Enter the Staff ID you received at registration, then verify your
-              face to check in or out.
+              Use the ID you got at registration. Next, look at the camera to
+              clock in or out.
             </p>
 
             {site && (
@@ -212,11 +248,16 @@ export default function AttendanceCheckIn({ onBack }) {
               </label>
               <input
                 id="field-staffId"
-                className={`form-input ${error ? 'has-error' : ''}`}
+                className={`form-input ce-input ${error ? 'has-error' : ''}`}
                 type="text"
                 value={staffId}
                 placeholder="e.g. BFL-0001"
                 autoComplete="off"
+                autoCapitalize="characters"
+                autoCorrect="off"
+                spellCheck={false}
+                enterKeyHint="go"
+                aria-invalid={error ? true : undefined}
                 onChange={(e) => setStaffId(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleLookup()}
               />
@@ -232,9 +273,11 @@ export default function AttendanceCheckIn({ onBack }) {
             </div>
 
             <div className="step-actions">
-              <button type="button" className="btn btn-secondary" onClick={onBack}>
-                Back
-              </button>
+              {!kiosk && (
+                <button type="button" className="btn btn-secondary" onClick={onBack}>
+                  Back
+                </button>
+              )}
               <button
                 type="button"
                 className="btn btn-primary"
@@ -247,7 +290,12 @@ export default function AttendanceCheckIn({ onBack }) {
                     Checking…
                   </>
                 ) : (
-                  'Continue'
+                  <>
+                    Continue
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </>
                 )}
               </button>
             </div>
@@ -255,7 +303,7 @@ export default function AttendanceCheckIn({ onBack }) {
         )}
 
         {step === STEP.scan && employee && lockedOut && (
-          <section className="card">
+          <section className="card ce-card">
             <div className="face-mismatch" role="alert" style={{ marginTop: 0 }}>
               <span className="face-mismatch-icon" aria-hidden="true">
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
@@ -283,7 +331,7 @@ export default function AttendanceCheckIn({ onBack }) {
         )}
 
         {step === STEP.scan && employee && !lockedOut && (
-          <section className="card">
+          <section className="card ce-card">
             <p className="step-eyebrow">Attendance — {actionLabel}</p>
             <h2 className="step-title">Scan your face</h2>
             <p className="step-description">
