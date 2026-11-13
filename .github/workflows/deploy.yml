@@ -52,7 +52,7 @@ jobs:
           npm test
 
       - name: Install Vercel CLI
-        run: npm install --global vercel@48.6.6
+        run: npm install --global vercel@65.15.0
 
       - name: Deploy to Production
         id: deploy-prod
