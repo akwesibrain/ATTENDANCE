@@ -171,7 +171,15 @@ describe('post-launch SQL & route hardening invariants (#8, #9, #15)', () => {
     expect(migration).toContain('create policy hr_read on public.audit_events')
     expect(migration).toContain('<@ (select app_private.hr_company_ids())')
     expect(migration).toContain('t.%1$I is not distinct from m.%1$I')
-    expect(migration).toContain('employee_shop_changes_append_only')
+    expect(migration).toContain('drop trigger if exists employee_shop_changes_append_only on public.employee_shop_changes;')
+    expect(migration).toContain('drop trigger if exists employee_shop_changes_no_truncate on public.employee_shop_changes;')
+    expect(migration).toContain('create trigger employee_shop_changes_no_update')
+    expect(migration).toContain('before update on public.employee_shop_changes')
+    expect(migration).not.toContain('before update or delete on public.employee_shop_changes')
+    expect(migration).toContain(
+      'revoke update, delete, truncate on public.employee_shop_changes from public, anon, authenticated, service_role;',
+    )
+    expect(migration).toContain("raise exception 'Table % is insert-only', tbl;")
     expect(migration).toContain('revoke all on function app_private.write_audit(jsonb) from public, anon, authenticated;')
 
     // Removed unused live-tracking tables from apply_change writable allowlist.

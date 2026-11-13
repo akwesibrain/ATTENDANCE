@@ -5,7 +5,7 @@
 -- 4. Restrict company-less audit_events (cardinality(company_ids) = 0) to HR users with all companies.
 -- 5. Narrow public.apply_change writable/deletable tables to those actually mutated via applyChange,
 --    and match null fields safely with IS NOT DISTINCT FROM.
--- 6. Enforce append-only triggers on public.employee_shop_changes and revoke direct write_audit access.
+-- 6. Enforce insert-only / no-update protection on public.employee_shop_changes (allowing FK/admin delete cleanup) and revoke direct write_audit access.
 
 alter table public.tracking_sessions
   drop constraint if exists tracking_sessions_closed_reason_check;
@@ -147,6 +147,9 @@ declare
     'employee_shops', 'employee_shop_changes', 'shop_location_proposals'
   ];
   deletable constant text[] := array['holidays', 'display_secrets', 'employee_shops'];
+  insert_only constant text[] := array[
+    'attendance_correction_history', 'notification_history', 'employee_shop_changes'
+  ];
   op jsonb;
   tbl text;
   kind text;
@@ -166,6 +169,10 @@ begin
 
     if tbl is null or not (tbl = any (writable)) then
       raise exception 'Table % cannot be written', coalesce(tbl, '(none)');
+    end if;
+
+    if (tbl = any (insert_only)) and kind is distinct from 'insert' then
+      raise exception 'Table % is insert-only', tbl;
     end if;
 
     if kind in ('insert', 'upsert') then
@@ -241,15 +248,17 @@ $$;
 revoke all on function public.apply_change(jsonb, jsonb) from public, anon, authenticated;
 grant execute on function public.apply_change(jsonb, jsonb) to service_role;
 
--- Append-only protection for employee_shop_changes, matching audit_events / *_history.
+-- Prevent mutating employee_shop_changes rows via UPDATE (even under SECURITY DEFINER)
+-- and revoke UPDATE/DELETE/TRUNCATE from service_role and client roles, while allowing
+-- owner/admin DELETE for employee FK cleanup (employees.staff_id).
 drop trigger if exists employee_shop_changes_append_only on public.employee_shop_changes;
-create trigger employee_shop_changes_append_only
-  before update or delete on public.employee_shop_changes
+drop trigger if exists employee_shop_changes_no_truncate on public.employee_shop_changes;
+drop trigger if exists employee_shop_changes_no_update on public.employee_shop_changes;
+create trigger employee_shop_changes_no_update
+  before update on public.employee_shop_changes
   for each row execute function app_private.reject_change();
 
-drop trigger if exists employee_shop_changes_no_truncate on public.employee_shop_changes;
-create trigger employee_shop_changes_no_truncate
-  before truncate on public.employee_shop_changes
-  for each statement execute function app_private.reject_change();
+revoke update, delete, truncate on public.employee_shop_changes from public, anon, authenticated, service_role;
+grant select, insert on public.employee_shop_changes to service_role;
 
 revoke all on function app_private.write_audit(jsonb) from public, anon, authenticated;
