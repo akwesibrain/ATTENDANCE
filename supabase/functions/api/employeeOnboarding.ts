@@ -6,7 +6,7 @@
 import { Hono } from 'npm:hono@4.6.14'
 import type { Context } from 'npm:hono@4.6.14'
 import { enrollFace } from '../_shared/faceMatcher.ts'
-import { faceLinkRefusal } from '../_shared/rules/onboarding.js'
+import { faceLinkRefusal, LINK_UNUSABLE } from '../_shared/rules/onboarding.js'
 import { parseRegistration } from '../_shared/rules/registration.js'
 import { assertCompany, type HrEnv, type HrUser } from './auth.ts'
 import { ENROLLMENT_BUCKET, enrolNewFace, faceSample, readable, registerEmployee, shopListOf } from './enrolment.ts'
@@ -102,9 +102,9 @@ async function enrolLink(c: Context, limit: readonly [number, number]) {
 publicEnrolRoutes.get('/public/enroll/:token', async (c) => {
   const link = await enrolLink(c, LIMITS.enrolView)
   const employee = await must(
-    db.from('employees').select('staff_id, full_name, company_name').eq('staff_id', link.staff_id).maybeSingle(),
+    db.from('employees').select('staff_id, full_name, company_name, status').eq('staff_id', link.staff_id).maybeSingle(),
   )
-  if (!employee) throw new ApiError(404, 'Employee not found.')
+  if (!employee || employee.status !== 'ACTIVE') throw new ApiError(404, LINK_UNUSABLE)
   return c.json({ staffId: employee.staff_id, fullName: employee.full_name, companyName: employee.company_name })
 })
 
@@ -116,8 +116,8 @@ publicEnrolRoutes.post('/public/enroll/:token', async (c) => {
   const body = await readJson(c)
   if (body.biometricConsent !== true) throw invalid({ biometricConsent: 'Biometric consent is required to set up your face.' })
 
-  const employee = await must(db.from('employees').select('company_id').eq('staff_id', link.staff_id).maybeSingle())
-  if (!employee) throw new ApiError(404, 'Employee not found.')
+  const employee = await must(db.from('employees').select('company_id, status').eq('staff_id', link.staff_id).maybeSingle())
+  if (!employee || employee.status !== 'ACTIVE') throw new ApiError(404, LINK_UNUSABLE)
 
   const face = faceSample(body)
   const photoPath = `${employee.company_id}/${crypto.randomUUID()}.jpg`

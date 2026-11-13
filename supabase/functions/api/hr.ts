@@ -5,7 +5,7 @@
 
 import { Hono } from 'npm:hono@4.6.14'
 import type { Context } from 'npm:hono@4.6.14'
-import { faceProvider } from '../_shared/faceMatcher.ts'
+import { configuredFaceProvider } from '../_shared/faceMatcher.ts'
 import { smsProvider } from '../_shared/smsSender.ts'
 import { accraDateKey, formatAccraDate } from '../_shared/rules/accraTime.js'
 import { normalizeStaffId } from '../_shared/rules/checkin.js'
@@ -67,7 +67,7 @@ function audit(hr: HrUser, fields: Record<string, unknown>) {
  * Session
  * ------------------------------------------------------------------------ */
 
-hrRoutes.get('/me', (c) => c.json({ user: c.get('hr'), smsProvider: smsProvider(), faceProvider: faceProvider() }))
+hrRoutes.get('/me', (c) => c.json({ user: c.get('hr'), smsProvider: smsProvider(), faceProvider: configuredFaceProvider() }))
 
 hrRoutes.post('/signed-in', async (c) => {
   const hr = c.get('hr')
@@ -165,6 +165,7 @@ hrRoutes.post('/employees/:staffId/status', async (c) => {
     if (hasErrors(errors)) throw invalid(errors)
   }
 
+  const nowIso = new Date().toISOString()
   const show = (status: string, day: string | null) => ({
     Status: status === 'ACTIVE' ? 'Active' : 'Deactivated',
     'Last working day': day ? formatAccraDate(day) : 'Not set',
@@ -176,7 +177,7 @@ hrRoutes.post('/employees/:staffId/status', async (c) => {
     row: {
       status: active ? 'ACTIVE' : 'INACTIVE',
       left_on: leftOn,
-      details_updated_at: new Date().toISOString(),
+      details_updated_at: nowIso,
       details_updated_by: hr.name,
     },
   }], audit(hr, {
@@ -191,6 +192,36 @@ hrRoutes.post('/employees/:staffId/status', async (c) => {
     previous: show(emp.status, emp.left_on),
     next: show(active ? 'ACTIVE' : 'INACTIVE', leftOn),
   }))
+  if (!active) {
+    await Promise.all([
+      must(
+        db.from('tracking_sessions')
+          .update({ status: 'closed', closed_reason: 'deactivated', clock_out_at: nowIso, closed_at: nowIso })
+          .eq('staff_id', emp.staff_id)
+          .eq('status', 'open'),
+      ),
+      must(
+        db.from('tracking_latest')
+          .update({ session_status: 'closed', updated_at: nowIso })
+          .eq('staff_id', emp.staff_id)
+          .eq('session_status', 'open'),
+      ),
+      must(
+        db.from('setup_links')
+          .update({ cancelled_at: nowIso })
+          .eq('kind', 'face')
+          .eq('staff_id', emp.staff_id)
+          .is('used_at', null)
+          .is('cancelled_at', null),
+      ),
+      must(
+        db.from('verification_schedule')
+          .update({ result: 'cancelled', dispatched_at: nowIso })
+          .eq('employee_id', emp.staff_id)
+          .is('dispatched_at', null),
+      ),
+    ])
+  }
   later(syncNotifications())
   return c.json({ ok: true })
 })
@@ -1195,6 +1226,7 @@ hrRoutes.post('/audit/exports', async (c) => {
 
 hrRoutes.post('/settings/export', async (c) => {
   const hr = c.get('hr')
+  await assertAllCompanies(c)
   const settings = await loadSettings()
   const at = new Date().toISOString()
   await applyChange([sectionChange('data', { ...settings.data, lastConfigExportAt: at }, hr)], audit(hr, {

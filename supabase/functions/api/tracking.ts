@@ -10,6 +10,7 @@ import { Hono } from 'npm:hono@4.6.14'
 import type { Context } from 'npm:hono@4.6.14'
 import { randomToken } from '../_shared/rules/siteCode.js'
 import { MAX_POINTS_PER_REQUEST, screenPoints, trackingSessionRow } from '../_shared/rules/tracking.js'
+import { isEmployeeActive, MAX_BEARER_TOKEN_LENGTH, parseBearerToken } from './guards.ts'
 import { ApiError, clientIp, db, later, must, rateLimit, rpc, sha256Hex } from './lib.ts'
 import { closePastDays } from './trackingDays.ts'
 
@@ -21,7 +22,7 @@ const LIMITS = {
 } as const
 const MAX_BODY_BYTES = 64 * 1024
 
-type Employee = { staff_id: string; company_id: string; position: string }
+type Employee = { staff_id: string; company_id: string; position: string; status?: string }
 type Event = { date: string; occurred_at: string }
 type Kept = { latitude: number; longitude: number; accuracy: number | null; recorded_at: string; is_mock: boolean; flagged: 'mock' | 'speed' | null }
 type Screened = { keep: Kept[]; rejected: number; flags: { mock: number; speed: number } }
@@ -32,6 +33,7 @@ type Screened = { keep: Kept[]; rejected: number; flags: { mock: number; speed: 
  * tracking problem must never undo a check-in.
  */
 export async function openTrackingSession(employee: Employee, event: Event, closesAt: string) {
+  if (employee.status !== undefined && !isEmployeeActive(employee)) return null
   const token = randomToken(32)
   const row = trackingSessionRow(employee, event, closesAt, await sha256Hex(token))
   if (!row) return null
@@ -47,12 +49,12 @@ const sessionClosed = () => new ApiError(409, 'Location sharing has stopped beca
 
 /** The tracking token from `Authorization: Bearer …`. */
 export function bearerToken(c: Context) {
-  return (c.req.header('authorization') ?? '').replace(/^Bearer\s+/i, '').trim()
+  return parseBearerToken(c.req.header('authorization'))
 }
 
 /** The session a tracking token belongs to; 401 for an unknown token. */
 export async function sessionFor(token: string) {
-  const session = token
+  const session = token && token.length <= MAX_BEARER_TOKEN_LENGTH
     ? await must(db.from('tracking_sessions').select('*').eq('token_hash', await sha256Hex(token)).maybeSingle())
     : null
   if (!session) throw new ApiError(401, 'This location sharing link is not valid.', { code: 'invalid_token' })
@@ -61,13 +63,22 @@ export async function sessionFor(token: string) {
 
 /**
  * Refuses a closed session with 409 session_closed. A session past its closing
- * time (no clock-out) is closed first, as the end of the working day.
+ * time (no clock-out) or belonging to an inactive employee is closed first.
  */
 export async function assertSessionOpen(session: { id: string; staff_id: string; date: string; status: string; closes_at: string }, now: Date) {
   if (session.status === 'closed') throw sessionClosed()
+  const nowIso = now.toISOString()
   if (now.getTime() >= Date.parse(session.closes_at)) {
     await must(db.from('tracking_sessions')
-      .update({ status: 'closed', closed_reason: 'day-end', closed_at: now.toISOString() })
+      .update({ status: 'closed', closed_reason: 'day-end', closed_at: nowIso })
+      .eq('id', session.id).eq('status', 'open'))
+    await must(db.from('tracking_latest').update({ session_status: 'closed' }).eq('staff_id', session.staff_id).eq('date', session.date))
+    throw sessionClosed()
+  }
+  const employee = await must(db.from('employees').select('status').eq('staff_id', session.staff_id).maybeSingle())
+  if (!isEmployeeActive(employee)) {
+    await must(db.from('tracking_sessions')
+      .update({ status: 'closed', closed_reason: 'deactivated', clock_out_at: nowIso, closed_at: nowIso })
       .eq('id', session.id).eq('status', 'open'))
     await must(db.from('tracking_latest').update({ session_status: 'closed' }).eq('staff_id', session.staff_id).eq('date', session.date))
     throw sessionClosed()
