@@ -1,0 +1,12 @@
+node_modules
+dist
+dist-ssr
+public/face-models
+mobile-screenshots
+shots
+.env
+.env.*
+!.env.example
+supabase/.temp
+supabase/.branches
+

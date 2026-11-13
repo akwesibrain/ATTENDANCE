@@ -41,3 +41,7 @@ src/config/hrLogin.js
 
 # Mobile layout check output
 mobile-screenshots/
+
+# Vercel CLI state
+.vercel
+
