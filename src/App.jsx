@@ -1,6 +1,7 @@
 import { Suspense, lazy, useEffect, useState } from 'react'
 import Home from './pages/Home'
 import { PageSkeleton } from './components/common/Skeletons'
+import { isInstalled } from './utils/installPrompt'
 
 // Each part of the app is downloaded only when it is opened, so the home
 // screen and the check-in flow load fast and employees never download the HR
@@ -72,7 +73,23 @@ function App() {
 }
 
 function Portal() {
-  const [view, setView] = useState(viewFromLocation)
+  // Opened from the home-screen icon: the app is the attendance kiosk only.
+  // It always starts at "Enter your Staff ID" and there is no way back to
+  // the home page (no Back button, and the phone's back gesture is held).
+  const [installed] = useState(isInstalled)
+  const [view, setView] = useState(() => (installed ? VIEW.attendance : viewFromLocation()))
+  // Bumped after each check-in/out so the next person starts on a fresh Staff ID screen.
+  const [round, setRound] = useState(0)
+
+  useEffect(() => {
+    if (!installed) return undefined
+    const here = `/attendance${window.location.search}`
+    window.history.replaceState(null, '', here)
+    window.history.pushState(null, '', here)
+    const hold = () => window.history.pushState(null, '', here)
+    window.addEventListener('popstate', hold)
+    return () => window.removeEventListener('popstate', hold)
+  }, [installed])
 
   // Keep the URL in sync so each page has a shareable link.
   useEffect(() => {
@@ -82,13 +99,24 @@ function Portal() {
     }
   }, [view])
 
-  // Support browser back/forward buttons.
+  // Support browser back/forward buttons (not in the installed app).
   useEffect(() => {
+    if (installed) return undefined
     const onPopState = () => setView(viewFromLocation())
     window.addEventListener('popstate', onPopState)
     return () => window.removeEventListener('popstate', onPopState)
-  }, [])
+  }, [installed])
 
+  if (installed) {
+    return (
+      <>
+        <Suspense fallback={<PageSkeleton label="Loading attendance" />}>
+          <AttendanceCheckIn key={round} kiosk onBack={() => setRound((r) => r + 1)} />
+        </Suspense>
+        <Suspense fallback={null}><LocationSharingBar /></Suspense>
+      </>
+    )
+  }
   if (view === VIEW.hr) {
     return <Suspense fallback={<PageSkeleton variant="hr" label="Loading the HR portal" />}><HrDashboard onBack={() => setView(VIEW.home)} /></Suspense>
   }

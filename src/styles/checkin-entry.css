@@ -1,0 +1,157 @@
+/* ------------------------------------------------------------------
+   Attendance: "Enter your Staff ID" and "Scan your face" screens.
+   The Double A logo fills the page behind the form. The form sits in the
+   middle of the screen (a little above the middle on phones, where the
+   keyboard and the thumb are).
+------------------------------------------------------------------- */
+
+.checkin-entry {
+  --ce-navy: #1f2a4d;   /* the dark A in the logo */
+  --ce-sky: #1aa3e8;    /* the light A in the logo */
+  position: relative;
+  isolation: isolate;
+  min-height: 100dvh;
+  background: var(--ground);
+  padding-bottom: max(24px, env(safe-area-inset-bottom));
+}
+
+/* The logo, large, centred behind the form. */
+.checkin-entry::before {
+  content: '';
+  position: fixed;
+  z-index: -1;
+  inset: 0;
+  pointer-events: none;
+  background: url('../assets/double-a-watermark.webp') no-repeat 50% 44%;
+  background-size: min(124vw, 980px, 150vh) auto;
+  opacity: 0.55;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .checkin-entry::before { animation: ce-logo-in 900ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+}
+@keyframes ce-logo-in {
+  from { opacity: 0; transform: scale(1.04); }
+  to { opacity: 0.55; transform: none; }
+}
+
+.checkin-entry .registration-brand { color: var(--ce-navy); }
+.checkin-entry .registration-brand-mark { background: var(--ce-navy); }
+
+/* Centre the form in the space under the brand bar. On phones the extra
+   space below lifts it a little above the middle. */
+.checkin-entry .registration-shell { flex: 1; max-width: 480px; padding-bottom: 9vh; }
+.checkin-entry .ce-card {
+  margin-block: auto;
+  background: rgba(255, 255, 255, 0.82);
+  border-color: rgba(31, 42, 77, 0.1);
+  box-shadow: 0 1px 2px rgba(31, 42, 77, 0.06), 0 18px 40px -12px rgba(31, 42, 77, 0.22);
+  padding: 24px 22px 22px;
+}
+/* Phones: the card covers most of the logo, so let more of it through. */
+@media (max-width: 719px) {
+  .checkin-entry::before { opacity: 0.85; background-size: 118vw auto; background-position: 50% 40%; }
+  @keyframes ce-logo-in { from { opacity: 0; transform: scale(1.04); } to { opacity: 0.85; transform: none; } }
+  .checkin-entry .ce-card { background: rgba(255, 255, 255, 0.7); }
+}
+@media (min-width: 720px) {
+  .checkin-entry .registration-shell { padding-bottom: 0; }
+  .checkin-entry .ce-card { padding: 28px; }
+}
+
+.checkin-entry .step-title { color: var(--ce-navy); font-size: 26px; letter-spacing: -0.01em; }
+.checkin-entry .step-description { margin-bottom: 20px; }
+.checkin-entry .form-label { color: var(--ce-navy); }
+
+/* Date and time in Accra */
+.ce-clock { margin-bottom: 18px; }
+.ce-clock time {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 14px;
+  color: var(--ink-2);
+}
+.ce-clock strong {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--ce-navy);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* 1 Staff ID · 2 Face scan · 3 Done */
+.ce-steps {
+  list-style: none;
+  display: flex;
+  gap: 6px;
+  margin: 0 0 16px;
+  padding: 0 0 16px;
+  border-bottom: 1px solid var(--rule);
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.ce-steps { flex-wrap: wrap; row-gap: 8px; }
+.ce-steps li { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.ce-steps li + li::before {
+  content: '';
+  width: 14px;
+  height: 1px;
+  margin-right: 2px;
+  background: var(--rule-strong);
+}
+.ce-steps span {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid var(--rule-strong);
+  font-size: 11px;
+  font-weight: 700;
+}
+.ce-steps .is-current { color: var(--ce-navy); font-weight: 700; }
+.ce-steps .is-current span { background: var(--ce-navy); border-color: var(--ce-navy); color: #fff; }
+
+/* The Staff ID field: big, upper-case, easy to check at a glance. */
+.checkin-entry .ce-input {
+  min-height: 60px;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+  color: var(--ce-navy);
+  border-width: 1.5px;
+  border-color: #c9d5e6;
+  background: #fff;
+}
+.checkin-entry .ce-input::placeholder {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 400;
+  font-size: 18px;
+  color: #7d8ea8;
+}
+.checkin-entry .ce-input:focus {
+  border-color: var(--ce-sky);
+  box-shadow: 0 0 0 4px rgba(26, 163, 232, 0.2);
+  outline: none;
+}
+
+.checkin-entry .step-actions { margin-top: 20px; }
+.checkin-entry .btn-primary {
+  min-height: 56px;
+  font-size: 17px;
+  background: var(--ce-navy);
+}
+.checkin-entry .btn-primary:hover:not(:disabled) { background: #141c36; }
+.checkin-entry .btn-primary:disabled { opacity: 1; background: #b9c2d3; color: #fff; }
+.checkin-entry .btn-primary svg { transition: transform 160ms var(--ease-out); }
+.checkin-entry .btn-primary:hover:not(:disabled) svg { transform: translateX(3px); }
+
+@media print {
+  .checkin-entry::before,
+  .checkin-entry::after { display: none; }
+}
